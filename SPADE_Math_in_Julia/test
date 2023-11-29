@@ -1,0 +1,47 @@
+using LinearAlgebra
+using Plots
+
+# Define the given covariance matrices Cx and Cy
+w_size = 3
+x = rand(w_size, w_size)
+y = rand(w_size, w_size)
+Cx = x*x'
+Cy = y*y'
+# Calculate the covariance matrix C as the sum of Cx and Cy
+C = Cx + Cy
+
+P, W = eigen(C)
+P = diagm(P)^(-1/2)
+Ctran = P'*W' * C * W *P
+
+# Calculate Kx and Ky
+Kx = P' * W' * Cx * W * P
+Ky = P' * W' * Cy * W * P
+
+# Perform eigenvalue decomposition on Ky
+Dy, Zy = eigen(Ky)
+Dy = diagm(Dy)
+
+# Define V as WPZy
+V = W * P * Zy
+
+# Calculate V'CxV and V'CyV
+result1 = V' * Cx * V
+result2 = V' * Cy * V
+# Calculate I - Dy
+identity_minus_Dy = I - Dy
+
+# Display the results
+println("V'CxV:")
+println(result1)
+println("I - Dy:")
+println(identity_minus_Dy)
+println("V'CyV:")
+println(result2)
+println("Dy:")
+println(Dy)
+println("Reconstructed Cy:")
+println(W * inv(P) * Zy * Dy * (Zy'*inv(P)*W'))
+println("Cy:")
+println(Cy)
+
