@@ -252,8 +252,11 @@ if __name__ == "__main__":
     ngroups = 3
     nshared = 2
     nfilters = 2
+    sublevel = False
+    noise = 0.3
+    compfreq = 5
     # Generate Data
-    allgroups, locations = makesubjects(ngroups=ngroups,nparcels=parcels,nsamples=samples,maxp=5,nshared=nshared,general_noise_variance=0.3)
+    allgroups, locations = makesubjects(ngroups=ngroups,nparcels=parcels,nsamples=samples,maxp=compfreq,nshared=nshared,general_noise_variance=noise)
 
     # TODO Demean and normalize all data
     # scaler = StandardScaler()
@@ -271,7 +274,6 @@ if __name__ == "__main__":
     # Arbitrarily pick the first group to be the typical group
     typical = avgcovs[0]
     # Compare subject to group For group to group
-    sublevel = False
     if sublevel:
         FCs = covs[1:]
     else:
@@ -304,17 +306,15 @@ if __name__ == "__main__":
     run_kmeans_and_visualize(PCAdualregresseddata, elbow-1, 'Clustering on Group PCA Dual Regression of Filters')
     
     # Clustering on SubLevel ICA on Filters
-    ICAsubdualregresseddata = []
+    ICAsubleveldata = []
     for i in range(0, len(allsubsfilters), nfilters):
         # Select two consecutive rows
         two_rows = allsubsfilters[i:i+nfilters]
         # Perform your operations on the selected two rows
         subcomp,_ = ICA(two_rows,locations,nfilters)
-        ICAsubtimedualregressed = two_rows @ subcomp
-        ICAsubspacedualregressed = two_rows.T @ ICAsubtimedualregressed
-        ICAsubdualregresseddata.append(ICAsubspacedualregressed.flatten())
-    ICAsubdualregresseddata = np.array(ICAsubdualregresseddata)
-    run_kmeans_and_visualize(ICAsubdualregresseddata, elbow-1, 'Clustering on Sublevel ICA of Filters')
+        ICAsubleveldata.append(subcomp.flatten())
+    ICAsubleveldata = np.array(ICAsubleveldata)
+    run_kmeans_and_visualize(ICAsubleveldata, elbow-1, 'Clustering on Sublevel ICA of Filters')
 
     # Group ICA on Filters
     components, _ = ICA(allsubsfilters,locations,elbow)
@@ -339,6 +339,29 @@ if __name__ == "__main__":
     GroupICAdualregresseddata = np.array(GroupICAdualregresseddata)
     run_kmeans_and_visualize(GroupICAdualregresseddata, elbow-1, 'Clustering on Group ICA Dual Regression of Filters')
 
+    if not sublevel:
+        allfilters = reshapefilters(filters)
+        allfiltersprincipalcomponents, allfilterselbow = PCAscree(allfilters)
+        # Apply ICA to identify spatial components TODO make ICA actually blind uing PCA elbow with correct threshold
+        filterscomponents, _ = ICA(allsubsfilters,locations,ngroups)
+        plt.figure()
+        plt.subplot(1,2,1)
+        plt.imshow(locations,aspect='auto')
+        plt.title("Original Locations")
+        plt.subplot(1,2,2)
+        plt.imshow(abs(filterscomponents),aspect='auto')
+        plt.title("Group SPADE ICA of Group Filters")
+        plt.show()
+
+        SPADEdualregresseddata = []
+        for group in allgroups:
+            for sub in group[1]:
+                sub = np.array(sub)
+                timedualregressed = allfiltersprincipalcomponents.T@sub
+                spacedualregressed = sub@timedualregressed.T
+                SPADEdualregresseddata.append(spacedualregressed.flatten())
+        SPADEdualregresseddata = np.array(SPADEdualregresseddata)
+        run_kmeans_and_visualize(SPADEdualregresseddata, elbow-1, 'Cluster Group SPADE ICA Dual Regressed')
 
     # # # TODO Figure Out Baseline Dual Regression Method: Currently stuck reducing sample size
     alldata = []
