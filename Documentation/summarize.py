@@ -91,20 +91,22 @@ def update_code_qt_sheet():
                                 if f'* [ ] {question}' not in allcontent[targetsum]:
                                     # Add the unchecked question to code-qt.md
                                      allcontent[targetsum] += f'* [ ] {question}\n'
+                            
+                            checked_questions = re.findall(r'\* \[x\] (.+)', page_content)
+                            for question in checked_questions:
+                                if f'* [ ] {question}' in allcontent[targetsum]:
+                                    allcontent[targetsum] = allcontent[targetsum].replace(f'* [ ] {question}\n', '')
+                            
+                            checked_questions_sum = re.findall(r'\* \[x\] (.+)', allcontent[targetsum])
+                            for question in checked_questions_sum:
+                                if f'* [ ] {question}' in page_content:
+                                    page_content = page_content.replace(f'* [ ] {question}\n', '')
+                                if f'* [x] {question}' in allcontent[targetsum]:
+                                    allcontent[targetsum] = allcontent[targetsum].replace(f'* [x] {question}\n', '')
 
-                #             # Mark checked tasks in the original page
-                #             checked_code_questions = re.findall(r'\* \[x\] (.+)', page_content)
-                #             for question in checked_code_questions:
-                #                 # Check if the question is in the code-qt.md sheet
-                #                 if f'* [ ] {question}' in code_qt_content:
-                #                     # Remove the checked question from code-qt.md
-                #                     code_qt_content = code_qt_content.replace(f'* [ ] {question}\n', '')
-                #                 # Mark the question as checked in the original page
-                #                 page_content = page_content.replace(f'* [ ] {question}', f'* [x] {question}')
-
-                # # Write the updated content back to the original page
-                # with open(page_path, 'w') as file:
-                #     file.write(page_content)
+                # Write the updated content back to the original page
+                with open(page_path, 'w') as file:
+                    file.write(page_content)
 
     with open(code_qt_path, 'w') as file:
         file.write(allcontent[0])
