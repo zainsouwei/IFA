@@ -11,7 +11,9 @@ def extract_tasks(section_content):
     return re.findall(r'\* \[ \] (.+)', section_content)
 
 def extract_bullet_points(section_content):
-    return re.findall(r'\* (.+)', section_content)
+    # Use a regular expression to capture bullet points with indentation
+    return re.findall(r'^(\s*\*\s+.+)$', section_content, flags=re.MULTILINE)
+
 
 def extract_section(markdown_content, section_header,section_ender=""):
     # Construct the regular expression pattern
