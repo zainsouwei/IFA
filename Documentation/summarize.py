@@ -10,9 +10,12 @@ def read_page_content(page_path):
 def extract_tasks(section_content):
     return re.findall(r'\* \[ \] (.+)', section_content)
 
+def extract_bullet_points(section_content):
+    return re.findall(r'\* (.+)', section_content)
+
 def extract_section(markdown_content, section_header,section_ender=""):
     # Construct the regular expression pattern
-    pattern = r'{}\s*\n(.*?)(?=\n##{}|$)'.format(section_header, section_ender)
+    pattern = r'{}(.*?)(?=\n##{}|$)'.format(section_header, section_ender)
     
     # Use re.search to find the section
     section_match = re.search(pattern, markdown_content, re.DOTALL)
@@ -28,10 +31,26 @@ def update_code_qt_sheet():
     # Define paths with raw strings
     directory = r"C:\Users\zaisou\Desktop\ICASPADE\Documentation"
     code_qt_path = os.path.join(directory, 'code-qt.md')
+    algorithm_qt_path = os.path.join(directory, 'algorithm-qt.md')
+    code_sum_path = os.path.join(directory, 'code-summary.md')
+    algorithm_sum_path = os.path.join(directory, 'algorithm-summary.md')
 
-    # Read content from the code-qt.md sheet
+    allcontent = []
     with open(code_qt_path, 'r') as file:
         code_qt_content = file.read()
+        allcontent.append(code_qt_content)
+
+    with open(algorithm_qt_path, 'r') as file:
+        algorithm_qt_content = file.read()
+        allcontent.append(algorithm_qt_content)
+    
+    with open(code_sum_path, 'r') as file:
+        code_sum_content = file.read()
+        allcontent.append(code_sum_content)
+    
+    with open(algorithm_sum_path, 'r') as file:
+        algorithm_sum_content = file.read()
+        allcontent.append(algorithm_sum_content)
 
     # Iterate through each page in the directory
     for page_name in os.listdir(directory):
@@ -42,37 +61,64 @@ def update_code_qt_sheet():
             # Read content from the page
             page_content = read_page_content(page_path)
             sections = [r'##\s*Algorithm',r'##\s*Code']
-            for section in sections:
+            for i, section in enumerate(sections):
                 section_content = extract_section(page_content, section,r'[^#]')
                 subsections = [r'###\s*Developments',r'###\s*Questions',r'###\s*ToDo']
-                for subsection in subsections:
+                for j, subsection in enumerate(subsections):
                     subsection_block = extract_section(section_content, subsection, r'#')
+                    if subsection_block:
+                        if j == 0:
+                            bullet_points = extract_bullet_points(subsection_block)
+                            if i == 0:
+                                targetbulletpage = 3
+                            else:
+                               targetbulletpage = 3
+                            for point in bullet_points:
+                                if f'* {point}' not in allcontent[targetbulletpage]:
+                                    allcontent[targetbulletpage] += f'* {point}\n'
+                        else:
+                            unchecked = extract_tasks(subsection_block)
+                            # alg_q_content
+                            if i == 0 and j == 1:
+                                target_qt_content = extract_section(algorithm_qt_content, r'##\s*Questions',r'[^#]')
+                            # alg_t_content
+                            elif i == 0 and j == 2:
+                                target_qt_content = extract_section(algorithm_qt_content, r'##\s*ToDo',r'[^#]')
+                            # code_q_content
+                            elif i == 1 and j == 1:
+                                target_qt_content = extract_section(code_qt_content, r'##\s*Questions',r'[^#]')
+                            # code_t_content
+                            elif i == 1 and j == 2:
+                                target_qt_content = extract_section(code_qt_content, r'##\s*ToDo',r'[^#]')
+                            
+                            for question in unchecked:
+                                # Check if the question is already in the code-qt.md sheet
+                                if f'* [ ] {question}' not in target_qt_content:
+                                    # Add the unchecked question to code-qt.md
+                                     target_qt_content += f'* [ ] {question}\n'
 
-            if subsection_block:
-                unchecked_code_questions = extract_tasks(subsection_block)
-                for question in unchecked_code_questions:
-                    # Check if the question is already in the code-qt.md sheet
-                    if f'* [ ] {question}' not in code_qt_content:
-                        # Add the unchecked question to code-qt.md
-                        code_qt_content += f'* [ ] {question}\n'
+                #             # Mark checked tasks in the original page
+                #             checked_code_questions = re.findall(r'\* \[x\] (.+)', page_content)
+                #             for question in checked_code_questions:
+                #                 # Check if the question is in the code-qt.md sheet
+                #                 if f'* [ ] {question}' in code_qt_content:
+                #                     # Remove the checked question from code-qt.md
+                #                     code_qt_content = code_qt_content.replace(f'* [ ] {question}\n', '')
+                #                 # Mark the question as checked in the original page
+                #                 page_content = page_content.replace(f'* [ ] {question}', f'* [x] {question}')
 
-                # Mark checked tasks in the original page
-                checked_code_questions = re.findall(r'\* \[x\] (.+)', page_content)
-                for question in checked_code_questions:
-                    # Check if the question is in the code-qt.md sheet
-                    if f'* [ ] {question}' in code_qt_content:
-                        # Remove the checked question from code-qt.md
-                        code_qt_content = code_qt_content.replace(f'* [ ] {question}\n', '')
-                    # Mark the question as checked in the original page
-                    page_content = page_content.replace(f'* [ ] {question}', f'* [x] {question}')
+                # # Write the updated content back to the original page
+                # with open(page_path, 'w') as file:
+                #     file.write(page_content)
 
-                # Write the updated content back to the original page
-                with open(page_path, 'w') as file:
-                    file.write(page_content)
-
-    # Write the updated content back to the code-qt.md sheet
     with open(code_qt_path, 'w') as file:
         file.write(code_qt_content)
+    with open(algorithm_qt_path, 'w') as file:
+        file.write(algorithm_qt_content)
+    with open(code_sum_path, 'w') as file:
+        file.write(allcontent[2])
+    with open(algorithm_sum_path, 'w') as file:
+        file.write(allcontent[3])
 
 # Run the update_code_qt_sheet function
 update_code_qt_sheet()
