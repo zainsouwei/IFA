@@ -1,6 +1,6 @@
 # Algorithm Questions
 
-* [x] Are the [spatial filters](https://github.com/zainsouwei/ICASPADE/blob/21adaa891aab69852804d4ae05bb6f2460be63d4/simulate\_time.py#L81C1-L83C6) always orthogonal with our data?
+* [ ] Are the [spatial filters](https://github.com/zainsouwei/ICASPADE/blob/21adaa891aab69852804d4ae05bb6f2460be63d4/simulate\_time.py#L81C1-L83C6) always orthogonal with our data?
 * [ ] Are SPADE Filters orthogonal
 * [ ] How to best generalize to individual/no reference group case
 * [ ] LDA vs FKT vs LDA/FKT vs Bhattacharyya distance/Fischer Discriminant Criteria
