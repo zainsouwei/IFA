@@ -79,34 +79,51 @@ def update_code_qt_sheet():
                                 allcontent[targetsum] +=  f'\n##{title}'
                                 allcontent[targetsum] +=  f'{subsection_block}'
                         else:
-                            unchecked = extract_tasks(subsection_block)
                             # alg_q_content
                             if i == 0:
                                 targetsum = 1
                             # code_q_content
                             elif i == 1:
                                 targetsum = 0
+                            
+                            # Add unchecked to the summary sheet
+                            unchecked = extract_tasks(subsection_block)
                             for question in unchecked:
-                                # Check if the question is already in the code-qt.md sheet
-                                if f'* [ ] {question}' not in allcontent[targetsum]:
+                                # Check if that the question is not in the summary sheet
+                                if f'{question}' not in allcontent[targetsum]:
                                     # Add the unchecked question to code-qt.md
                                      allcontent[targetsum] += f'* [ ] {question}\n'
                             
-                            checked_questions = re.findall(r'\* \[x\] (.+)', page_content)
+                            # In case I checked the question in the original page, remove it from the summary sheet 
+                            checked_questions = re.findall(r'\* \[x\] (.+)', subsection_block)
                             for question in checked_questions:
                                 if f'* [ ] {question}' in allcontent[targetsum]:
                                     allcontent[targetsum] = allcontent[targetsum].replace(f'* [ ] {question}\n', '')
-                            
-                            checked_questions_sum = re.findall(r'\* \[x\] (.+)', allcontent[targetsum])
-                            for question in checked_questions_sum:
-                                if f'* [ ] {question}' in page_content:
-                                    page_content = page_content.replace(f'* [ ] {question}\n', '')
-                                if f'* [x] {question}' in allcontent[targetsum]:
-                                    allcontent[targetsum] = allcontent[targetsum].replace(f'* [x] {question}\n', '')
-
-                # Write the updated content back to the original page
-                with open(page_path, 'w') as file:
-                    file.write(page_content)
+    
+    # Checked Questions in the Summary Sheets
+    for i in range(0,2):
+        checked_questions_sum = re.findall(r'\* \[x\] (.+)', allcontent[i])
+        
+        # Remove from summary sheet
+        for question in checked_questions_sum:
+                if f'* [x] {question}' in allcontent[i]:
+                    allcontent[i] = allcontent[i].replace(f'* [x] {question}\n', '')
+        
+        # Mark as done in original page
+        for page_name in os.listdir(directory):
+            if page_name.endswith(".md") and re.search(r'\d{4}\.\d{2}\.\d{2}', page_name):
+                # Construct the full path to the page
+                page_path = os.path.join(directory, page_name)
+                # Read content from the page
+                page_content = read_page_content(page_path)
+                
+                # Find the checked questions in the page and mark them as checked 
+                for question in checked_questions_sum:
+                    if f'* [ ] {question}' in page_content:
+                        page_content = page_content.replace(f'* [ ] {question}\n', f'* [x] {question}\n')
+            
+            with open(page_path, 'w') as file:
+                file.write(page_content)
 
     with open(code_qt_path, 'w') as file:
         file.write(allcontent[0])
