@@ -1,5 +1,0 @@
-# Algorithm QT
-
-## Questions
-
-## ToDo

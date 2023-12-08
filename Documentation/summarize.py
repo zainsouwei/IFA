@@ -32,8 +32,8 @@ def extract_section(markdown_content, section_header,section_ender=""):
 def update_code_qt_sheet():
     # Define paths with raw strings
     directory = r"C:\Users\zaisou\Desktop\ICASPADE\Documentation"
-    code_qt_path = os.path.join(directory, 'code-qt.md')
-    algorithm_qt_path = os.path.join(directory, 'algorithm-qt.md')
+    code_qt_path = os.path.join(directory, 'code-todo.md')
+    algorithm_qt_path = os.path.join(directory, 'algorithm-questions.md')
     code_sum_path = os.path.join(directory, 'code-summary.md')
     algorithm_sum_path = os.path.join(directory, 'algorithm-summary.md')
 
@@ -71,33 +71,26 @@ def update_code_qt_sheet():
                     if subsection_block:
                         if j == 0:
                             if i == 0:
-                                targetbulletpage = 3
+                                targetsum = 3
                             else:
-                               targetbulletpage = 3
+                               targetsum = 3
                             title =  re.search(r'#(.*?)(?=\n)', page_content, re.DOTALL).group(1)
-                            if f'{title}' not in allcontent[targetbulletpage]:
-                                allcontent[targetbulletpage] +=  f'\n##{title}'
-                                allcontent[targetbulletpage] +=  f'{subsection_block}'
+                            if f'{title}' not in allcontent[targetsum]:
+                                allcontent[targetsum] +=  f'\n##{title}'
+                                allcontent[targetsum] +=  f'{subsection_block}'
                         else:
                             unchecked = extract_tasks(subsection_block)
                             # alg_q_content
-                            if i == 0 and j == 1:
-                                target_qt_content = extract_section(algorithm_qt_content, r'##\s*Questions',r'[^#]')
-                            # alg_t_content
-                            elif i == 0 and j == 2:
-                                target_qt_content = extract_section(algorithm_qt_content, r'##\s*ToDo',r'[^#]')
+                            if i == 0:
+                                targetsum = 1
                             # code_q_content
-                            elif i == 1 and j == 1:
-                                target_qt_content = extract_section(code_qt_content, r'##\s*Questions',r'[^#]')
-                            # code_t_content
-                            elif i == 1 and j == 2:
-                                target_qt_content = extract_section(code_qt_content, r'##\s*ToDo',r'[^#]')
-                            
+                            elif i == 1:
+                                targetsum = 0
                             for question in unchecked:
                                 # Check if the question is already in the code-qt.md sheet
-                                if f'* [ ] {question}' not in target_qt_content:
+                                if f'* [ ] {question}' not in allcontent[targetsum]:
                                     # Add the unchecked question to code-qt.md
-                                     target_qt_content += f'* [ ] {question}\n'
+                                     allcontent[targetsum] += f'* [ ] {question}\n'
 
                 #             # Mark checked tasks in the original page
                 #             checked_code_questions = re.findall(r'\* \[x\] (.+)', page_content)
@@ -114,9 +107,9 @@ def update_code_qt_sheet():
                 #     file.write(page_content)
 
     with open(code_qt_path, 'w') as file:
-        file.write(code_qt_content)
+        file.write(allcontent[0])
     with open(algorithm_qt_path, 'w') as file:
-        file.write(algorithm_qt_content)
+        file.write(allcontent[1])
     with open(code_sum_path, 'w') as file:
         file.write(allcontent[2])
     with open(algorithm_sum_path, 'w') as file:

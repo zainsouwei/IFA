@@ -1,5 +1,0 @@
-# Code QT
-
-## Questions
-
-## ToDo
