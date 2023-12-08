@@ -70,14 +70,14 @@ def update_code_qt_sheet():
                     subsection_block = extract_section(section_content, subsection, r'#')
                     if subsection_block:
                         if j == 0:
-                            bullet_points = extract_bullet_points(subsection_block)
                             if i == 0:
                                 targetbulletpage = 3
                             else:
                                targetbulletpage = 3
-                            for point in bullet_points:
-                                if f'* {point}' not in allcontent[targetbulletpage]:
-                                    allcontent[targetbulletpage] += f'* {point}\n'
+                            title =  re.search(r'#(.*?)(?=\n)', page_content, re.DOTALL)
+                            if f'{title}' not in allcontent[targetbulletpage]:
+                                allcontent[targetbulletpage] +=  f'{title}'
+                                allcontent[targetbulletpage] +=  f'{subsection_block}'
                         else:
                             unchecked = extract_tasks(subsection_block)
                             # alg_q_content
