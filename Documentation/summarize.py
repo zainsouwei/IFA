@@ -76,7 +76,7 @@ def update_code_qt_sheet():
                                targetbulletpage = 3
                             title =  re.search(r'#(.*?)(?=\n)', page_content, re.DOTALL).group(1)
                             if f'{title}' not in allcontent[targetbulletpage]:
-                                allcontent[targetbulletpage] +=  f'{title}'
+                                allcontent[targetbulletpage] +=  f'\n##{title}'
                                 allcontent[targetbulletpage] +=  f'{subsection_block}'
                         else:
                             unchecked = extract_tasks(subsection_block)
