@@ -10,3 +10,6 @@
 * [ ] How should we be denoising? This method seems prone to site effects
 * [ ] What happens if all the discriminatory information is represented by higher-order information? I think it still might work in the case you view it as a linear approximation
 * [ ] What is our extension of SPADE/what part of the pipeline? What are the works related to it? How does it differ/what are the benefits of this method?
+* [ ] How to best generalize to individual/no reference group case?
+* [ ] Is the best way to generalize to no reference group case one v all, pairwise comparisons, or add all separate covariance matrices?
+* [ ] Look into group FKT paper
