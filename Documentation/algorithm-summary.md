@@ -33,3 +33,13 @@
   * Explanation - Current ICA
     * PROFUMO
     * Dictionary Learning
+
+## 2023.12.13
+
+* When adding future extensions/variants, can also look at different FCs
+  * [Life | Free Full-Text | Statistical Approaches to Identify Pairwise and High-Order Brain Functional Connectivity Signatures on a Single-Subject Basis (mdpi.com)](https://www.mdpi.com/2075-1729/13/10/2075)
+  * Hybrid high-order functional connectivity networks using resting-state functional mri for mild cognitive impairment diagnosis
+  * [EAG-RS: A Novel Explainability-guided ROI-Selection Framework for ASD Diagnosis via Inter-regional Relation Learning](https://arxiv.org/pdf/2310.03404.pdf)
+    * Has a lot of references of different FC methods
+* Can look at different spectral clustering methods outside of FKT (linear or nonlinear)
+  * Read [Open Problems in Spectral Dimensionality Reduction](https://link-springer-com.proxy.lib.umich.edu/book/10.1007/978-3-319-03943-5)
