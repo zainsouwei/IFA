@@ -43,3 +43,7 @@
     * Has a lot of references of different FC methods
 * Can look at different spectral clustering methods outside of FKT (linear or nonlinear)
   * Read [Open Problems in Spectral Dimensionality Reduction](https://link-springer-com.proxy.lib.umich.edu/book/10.1007/978-3-319-03943-5)
+
+## 2023.12.14
+
+*
