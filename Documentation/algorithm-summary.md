@@ -1,4 +1,5 @@
 # Algorithm Summary
+
 ## 2023.11.1-2023.11.28
 
 * When running SPADE, I used [abs() on the filters](https://github.com/zainsouwei/ICASPADE/blob/070a5d3ab2e6b09d2aee03aa106db90f8a5f71f2/simulate\_time.py#L83). Otherwise, the sign invariance of EVD caused structured symmetry within a group's cluster if SPADE was run on the subject level
@@ -17,8 +18,6 @@
 
     <figure><img src=".gitbook/assets/image (1).png" alt=""><figcaption></figcaption></figure>
 *   However our main pipeline/generation of the independent filter analysis is
-
-
 
     <figure><img src=".gitbook/assets/image (2).png" alt=""><figcaption></figcaption></figure>
 
@@ -46,4 +45,3 @@
 
 ## 2023.12.14
 
-*
