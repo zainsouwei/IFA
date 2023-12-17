@@ -8,6 +8,7 @@
 * [2023.12.13](2023.12.13.md)
 * [2023.12.14](2023.12.14.md)
 * [2023.12.15](2023.12.15.md)
+* [2023.12.17](2023.12.17.md)
 * [Code ToDo](code-todo.md)
 * [Algorithm Questions](algorithm-questions.md)
 * [Code Summary](code-summary.md)
