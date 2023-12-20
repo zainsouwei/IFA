@@ -61,3 +61,5 @@
 </div>
 
 <figure><img src=".gitbook/assets/image (8).png" alt=""><figcaption><p>MDS with Similarity Matrix Constructed Using Euclidean Distance</p></figcaption></figure>
+
+## 2023.12.17
