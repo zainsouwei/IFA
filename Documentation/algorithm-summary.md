@@ -16,10 +16,10 @@
 * The reason we do dual in SPADE ICA pipeline is because we are working with VEV' covairance matrix initially where in classic ICA we have the data and can project onto SVD components of choosing form UEV'
 *   All of these are valid/useful
 
-    <figure><img src=".gitbook/assets/image (1).png" alt=""><figcaption></figcaption></figure>
+    <figure><img src=".gitbook/assets/image (1) (1).png" alt=""><figcaption></figcaption></figure>
 *   However our main pipeline/generation of the independent filter analysis is
 
-    <figure><img src=".gitbook/assets/image (2).png" alt=""><figcaption></figcaption></figure>
+    <figure><img src=".gitbook/assets/image (2) (1).png" alt=""><figcaption></figcaption></figure>
 
     <figure><img src=".gitbook/assets/image (4).png" alt=""><figcaption></figcaption></figure>
 
@@ -44,7 +44,6 @@
   * Read [Open Problems in Spectral Dimensionality Reduction](https://link-springer-com.proxy.lib.umich.edu/book/10.1007/978-3-319-03943-5)
 
 ## 2023.12.14
-
 
 ## 2023.12.15
 
