@@ -31,7 +31,7 @@ def extract_section(markdown_content, section_header,section_ender=""):
 # Function to update the code-qt.md sheet
 def update_code_qt_sheet():
     # Define paths with raw strings
-    directory = r"C:\Users\zaisou\Desktop\ICASPADE\Documentation"
+    directory = r"C:\Users\zaisou\Desktop\IFA\Documentation"
     code_qt_path = os.path.join(directory, 'code-todo.md')
     algorithm_qt_path = os.path.join(directory, 'algorithm-questions.md')
     code_sum_path = os.path.join(directory, 'code-summary.md')

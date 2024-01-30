@@ -62,3 +62,42 @@
 <figure><img src=".gitbook/assets/image (8).png" alt=""><figcaption><p>MDS with Similarity Matrix Constructed Using Euclidean Distance</p></figcaption></figure>
 
 ## 2023.12.17
+
+## 2024.01.15
+
+* Whitening in ICA seems to increase performance and interpretability but still needs to be looked into further
+* Factors that influence the performance of FKT+ICA on semi-simulated data
+  * Simulated Signal-to-Noise Ratio
+  * Number of Parcels Containing Discriminate Signal
+    * FKT so far seems to be robust to the number of parcels whereas dual regression is not as robust
+  * Number of subjects containing discriminate signal
+    * This is related to signal to noise ratio due to averaging of covariance matrices
+  * Simulated signal to non-simulated signal ratio
+    * When adding the simulated signal to subjects, I have been multiplying the original signal in that voxel by a value \[0.0,1.0]
+    * Given the parcel(s) I have added the signal to is not noise
+      * When the value is 0, the non-semi-simulated filter from FKT is also significant. This is because I removed this signal from all the subjects to whom I added the simulated signal.
+      * When the value > 0, the non-semi-simulated filter becomes less discriminate because the semi-simulated data is similar to some aspects of the non-semi-simulated subjects since the semi-simulated data was created by adding a signal on top of a preexisting feature seen in all subjects
+      * If the simulated signal is added to multiple parcels and the parcels have different features or vastly different noise, this decreases the discriminate ability of the feature or splits the discriminate filter into multiple filters since this is a spatial decomposition more than it is a temporal decomposition&#x20;
+
+## 2024.01.17
+
+* Quantifying Variance/Discrimination
+  * Quantifying Discrimination of PCA on Group-Concatenated Data
+    * running PCA for model order selection and then FKT, and hopefully showing that as the model order is increased, FKT can find filters with higher discrimination (given the discriminatory information lies in the low variance eigenspace)
+  * Quantifying Variance of FKT
+    * quantify the amount of variance that the eigenvectors from the FKT after dual regression express of the full data (ie if you did an F-ratio test between the total projected data on the FKT vectors relative to the full variance)
+    * That way individual vectors do not matter and instead you are comparing the volume of the space collectively spanned by the FKT/’PCA vectors independent on how precisely they span that space
+
+## 2024.01.22
+
+
+
+## 2024.01.23
+
+## 2024.01.25
+
+* Covariance Edge Cases
+  * Group A has the same time series in parcels x,y,z. Group B has different time series in parcels x,y,z.&#x20;
+    * This will cause inv(groupA+groupB)\*Group A covariance matrix to have high off diagonal elements and low on diagonal elements on x,y,z which will result in one discriminant component for group A. However, inv(groupA+groupB)\*group B will have low off diagonal elements for parcels x,y,z but high elements on the diagonal for x,y,z which will cause group B to have 3 components. Since the 3 components from Group B can be used to form the component from Group A, ICA might split the Group A component
+  * Group A has the same time series in x,y,z, and Group B has the same time series in x,y,z. The time series between Group A and Group B are different but have the same total energy causing same covariance matrices
+  * Group A has the same time series in x,y,z and Group B has random noise in X,Y,Z. Random noise will have a higher variance and a lower covariance than other parcels, making it a more dominant feature in Group B than it is in Group A.
