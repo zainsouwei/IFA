@@ -1,20 +1,35 @@
 # Table of contents
 
 * [README](README.md)
-* [2023.11.1-2023.11.28](2023.11.1-2023.11.28.md)
-* [2023.11.29](2023.11.29.md)
-* [2023.12.05](2023.12.05.md)
-* [2023.12.08](2023.12.08.md)
-* [2023.12.13](2023.12.13.md)
-* [2023.12.14](2023.12.14.md)
-* [2023.12.15](2023.12.15.md)
-* [2023.12.17](2023.12.17.md)
-* [2024.01.15](2024.01.15.md)
-* [2024.01.17](2024.01.17.md)
-* [2024.01.22](2024.01.22.md)
-* [2024.01.23](2024.01.23.md)
-* [2024.01.25](2024.01.25.md)
-* [Code ToDo](code-todo.md)
-* [Algorithm Questions](algorithm-questions.md)
-* [Code Summary](code-summary.md)
-* [Algorithm Summary](algorithm-summary.md)
+
+## Daily Updates
+
+* [2023.11.1-2023.11.28](daily-updates/2023.11.1-2023.11.28.md)
+* [2023.11.29](daily-updates/2023.11.29.md)
+* [2023.12.05](daily-updates/2023.12.05.md)
+* [2023.12.08](daily-updates/2023.12.08.md)
+* [2023.12.13](daily-updates/2023.12.13.md)
+* [2023.12.14](daily-updates/2023.12.14.md)
+* [2023.12.15](daily-updates/2023.12.15.md)
+* [2023.12.17](daily-updates/2023.12.17.md)
+* [2024.01.15](daily-updates/2024.01.15.md)
+* [2024.01.17](daily-updates/2024.01.17.md)
+* [2024.01.22](daily-updates/2024.01.22.md)
+* [2024.01.23](daily-updates/2024.01.23.md)
+* [2024.01.25](daily-updates/2024.01.25.md)
+
+## Summarized Updates
+
+* [Code ToDo](summarized-updates/code-todo.md)
+* [Algorithm Questions](summarized-updates/algorithm-questions.md)
+* [Code Summary](summarized-updates/code-summary.md)
+* [Algorithm Summary](summarized-updates/algorithm-summary.md)
+
+***
+
+* [Literature Review](literature-review.md)
+
+## Method Details
+
+* [Math Overview](method-details/math-overview.md)
+* [Pipeline Overview](method-details/pipeline-overview.md)
