@@ -210,6 +210,8 @@
 
 [Manifold Regularized Principal Component Analysis Method Using L2,p-Norm](https://www.mdpi.com/2227-7390/10/23/4603)
 
+[Product Manifold Learning](https://arxiv.org/pdf/2010.09908.pdf)
+
 ## Maximum Margin Criterion & Difference of Classes
 
 [Efficient and robust feature extraction by maximum margin criterion | IEEE Journals & Magazine | IEEE Xplore (umich.edu)](https://ieeexplore-ieee-org.proxy.lib.umich.edu/document/1593700)
@@ -217,8 +219,6 @@
 [Maximum Margin Metric Learning Over Discriminative Nullspace for Person Re-identification (thecvf.com)](https://openaccess.thecvf.com/content\_ECCV\_2018/papers/T\_M\_Feroz\_Ali\_Maximum\_Margin\_Metric\_ECCV\_2018\_paper.pdf)
 
 [Domain Adaptation via Low Rank and Class Discriminative Representation for Autism Spectrum Disorder Identification: A Multi-Site fMRI Study](https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=10012442)
-
-[Product Manifold Learning](https://arxiv.org/pdf/2010.09908.pdf)
 
 ## Fukunaga Koontz Transform + Extensions
 
