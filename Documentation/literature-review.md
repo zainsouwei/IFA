@@ -74,6 +74,8 @@
 
 [A Generalized Kernel Approach to Dissimilarity-based Classification](https://www.jmlr.org/papers/volume2/pekalska01a/pekalska01a.pdf)
 
+[A Differential Geometric Approach to the Geometric Mean of Symmetric Positive-Definite Matrices](https://www.cis.upenn.edu/\~cis6100/geomean.pdf)
+
 ## FKT+fMRI
 
 [Identification of lateralized compensatory neural activities within the social brain due to autism spectrum disorder in adolescent males - Subbaraju - 2018 - European Journal of Neuroscience - Wiley Online Library (umich.edu)](https://onlinelibrary-wiley-com.proxy.lib.umich.edu/doi/full/10.1111/ejn.13634)
