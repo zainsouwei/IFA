@@ -198,6 +198,8 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 ## Spectral Manifold Analysis (GEVD, PCA, etc)
 
+[Manopt Matlab toolbox contains some Eigen Value manifold solvers](https://github.com/NicolasBoumal/manopt/tree/master/examples)
+
 [A Riemannian optimization approach for solving the generalized eigenvalue problem for nonsquare matrix pencils](https://link.springer.com/article/10.1007/s10915-020-01173-5)
 
 [Sparse Exact PGA on Riemannian Manifolds | IEEE Conference Publication | IEEE Xplore (umich.edu)](https://ieeexplore-ieee-org.proxy.lib.umich.edu/document/8237798)
