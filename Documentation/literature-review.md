@@ -56,8 +56,6 @@
 
 [Common Spatial Pattern and Riemannian Manifold-Based Real-Time Multiclass Motor Imagery EEG Classification](https://ieeexplore.ieee.org/abstract/document/10348559)
 
-
-
 ## Similarity, Metrics, & NetMats/FCs
 
 [Log Covariance Matrix Estimation (rice.edu)](https://www.stat.rice.edu/\~jrojo/4th-Lehmann/slides/Deng.pdf)
@@ -121,6 +119,16 @@
 [An ICA-based method for the identification of optimal FMRI features and components using combined group-discriminative techniques](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1053811909000706)
 
 [Bilinear Discriminant Component Analysis](https://www.jmlr.org/papers/volume8/dyrholm07a/dyrholm07a.pdf)
+
+[INDEPENDENT COMPONENT DISCRIMINANT ANALYSIS](https://d1wqtxts1xzle7.cloudfront.net/39906925/Independent\_component\_discriminant\_analy20151111-25315-1xnlpc9-libre.pdf?1447264793=\&response-content-disposition=inline%3B+filename%3DIndependent\_component\_discriminant\_analy.pdf\&Expires=1709667221\&Signature=E\~Vz\~JMQM8sJSNo9D6\~O-JIAJ3yrpQp0wbJn3CxKc3OR5pmL4xAQ8SCzDS1DEpVDipEZKHLUjoqylQl1B6HapaTVgkM7EjEn8\~30\~j9EoTd5pKebgudT06dA4Yugyb83WQuk-UWVW6FbB97NXG2KLCeZT-9b9QnPLbA-bt5OfzWjtoVdnUHXAlka4AgKOxbS8OL-kK11-tgJeA5hr\~az-nCPxtLf-OETS-dRC94SLq\~\~uD-E7GC8CqGTCaNVk0ulFRtipq2DEWk6kGEmg45DJKPcYgF-p1bwQCRUCYLBhgfzbWAZcFr3kq7DiTjreSzj98RQhS48IjxXF2T36RMtvg\_\_\&Key-Pair-Id=APKAJLOHF5GGSLRBV4ZA)
+
+[Conditionally independent component analysis for supervised feature extraction](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S0925231202005180)
+
+[Discriminant independent component analysis for hyperspectral image classificatio](https://iopscience-iop-org.proxy.lib.umich.edu/article/10.1088/1757-899X/403/1/012059/meta)n
+
+[Extraction of independent discriminant features for data with asymmetric distribution](https://link-springer-com.proxy.lib.umich.edu/article/10.1007/s10115-011-0381-9)
+
+[Discriminant independent component analysis for hyperspectral image classification](https://iopscience-iop-org.proxy.lib.umich.edu/article/10.1088/1757-899X/403/1/012059/meta)
 
 ## Fisher Discriminant Analysis
 
@@ -335,4 +343,8 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 [Identifying autism from resting-state fMRI using long short-term memory networks](https://link.springer.com/chapter/10.1007/978-3-319-67389-9\_42)
 
 [ASD2-TL∗ GTO: Autism spectrum disorders detection via transfer learning with gorilla troops optimizer framework - ScienceDirect](https://www.sciencedirect.com/science/article/pii/S2405844023087388)
+
+[ADHD classification by dual subspace learning using resting-state functional connectivity](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S0933365719302581)
+
+[ADHD classification using auto-encoding neural network and binary hypothesis testing](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S0933365721002025)
 
