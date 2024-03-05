@@ -112,7 +112,13 @@
 
 [Identifying differences in brain activities and an accurate detection of autism spectrum disorder using resting state functional-magnetic resonance imaging : A spatial filtering approach (sciencedirectassets.com)](https://pubmed.ncbi.nlm.nih.gov/27585835/)
 
+## Discriminant ICA
+
 [Spatial discriminant ICA for RS-fMRI characterisation](https://ieeexplore.ieee.org/abstract/document/6858546)
+
+[Discriminant Independent Component Analysis](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/5756242)
+
+[An ICA-based method for the identification of optimal FMRI features and components using combined group-discriminative techniques](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1053811909000706)
 
 ## Fisher Discriminant Analysis
 
@@ -222,7 +228,7 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 [Local discriminant embedding and its variants | IEEE Conference Publication | IEEE Xplore (umich.edu)](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/1467531)
 
-[Discrimination on the Grassmann Manifold: Fundamental Limits of Subspace Classifiers](https://ieeexplore.ieee.org/abstract/document/7052412)Manifold-
+[Discrimination on the Grassmann Manifold: Fundamental Limits of Subspace Classifier](https://ieeexplore.ieee.org/abstract/document/7052412)
 
 [Learning-Based Feature Extraction for Classification of Hyperspectral Data: A Review of Advances in Manifold Learning](https://ieeexplore.ieee.org/abstract/document/6678226)
 

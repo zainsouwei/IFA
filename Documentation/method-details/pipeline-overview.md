@@ -26,6 +26,7 @@
 * **Discriminant Analysis**
   * Currently FKT/Generalized Eigenvalue Decomposition with $$||w||_2^2$$ regularized
   * Alternatives
+    * Maybe some FKT variant after applying Laplacian Eigen Maps as to respect geometry
     * Kernel Discriminatory Analysis
     * Manifold Discriminant Analysis
     * Fisher Discriminant Based Methods
