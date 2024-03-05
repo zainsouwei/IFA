@@ -34,6 +34,30 @@
 
 [Improved ASD classification using dynamic functional connectivity and multi-task feature selection](https://www.sciencedirect.com/science/article/pii/S0167865520302518)
 
+[Non-linear manifold learning in fMRI uncovers a low-dimensional space of brain dynamics](https://www.biorxiv.org/content/10.1101/2020.11.25.398693v1.abstract)
+
+[Manifold learning for fMRI time-varying functional connectivity](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10366614/)
+
+[LEICA: Laplacian eigenmaps for group ICA decomposition of fMRI data](https://www.sciencedirect.com/science/article/pii/S1053811917310406#bib20)
+
+[Discriminant analysis of functional connectivity patterns on Grassmann manifold](https://www.sciencedirect.com/science/article/pii/S1053811911003296)
+
+[A novel deep learning model based on the ICA and Riemannian manifold for EEG-based emotion recognition](https://www.sciencedirect.com/science/article/pii/S0165027022001698)
+
+[EEG feature descriptors and discriminant analysis under Riemannian Manifold perspective](https://www.sciencedirect.com/science/article/pii/S0925231217316648)
+
+[Riemannian Distances for Signal Classification by Power Spectral Density](https://ieeexplore.ieee.org/abstract/document/6509394)
+
+[The Detection of Ischemic Stroke on the PSD Manifold of EEG Signals](https://macsphere.mcmaster.ca/handle/11375/24160)
+
+[Domain adaptation for epileptic EEG classification using adversarial learning and Riemannian manifold](https://www.sciencedirect.com/science/article/pii/S1746809422000775)
+
+[Manifold Learning-based Common Spatial Pattern for EEG Signal Classification](https://ieeexplore.ieee.org/abstract/document/10413532)
+
+[Common Spatial Pattern and Riemannian Manifold-Based Real-Time Multiclass Motor Imagery EEG Classification](https://ieeexplore.ieee.org/abstract/document/10348559)
+
+
+
 ## Similarity, Metrics, & NetMats/FCs
 
 [Log Covariance Matrix Estimation (rice.edu)](https://www.stat.rice.edu/\~jrojo/4th-Lehmann/slides/Deng.pdf)
@@ -87,6 +111,8 @@
 [Discriminant Spatial Filtering Method (DSFM) for the identification and analysis of abnormal resting state brain activities - ScienceDirect (umich.edu)](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S0957417421005157)
 
 [Identifying differences in brain activities and an accurate detection of autism spectrum disorder using resting state functional-magnetic resonance imaging : A spatial filtering approach (sciencedirectassets.com)](https://pubmed.ncbi.nlm.nih.gov/27585835/)
+
+[Spatial discriminant ICA for RS-fMRI characterisation](https://ieeexplore.ieee.org/abstract/document/6858546)
 
 ## Fisher Discriminant Analysis
 
@@ -196,6 +222,10 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 [Local discriminant embedding and its variants | IEEE Conference Publication | IEEE Xplore (umich.edu)](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/1467531)
 
+[Discrimination on the Grassmann Manifold: Fundamental Limits of Subspace Classifiers](https://ieeexplore.ieee.org/abstract/document/7052412)Manifold-
+
+[Learning-Based Feature Extraction for Classification of Hyperspectral Data: A Review of Advances in Manifold Learning](https://ieeexplore.ieee.org/abstract/document/6678226)
+
 ## Spectral Manifold Analysis (GEVD, PCA, etc)
 
 [Manopt Matlab toolbox contains some Eigen Value manifold solvers](https://github.com/NicolasBoumal/manopt/tree/master/examples)
@@ -217,6 +247,8 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 [Manifold Regularized Principal Component Analysis Method Using L2,p-Norm](https://www.mdpi.com/2227-7390/10/23/4603)
 
 [Product Manifold Learning](https://arxiv.org/pdf/2010.09908.pdf)
+
+[Riemannian Optimization on Tensor Products of Grassmann Manifolds: Applications to Generalized Rayleigh-Quotients](https://epubs.siam.org/doi/abs/10.1137/100792032)
 
 ## Maximum Margin Criterion & Difference of Classes
 
