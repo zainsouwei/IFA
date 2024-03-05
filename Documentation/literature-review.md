@@ -120,6 +120,8 @@
 
 [An ICA-based method for the identification of optimal FMRI features and components using combined group-discriminative techniques](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1053811909000706)
 
+[Bilinear Discriminant Component Analysis](https://www.jmlr.org/papers/volume8/dyrholm07a/dyrholm07a.pdf)
+
 ## Fisher Discriminant Analysis
 
 [Fisher-LDA.pdf (huji.ac.il)](https://www.cs.huji.ac.il/course/2005/csip/Fisher-LDA.pdf)
