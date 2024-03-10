@@ -242,6 +242,8 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 [Learning-Based Feature Extraction for Classification of Hyperspectral Data: A Review of Advances in Manifold Learning](https://ieeexplore.ieee.org/abstract/document/6678226)
 
+[Manifold Contrastive Learning with Variational Lie Group Operators](https://openreview.net/forum?id=lVE1VeGQwg)
+
 ## Spectral Manifold Analysis (GEVD, PCA, etc)
 
 [Manopt Matlab toolbox contains some Eigen Value manifold solvers](https://github.com/NicolasBoumal/manopt/tree/master/examples)
