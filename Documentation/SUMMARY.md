@@ -31,5 +31,5 @@
 
 ## Method Details
 
-* [Math Overview](method-details/math-overview.md)
+* [Algorithm Overview](method-details/algorithm-overview.md)
 * [Pipeline Overview](method-details/pipeline-overview.md)
