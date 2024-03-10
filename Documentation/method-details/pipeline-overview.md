@@ -37,6 +37,7 @@
 * **Interpretable Components Decomposition**
   * Current: ICA
   * Alternatives
+    * Nonlinear ICA
     * [Free Component Analysis](https://link.springer.com/article/10.1007/s10208-022-09564-w)
     * Dictionary Learning
     * Gaussian Mixture Models
