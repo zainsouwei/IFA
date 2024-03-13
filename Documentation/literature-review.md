@@ -166,17 +166,13 @@
 
 [High-Dimensional Discriminant Analysis](http://www.math.chalmers.se/Stat/Grundutb/GU/MSA220/S17/hdda.pdf)
 
-## Foley-Sammon Transform
-
-[An Optimal Set of Discriminant Vectors](https://ieeexplore-ieee-org.proxy.lib.umich.edu/stamp/stamp.jsp?tp=\&arnumber=1672801)
-
-[A generalized Foley–Sammon transform based on generalized fisher discriminant criterion and its application to face recognition - ScienceDirect (umich.edu)](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S0167865502002076#BIB4)
-
 ## Spectral Discriminant Analysis
 
 Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classifiers Page 135 & 446
 
 [Optimal reduced-rank quadratic classifiers using the Fukunaga-Koontz transform with applications to automated target recognition (umich.edu)](https://www-spiedigitallibrary-org.proxy.lib.umich.edu/conference-proceedings-of-spie/5094/0000/Optimal-reduced-rank-quadratic-classifiers-using-the-Fukunaga-Koontz-transform/10.1117/12.499594.full?webSyncID=a49dab6a-0cba-d059-329a-d883c9d902bc\&sessionGUID=9993ced2-68be-ad49-a285-31ab0d3a6b03\&SSO=1)
+
+[A generalized Foley–Sammon transform based on generalized fisher discriminant criterion and its application to face recognition - ScienceDirect (umich.edu)](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S0167865502002076#BIB4)
 
 [Comparison Of Eigenvector-Based Statistical Pattern Recognition Algorithms For Hybrid Processing (umich.edu)](https://www-spiedigitallibrary-org.proxy.lib.umich.edu/conference-proceedings-of-spie/0960/1/Comparison-Of-Eigenvector-Based-Statistical-Pattern-Recognition-Algorithms-For-Hybrid/10.1117/12.947801.full)
 
