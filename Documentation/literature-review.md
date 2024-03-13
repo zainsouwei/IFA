@@ -100,6 +100,40 @@
 
 [A Differential Geometric Approach to the Geometric Mean of Symmetric Positive-Definite Matrices](https://www.cis.upenn.edu/\~cis6100/geomean.pdf)
 
+## Common Spatial Patterns
+
+[A review of classification algorithms for EEG-based brain–computer interfaces: a 10 year update](https://iopscience-iop-org.proxy.lib.umich.edu/article/10.1088/1741-2552/aab2f2/meta)
+
+[A systematic review on artifact removal and classification techniques for enhanced MEG-based BCI systems](https://www-tandfonline-com.proxy.lib.umich.edu/doi/full/10.1080/2326263X.2023.2233368)
+
+### Regularized CSP Methods
+
+[Variance characteristic preserving common spatial pattern for motor imagery BCI](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10666778/)
+
+[Common Spatial Pattern Reformulated for Regularizations in Brain–Computer Interfaces](https://ieeexplore.ieee.org/abstract/document/9076261)
+
+### Riemannian CSP
+
+[Riemannian Approaches in Brain-Computer Interfaces: A Review](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/7740054)
+
+[CSP-TSM: Optimizing the performance of Riemannian tangent space mapping using common spatial pattern for MI-BCI](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S0010482517303517)
+
+[MI brain-computer interfaces: A concise overview](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1746809423007267)
+
+[Review of Riemannian Distances and Divergences, Applied to SSVEP-based BCI](https://link-springer-com.proxy.lib.umich.edu/article/10.1007/s12021-020-09473-9)
+
+[Channel selection procedure using riemannian distance for BCI applications](https://ieeexplore-ieee-org.proxy.lib.umich.edu/document/5910558)
+
+[Machine Learning Classification of Riemannian Tangent Spaces Based on MI-BCI](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/10216223)
+
+[Is Riemannian Geometry Better than Euclidean in Averaging Covariance Matrices for CSP-based Subject-Independent Classification of Motor Imagery?](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/9629816)
+
+[The Riemannian spatial pattern method: mapping and clustering movement imagery using Riemannian geometry](https://iopscience-iop-org.proxy.lib.umich.edu/article/10.1088/1741-2552/abf291/meta)
+
+[Algorithm contest of motor imagery BCI in the World Robot Contest 2022: A survey](https://journals-sagepub-com.proxy.lib.umich.edu/doi/full/10.26599/BSA.2023.9050011#bibr41-BSA-2023-9050011)
+
+[Decoding Multi-Class Motor Imagery and Motor Execution Tasks Using Riemannian Geometry Algorithms on Large EEG Datasets](https://www-mdpi-com.proxy.lib.umich.edu/1424-8220/23/11/5051)
+
 ## FKT+fMRI
 
 [Identification of lateralized compensatory neural activities within the social brain due to autism spectrum disorder in adolescent males - Subbaraju - 2018 - European Journal of Neuroscience - Wiley Online Library (umich.edu)](https://onlinelibrary-wiley-com.proxy.lib.umich.edu/doi/full/10.1111/ejn.13634)
