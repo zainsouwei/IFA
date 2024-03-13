@@ -12,6 +12,8 @@
 
 [Smooth Manifolds with the Fisher-Rao Metric](https://yorkerlin.github.io/posts/2021/09/Geomopt01/)
 
+[A Review on fMRI Signal Analysis and Brain Mapping Methodologies](https://link-springer-com.proxy.lib.umich.edu/chapter/10.1007/978-981-10-2471-9\_30)
+
 ## fMRI Manifold Analysis
 
 [Riemannian geometry for EEG-based brain-computer interfaces](https://hal.science/hal-01570120/document)
@@ -110,13 +112,19 @@
 
 [Identifying differences in brain activities and an accurate detection of autism spectrum disorder using resting state functional-magnetic resonance imaging : A spatial filtering approach (sciencedirectassets.com)](https://pubmed.ncbi.nlm.nih.gov/27585835/)
 
-## Discriminant ICA
+## Discriminant ICA/PCA
 
 [Spatial discriminant ICA for RS-fMRI characterisation](https://ieeexplore.ieee.org/abstract/document/6858546)
 
 [Discriminant Independent Component Analysis](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/5756242)
 
 [An ICA-based method for the identification of optimal FMRI features and components using combined group-discriminative techniques](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1053811909000706)
+
+[On Using Principal Components Before Separating a Mixture of Two Multivariate Normal Distributions](https://www-jstor-org.proxy.lib.umich.edu/stable/2347949?origin=crossref)
+
+[Extracting principle components for discriminant analysis of FMRI images](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/4517643)
+
+[Joint-IVA for identification of discriminating features in EEG: Application to a driving study](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S174680942030104X#aep-article-footnote-id7)
 
 [Bilinear Discriminant Component Analysis](https://www.jmlr.org/papers/volume8/dyrholm07a/dyrholm07a.pdf)
 
