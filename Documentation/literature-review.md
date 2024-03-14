@@ -100,6 +100,12 @@
 
 [A Differential Geometric Approach to the Geometric Mean of Symmetric Positive-Definite Matrices](https://www.cis.upenn.edu/\~cis6100/geomean.pdf)
 
+[The shape of partial correlation matrices](https://ppw.kuleuven.be/okp/\_pdf/Artner2022TSOPC.pdf)
+
+[Geometric Distance Between Positive Definite Matrices of Different Dimensions](https://www.stat.uchicago.edu/\~lekheng/work/ellipsoids.pdf)
+
+[A Riemannian geometry with complete geodesics for the set of positive semidefinite matrices of fixed rank](https://people.cs.kuleuven.be/\~stefan.vandewalle/Papers/IMABartVde.pdf)
+
 ## Common Spatial Patterns
 
 [A review of classification algorithms for EEG-based brain–computer interfaces: a 10 year update](https://iopscience-iop-org.proxy.lib.umich.edu/article/10.1088/1741-2552/aab2f2/meta)
@@ -123,6 +129,8 @@
 [Review of Riemannian Distances and Divergences, Applied to SSVEP-based BCI](https://link-springer-com.proxy.lib.umich.edu/article/10.1007/s12021-020-09473-9)
 
 [Channel selection procedure using riemannian distance for BCI applications](https://ieeexplore-ieee-org.proxy.lib.umich.edu/document/5910558)
+
+[Common Spatial Pattern revisited by Riemannian geometry](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/5662067)
 
 [Machine Learning Classification of Riemannian Tangent Spaces Based on MI-BCI](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/10216223)
 
