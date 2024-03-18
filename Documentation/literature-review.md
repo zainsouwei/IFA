@@ -16,8 +16,6 @@
 
 ## fMRI Manifold Analysis
 
-[Riemannian geometry for EEG-based brain-computer interfaces](https://hal.science/hal-01570120/document)
-
 [Grassmann manifold learning for discriminant analysis of functional connectivity patterns — Functional connectivity patterns | CBICA | Perelman School of Medicine at the University of Pennsylvania (upenn.edu)](https://www.med.upenn.edu/cbica/grassmann-manifold-learning-for-discriminant-analysis-of-functional-connectivity-patterns-%E2%80%94-functional-connectivity-patterns.html)
 
 [Discriminant analysis of functional connectivity patterns on Grassmann manifold - ScienceDirect (umich.edu)](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1053811911003296?via%3Dihub#section-cited-by)
@@ -120,6 +118,8 @@
 
 ### Riemannian CSP
 
+[Riemannian geometry for EEG-based brain-computer interfaces](https://hal.science/hal-01570120/document)
+
 [Riemannian Approaches in Brain-Computer Interfaces: A Review](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/7740054)
 
 [CSP-TSM: Optimizing the performance of Riemannian tangent space mapping using common spatial pattern for MI-BCI](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S0010482517303517)
@@ -131,6 +131,8 @@
 [Channel selection procedure using riemannian distance for BCI applications](https://ieeexplore-ieee-org.proxy.lib.umich.edu/document/5910558)
 
 [Common Spatial Pattern revisited by Riemannian geometry](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/5662067)
+
+[Multiclass Brain-Computer Interface Classification by Riemannian Geometry](https://hal.science/hal-00681328)
 
 [Machine Learning Classification of Riemannian Tangent Spaces Based on MI-BCI](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/10216223)
 
