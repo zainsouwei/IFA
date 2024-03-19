@@ -128,6 +128,8 @@
 
 [Review of Riemannian Distances and Divergences, Applied to SSVEP-based BCI](https://link-springer-com.proxy.lib.umich.edu/article/10.1007/s12021-020-09473-9)
 
+[Approximate Joint Diagonalization and Geometric Mean of Symmetric Positive Definite Matrices](https://arxiv.org/abs/1505.07343)
+
 [Channel selection procedure using riemannian distance for BCI applications](https://ieeexplore-ieee-org.proxy.lib.umich.edu/document/5910558)
 
 [Common Spatial Pattern revisited by Riemannian geometry](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/5662067)
@@ -352,6 +354,8 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 ## Spectral Regularization, Low Rank Approximations, and Hyperparameter tuning
 
+[The Power of (Non-)Linear Shrinking: A Review and Guide to Covariance Matrix Estimation](http://www.ledoit.net/Review\_Paper\_2020\_JFEc.pdf)
+
 [Regularized constraint subspace based method for image set classification](https://www.sciencedirect.com/science/article/pii/S0031320317304740#bib0003)
 
 [Eigenfeature Regularization and Extraction in Face Recognition](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=\&arnumber=4359331\&tag=1)
@@ -397,4 +401,6 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 [ADHD classification by dual subspace learning using resting-state functional connectivity](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S0933365719302581)
 
 [ADHD classification using auto-encoding neural network and binary hypothesis testing](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S0933365721002025)
+
+[A discriminative SPD feature learning approach on Riemannian manifolds for EEG classification](https://www.sciencedirect.com/science/article/pii/S0031320323004491#bib0006)
 
