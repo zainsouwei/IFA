@@ -158,6 +158,12 @@
 
 [Identifying differences in brain activities and an accurate detection of autism spectrum disorder using resting state functional-magnetic resonance imaging : A spatial filtering approach (sciencedirectassets.com)](https://pubmed.ncbi.nlm.nih.gov/27585835/)
 
+[Multiclass fMRI data decoding and visualization using supervised self-organizing maps](https://www.sciencedirect.com/science/article/pii/S1053811914000974)
+
+[Discriminative Sparse Connectivity Patterns for Classification of fMRI Data](https://link.springer.com/chapter/10.1007/978-3-319-10443-0\_25#Bib1)
+
+[Comparison of feature selection methods based on discrimination and reliability for fMRI decoding analysis](https://www.sciencedirect.com/science/article/pii/S0165027019304248#sec0010)
+
 ## Discriminant ICA/PCA
 
 [Spatial discriminant ICA for RS-fMRI characterisation](https://ieeexplore.ieee.org/abstract/document/6858546)
