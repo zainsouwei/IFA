@@ -126,6 +126,8 @@
 
 [MI brain-computer interfaces: A concise overview](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1746809423007267)
 
+[Riemannian Geometry Applied to BCI Classification](https://link.springer.com/chapter/10.1007/978-3-642-15995-4\_78)
+
 [Review of Riemannian Distances and Divergences, Applied to SSVEP-based BCI](https://link-springer-com.proxy.lib.umich.edu/article/10.1007/s12021-020-09473-9)
 
 [Approximate Joint Diagonalization and Geometric Mean of Symmetric Positive Definite Matrices](https://arxiv.org/abs/1505.07343)
