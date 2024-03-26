@@ -250,6 +250,10 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 ## Discriminant Manifold Analysis + Related Methods
 
+[From Manifold to Manifold: Geometry-Aware Dimensionality Reduction for SPD Matrices](https://link-springer-com.proxy.lib.umich.edu/chapter/10.1007/978-3-319-10605-2\_2)
+
+[Pedestrian Detection via Classification on Riemannian Manifolds](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/4479482)
+
 [Grassmann Discriminant Analysis: a Unifying View on Subspace-Based Learning](https://icml.cc/Conferences/2008/papers/312.pdf)
 
 [L1-norm unsupervised Fukunaga-Koontz transform](https://www.sciencedirect.com/science/article/pii/S0165168420304862)
