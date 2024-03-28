@@ -254,6 +254,8 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 [Prototype based linear sub-manifold learning](https://ieeexplore.ieee.org/abstract/document/10191681)
 
+[A Riemannian Geometry Approach to Reduced and Discriminative Covariance Estimation in Brain Computer Interfaces](https://ieeexplore.ieee.org/document/8693757)
+
 [Dimension selection for EEG classification in the SPD Riemannian space based on PSO](https://www.sciencedirect.com/science/article/pii/S0950705123006834#b25)
 
 [Pedestrian Detection via Classification on Riemannian Manifolds](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/4479482)
