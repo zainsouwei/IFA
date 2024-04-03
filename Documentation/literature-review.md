@@ -118,6 +118,8 @@
 
 ### Riemannian CSP
 
+[Tangent space spatial filters for interpretable and efficient Riemannian classification](https://arxiv.org/pdf/1909.10567.pdf)
+
 [Riemannian geometry for EEG-based brain-computer interfaces](https://hal.science/hal-01570120/document)
 
 [Riemannian Approaches in Brain-Computer Interfaces: A Review](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/7740054)
