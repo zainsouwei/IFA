@@ -118,6 +118,8 @@
 
 ### Riemannian CSP
 
+[Tangent space spatial filters for interpretable and efficient Riemannian classification](https://arxiv.org/pdf/1909.10567.pdf)
+
 [Riemannian geometry for EEG-based brain-computer interfaces](https://hal.science/hal-01570120/document)
 
 [Riemannian Approaches in Brain-Computer Interfaces: A Review](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/7740054)
@@ -126,7 +128,11 @@
 
 [MI brain-computer interfaces: A concise overview](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1746809423007267)
 
+[Riemannian Geometry Applied to BCI Classification](https://link.springer.com/chapter/10.1007/978-3-642-15995-4\_78)
+
 [Review of Riemannian Distances and Divergences, Applied to SSVEP-based BCI](https://link-springer-com.proxy.lib.umich.edu/article/10.1007/s12021-020-09473-9)
+
+[Approximate Joint Diagonalization and Geometric Mean of Symmetric Positive Definite Matrices](https://arxiv.org/abs/1505.07343)
 
 [Channel selection procedure using riemannian distance for BCI applications](https://ieeexplore-ieee-org.proxy.lib.umich.edu/document/5910558)
 
@@ -155,6 +161,12 @@
 [Discriminant Spatial Filtering Method (DSFM) for the identification and analysis of abnormal resting state brain activities - ScienceDirect (umich.edu)](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S0957417421005157)
 
 [Identifying differences in brain activities and an accurate detection of autism spectrum disorder using resting state functional-magnetic resonance imaging : A spatial filtering approach (sciencedirectassets.com)](https://pubmed.ncbi.nlm.nih.gov/27585835/)
+
+[Multiclass fMRI data decoding and visualization using supervised self-organizing maps](https://www.sciencedirect.com/science/article/pii/S1053811914000974)
+
+[Discriminative Sparse Connectivity Patterns for Classification of fMRI Data](https://link.springer.com/chapter/10.1007/978-3-319-10443-0\_25#Bib1)
+
+[Comparison of feature selection methods based on discrimination and reliability for fMRI decoding analysis](https://www.sciencedirect.com/science/article/pii/S0165027019304248#sec0010)
 
 ## Discriminant ICA/PCA
 
@@ -239,6 +251,22 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 [Analysis the Similarity and Difference between SVM, LDA and QDA (Heng Xu) - Statistics LibreTexts](https://stats.libretexts.org/Bookshelves/Computing\_and\_Modeling/RTG%3A\_Classification\_Methods/4%3A\_Numerical\_Experiments\_and\_Real\_Data\_Analysis/Analysis\_the\_Similarity\_and\_Difference\_between\_SVM%2C\_LDA\_and\_QDA\_\(Heng\_Xu\))
 
 ## Discriminant Manifold Analysis + Related Methods
+
+[From Manifold to Manifold: Geometry-Aware Dimensionality Reduction for SPD Matrices](https://link-springer-com.proxy.lib.umich.edu/chapter/10.1007/978-3-319-10605-2\_2)
+
+[An improved feature extraction method using low-rank representation for motor imagery classification](https://www.sciencedirect.com/science/article/pii/S1746809422008436?casa\_token=NUO12BWMr4EAAAAA:TmbuDe0RevliIsLW0FvB1ID8\_5quYAjcjuS-v187M2OjeKQZoyA7oHOOIJbsNVqiO3QWhaxJ\_1k)
+
+[2D-DLPP Algorithm Based on SPD Manifold Tangent Space](https://link.springer.com/chapter/10.1007/978-981-99-4752-2\_17)
+
+[SPD Manifold Deep Metric Learning for Image Set Classification](https://ieeexplore.ieee.org/abstract/document/10467142?casa\_token=BU4zO6D2bikAAAAA:dWQ0Zj2vd321mahXrvax3JqzVMLOgU0nkJXsVlgk75tM5JvowdGDw0meEjRcse\_hAMslvAIT6BcTLwA)
+
+[Prototype based linear sub-manifold learning](https://ieeexplore.ieee.org/abstract/document/10191681)
+
+[A Riemannian Geometry Approach to Reduced and Discriminative Covariance Estimation in Brain Computer Interfaces](https://ieeexplore.ieee.org/document/8693757)
+
+[Dimension selection for EEG classification in the SPD Riemannian space based on PSO](https://www.sciencedirect.com/science/article/pii/S0950705123006834#b25)
+
+[Pedestrian Detection via Classification on Riemannian Manifolds](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/4479482)
 
 [Grassmann Discriminant Analysis: a Unifying View on Subspace-Based Learning](https://icml.cc/Conferences/2008/papers/312.pdf)
 
@@ -352,6 +380,8 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 ## Spectral Regularization, Low Rank Approximations, and Hyperparameter tuning
 
+[The Power of (Non-)Linear Shrinking: A Review and Guide to Covariance Matrix Estimation](http://www.ledoit.net/Review\_Paper\_2020\_JFEc.pdf)
+
 [Regularized constraint subspace based method for image set classification](https://www.sciencedirect.com/science/article/pii/S0031320317304740#bib0003)
 
 [Eigenfeature Regularization and Extraction in Face Recognition](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=\&arnumber=4359331\&tag=1)
@@ -397,4 +427,6 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 [ADHD classification by dual subspace learning using resting-state functional connectivity](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S0933365719302581)
 
 [ADHD classification using auto-encoding neural network and binary hypothesis testing](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S0933365721002025)
+
+[A discriminative SPD feature learning approach on Riemannian manifolds for EEG classification](https://www.sciencedirect.com/science/article/pii/S0031320323004491#bib0006)
 
