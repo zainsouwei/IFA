@@ -150,6 +150,8 @@
 
 [Decoding Multi-Class Motor Imagery and Motor Execution Tasks Using Riemannian Geometry Algorithms on Large EEG Datasets](https://www-mdpi-com.proxy.lib.umich.edu/1424-8220/23/11/5051)
 
+[Manifold Learning-based Common Spatial Pattern for EEG Signal Classification](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=\&arnumber=10413532)
+
 ## FKT+fMRI
 
 [Identification of lateralized compensatory neural activities within the social brain due to autism spectrum disorder in adolescent males - Subbaraju - 2018 - European Journal of Neuroscience - Wiley Online Library (umich.edu)](https://onlinelibrary-wiley-com.proxy.lib.umich.edu/doi/full/10.1111/ejn.13634)
