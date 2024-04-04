@@ -258,9 +258,11 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 [Dimensionality Reduction on SPD Manifolds: The Emergence of Geometry-Aware Methods](https://ieeexplore.ieee.org/abstract/document/7822908)
 
-[An improved feature extraction method using low-rank representation for motor imagery classification](https://www.sciencedirect.com/science/article/pii/S1746809422008436?casa\_token=NUO12BWMr4EAAAAA:TmbuDe0RevliIsLW0FvB1ID8\_5quYAjcjuS-v187M2OjeKQZoyA7oHOOIJbsNVqiO3QWhaxJ\_1k)
+[EEG Signal Classification Using Manifold Learning and Matrix-Variate Gaussian Model](https://www.hindawi.com/journals/cin/2021/6668859/)
 
 [2D-DLPP Algorithm Based on SPD Manifold Tangent Space](https://link.springer.com/chapter/10.1007/978-981-99-4752-2\_17)
+
+[An improved feature extraction method using low-rank representation for motor imagery classification](https://www.sciencedirect.com/science/article/pii/S1746809422008436?casa\_token=NUO12BWMr4EAAAAA:TmbuDe0RevliIsLW0FvB1ID8\_5quYAjcjuS-v187M2OjeKQZoyA7oHOOIJbsNVqiO3QWhaxJ\_1k)
 
 [SPD Manifold Deep Metric Learning for Image Set Classification](https://ieeexplore.ieee.org/abstract/document/10467142?casa\_token=BU4zO6D2bikAAAAA:dWQ0Zj2vd321mahXrvax3JqzVMLOgU0nkJXsVlgk75tM5JvowdGDw0meEjRcse\_hAMslvAIT6BcTLwA)
 
