@@ -254,6 +254,8 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 [From Manifold to Manifold: Geometry-Aware Dimensionality Reduction for SPD Matrices](https://link-springer-com.proxy.lib.umich.edu/chapter/10.1007/978-3-319-10605-2\_2)
 
+[Dimensionality Reduction on SPD Manifolds: The Emergence of Geometry-Aware Methods](https://ieeexplore.ieee.org/abstract/document/7822908)
+
 [An improved feature extraction method using low-rank representation for motor imagery classification](https://www.sciencedirect.com/science/article/pii/S1746809422008436?casa\_token=NUO12BWMr4EAAAAA:TmbuDe0RevliIsLW0FvB1ID8\_5quYAjcjuS-v187M2OjeKQZoyA7oHOOIJbsNVqiO3QWhaxJ\_1k)
 
 [2D-DLPP Algorithm Based on SPD Manifold Tangent Space](https://link.springer.com/chapter/10.1007/978-981-99-4752-2\_17)
