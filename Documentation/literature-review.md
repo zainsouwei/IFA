@@ -110,6 +110,8 @@
 
 [A systematic review on artifact removal and classification techniques for enhanced MEG-based BCI systems](https://www-tandfonline-com.proxy.lib.umich.edu/doi/full/10.1080/2326263X.2023.2233368)
 
+[Spatial Filtering for Brain Computer Interfaces: A Comparison between the Common Spatial Pattern and Its Variant](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/8567789)
+
 ### Regularized CSP Methods
 
 [Variance characteristic preserving common spatial pattern for motor imagery BCI](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10666778/)
