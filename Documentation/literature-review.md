@@ -114,6 +114,8 @@
 
 [Optimizing Spatial filters for Robust EEG Single-Trial Analysis](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/4408441)
 
+[Nonlinear Eigenvector Algorithms for Generalized Rayleigh Quotient Optimizations and Applications](https://www-proquest-com.proxy.lib.umich.edu/docview/2899199365?pq-origsite=gscholar\&fromopenview=true\&sourcetype=Dissertations%20&%20Theses)
+
 ### Regularized CSP Methods
 
 [Variance characteristic preserving common spatial pattern for motor imagery BCI](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10666778/)
