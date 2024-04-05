@@ -118,6 +118,8 @@
 
 ### Riemannian CSP
 
+[Manifold Learning-based Common Spatial Pattern for EEG Signal Classification](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/10413532?casa\_token=S8GgbI3VEdAAAAAA:VyQkKQPJYA94Bt1yVGbHPd9gnPyloASkJQJeM4LHuYKqHmroaKn9Vbyzj3PYMATDLjzqbsWdXHhPbw)
+
 [Tangent space spatial filters for interpretable and efficient Riemannian classification](https://arxiv.org/pdf/1909.10567.pdf)
 
 [Riemannian geometry for EEG-based brain-computer interfaces](https://hal.science/hal-01570120/document)
