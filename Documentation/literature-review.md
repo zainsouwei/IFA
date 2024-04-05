@@ -112,6 +112,8 @@
 
 [Spatial Filtering for Brain Computer Interfaces: A Comparison between the Common Spatial Pattern and Its Variant](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/8567789)
 
+[Optimizing Spatial filters for Robust EEG Single-Trial Analysis](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/4408441)
+
 ### Regularized CSP Methods
 
 [Variance characteristic preserving common spatial pattern for motor imagery BCI](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10666778/)
