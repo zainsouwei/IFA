@@ -16,7 +16,21 @@
 
 ## fMRI Manifold Analysis
 
+[Using distance on the Riemannian manifold to compare representations in brain and in models](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1053811921005474)
+
+[Re-visiting Riemannian geometry of symmetric positive definite matrices for the analysis of functional connectivity](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1053811920309496)
+
+[Riemannian statistical techniques with applications in fMRI](https://digital.library.adelaide.edu.au/dspace/handle/2440/138532)
+
+[Optimising network modelling methods for fMRI](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1053811920300914)
+
+[Chapter 4 - Riemannian optimization in complex-valued ICA](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/B978012802806300004X)
+
+[Comparing functional connectivity matrices: A geometry-aware approach applied to participant identification](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1053811919309899)
+
 [Grassmann manifold learning for discriminant analysis of functional connectivity patterns — Functional connectivity patterns | CBICA | Perelman School of Medicine at the University of Pennsylvania (upenn.edu)](https://www.med.upenn.edu/cbica/grassmann-manifold-learning-for-discriminant-analysis-of-functional-connectivity-patterns-%E2%80%94-functional-connectivity-patterns.html)
+
+[Comparison Of Brain Connectomes Using Geodesic Distance On Manifold: A Twins Study](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/8759407)
 
 [Discriminant analysis of functional connectivity patterns on Grassmann manifold - ScienceDirect (umich.edu)](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1053811911003296?via%3Dihub#section-cited-by)
 
@@ -117,6 +131,8 @@
 [Nonlinear Eigenvector Algorithms for Generalized Rayleigh Quotient Optimizations and Applications](https://www-proquest-com.proxy.lib.umich.edu/docview/2899199365?pq-origsite=gscholar\&fromopenview=true\&sourcetype=Dissertations%20&%20Theses)
 
 [MOABB: trustworthy algorithm benchmarking for BCIs](https://iopscience.iop.org/article/10.1088/1741-2552/aadea0/pdf)
+
+[Signal Processing for Brain–Computer Interfaces: A review and current perspectives](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/10188493)
 
 ### Regularized CSP Methods
 
