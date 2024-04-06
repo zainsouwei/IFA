@@ -116,6 +116,8 @@
 
 [Nonlinear Eigenvector Algorithms for Generalized Rayleigh Quotient Optimizations and Applications](https://www-proquest-com.proxy.lib.umich.edu/docview/2899199365?pq-origsite=gscholar\&fromopenview=true\&sourcetype=Dissertations%20&%20Theses)
 
+[MOABB: trustworthy algorithm benchmarking for BCIs](https://iopscience.iop.org/article/10.1088/1741-2552/aadea0/pdf)
+
 ### Regularized CSP Methods
 
 [Variance characteristic preserving common spatial pattern for motor imagery BCI](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10666778/)
