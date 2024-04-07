@@ -134,6 +134,8 @@
 
 [Signal Processing for Brain–Computer Interfaces: A review and current perspectives](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/10188493)
 
+[A review of critical challenges in MI-BCI: From conventional to deep learning methods](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S016502702200262X)
+
 ### Regularized CSP Methods
 
 [Variance characteristic preserving common spatial pattern for motor imagery BCI](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10666778/)
