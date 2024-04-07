@@ -144,6 +144,8 @@
 
 ### Riemannian CSP
 
+[Classification of covariance matrices using a Riemannian-based kernel for BCI applications](https://hal.archives-ouvertes.fr/hal-00820475/)
+
 [Manifold Learning-based Common Spatial Pattern for EEG Signal Classification](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/10413532?casa\_token=S8GgbI3VEdAAAAAA:VyQkKQPJYA94Bt1yVGbHPd9gnPyloASkJQJeM4LHuYKqHmroaKn9Vbyzj3PYMATDLjzqbsWdXHhPbw)
 
 [Tangent space spatial filters for interpretable and efficient Riemannian classification](https://arxiv.org/pdf/1909.10567.pdf)
