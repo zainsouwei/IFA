@@ -16,7 +16,21 @@
 
 ## fMRI Manifold Analysis
 
+[Using distance on the Riemannian manifold to compare representations in brain and in models](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1053811921005474)
+
+[Re-visiting Riemannian geometry of symmetric positive definite matrices for the analysis of functional connectivity](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1053811920309496)
+
+[Riemannian statistical techniques with applications in fMRI](https://digital.library.adelaide.edu.au/dspace/handle/2440/138532)
+
+[Optimising network modelling methods for fMRI](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1053811920300914)
+
+[Chapter 4 - Riemannian optimization in complex-valued ICA](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/B978012802806300004X)
+
+[Comparing functional connectivity matrices: A geometry-aware approach applied to participant identification](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1053811919309899)
+
 [Grassmann manifold learning for discriminant analysis of functional connectivity patterns — Functional connectivity patterns | CBICA | Perelman School of Medicine at the University of Pennsylvania (upenn.edu)](https://www.med.upenn.edu/cbica/grassmann-manifold-learning-for-discriminant-analysis-of-functional-connectivity-patterns-%E2%80%94-functional-connectivity-patterns.html)
+
+[Comparison Of Brain Connectomes Using Geodesic Distance On Manifold: A Twins Study](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/8759407)
 
 [Discriminant analysis of functional connectivity patterns on Grassmann manifold - ScienceDirect (umich.edu)](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1053811911003296?via%3Dihub#section-cited-by)
 
@@ -110,6 +124,18 @@
 
 [A systematic review on artifact removal and classification techniques for enhanced MEG-based BCI systems](https://www-tandfonline-com.proxy.lib.umich.edu/doi/full/10.1080/2326263X.2023.2233368)
 
+[Spatial Filtering for Brain Computer Interfaces: A Comparison between the Common Spatial Pattern and Its Variant](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/8567789)
+
+[Optimizing Spatial filters for Robust EEG Single-Trial Analysis](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/4408441)
+
+[Nonlinear Eigenvector Algorithms for Generalized Rayleigh Quotient Optimizations and Applications](https://www-proquest-com.proxy.lib.umich.edu/docview/2899199365?pq-origsite=gscholar\&fromopenview=true\&sourcetype=Dissertations%20&%20Theses)
+
+[MOABB: trustworthy algorithm benchmarking for BCIs](https://iopscience.iop.org/article/10.1088/1741-2552/aadea0/pdf)
+
+[Signal Processing for Brain–Computer Interfaces: A review and current perspectives](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/10188493)
+
+[A review of critical challenges in MI-BCI: From conventional to deep learning methods](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S016502702200262X)
+
 ### Regularized CSP Methods
 
 [Variance characteristic preserving common spatial pattern for motor imagery BCI](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10666778/)
@@ -117,6 +143,8 @@
 [Common Spatial Pattern Reformulated for Regularizations in Brain–Computer Interfaces](https://ieeexplore.ieee.org/abstract/document/9076261)
 
 ### Riemannian CSP
+
+[Manifold Learning-based Common Spatial Pattern for EEG Signal Classification](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/10413532?casa\_token=S8GgbI3VEdAAAAAA:VyQkKQPJYA94Bt1yVGbHPd9gnPyloASkJQJeM4LHuYKqHmroaKn9Vbyzj3PYMATDLjzqbsWdXHhPbw)
 
 [Tangent space spatial filters for interpretable and efficient Riemannian classification](https://arxiv.org/pdf/1909.10567.pdf)
 
@@ -149,6 +177,8 @@
 [Algorithm contest of motor imagery BCI in the World Robot Contest 2022: A survey](https://journals-sagepub-com.proxy.lib.umich.edu/doi/full/10.26599/BSA.2023.9050011#bibr41-BSA-2023-9050011)
 
 [Decoding Multi-Class Motor Imagery and Motor Execution Tasks Using Riemannian Geometry Algorithms on Large EEG Datasets](https://www-mdpi-com.proxy.lib.umich.edu/1424-8220/23/11/5051)
+
+[Manifold Learning-based Common Spatial Pattern for EEG Signal Classification](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=\&arnumber=10413532)
 
 ## FKT+fMRI
 
@@ -254,9 +284,13 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 [From Manifold to Manifold: Geometry-Aware Dimensionality Reduction for SPD Matrices](https://link-springer-com.proxy.lib.umich.edu/chapter/10.1007/978-3-319-10605-2\_2)
 
-[An improved feature extraction method using low-rank representation for motor imagery classification](https://www.sciencedirect.com/science/article/pii/S1746809422008436?casa\_token=NUO12BWMr4EAAAAA:TmbuDe0RevliIsLW0FvB1ID8\_5quYAjcjuS-v187M2OjeKQZoyA7oHOOIJbsNVqiO3QWhaxJ\_1k)
+[Dimensionality Reduction on SPD Manifolds: The Emergence of Geometry-Aware Methods](https://ieeexplore.ieee.org/abstract/document/7822908)
+
+[EEG Signal Classification Using Manifold Learning and Matrix-Variate Gaussian Model](https://www.hindawi.com/journals/cin/2021/6668859/)
 
 [2D-DLPP Algorithm Based on SPD Manifold Tangent Space](https://link.springer.com/chapter/10.1007/978-981-99-4752-2\_17)
+
+[An improved feature extraction method using low-rank representation for motor imagery classification](https://www.sciencedirect.com/science/article/pii/S1746809422008436?casa\_token=NUO12BWMr4EAAAAA:TmbuDe0RevliIsLW0FvB1ID8\_5quYAjcjuS-v187M2OjeKQZoyA7oHOOIJbsNVqiO3QWhaxJ\_1k)
 
 [SPD Manifold Deep Metric Learning for Image Set Classification](https://ieeexplore.ieee.org/abstract/document/10467142?casa\_token=BU4zO6D2bikAAAAA:dWQ0Zj2vd321mahXrvax3JqzVMLOgU0nkJXsVlgk75tM5JvowdGDw0meEjRcse\_hAMslvAIT6BcTLwA)
 
