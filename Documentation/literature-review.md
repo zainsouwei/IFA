@@ -390,6 +390,8 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 ## Fukunaga Koontz Transform + Extensions
 
+[When Fisher meets Fukunaga-Koontz: A New Look at Linear Discriminants](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=\&arnumber=1640776)
+
 [Application of the Karhunen-Loève Expansion to Feature Selection and Ordering | IEEE Journals & Magazine | IEEE Xplore (umich.edu)](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/1671511)
 
 [Discriminant subspace analysis: A Fukunaga-Koontz approach (escholarship.org)](https://escholarship.org/content/qt9k52756v/qt9k52756v\_noSplash\_60195c8b9bb668604be74f8bff00d04a.pdf?t=lnr96c)
