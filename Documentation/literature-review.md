@@ -14,6 +14,8 @@
 
 [A Review on fMRI Signal Analysis and Brain Mapping Methodologies](https://link-springer-com.proxy.lib.umich.edu/chapter/10.1007/978-981-10-2471-9\_30)
 
+[On the interpretation of weight vectors of linear models in multivariate neuroimaging](https://www.sciencedirect.com/science/article/pii/S1053811913010914)
+
 ## fMRI Manifold Analysis
 
 [Using distance on the Riemannian manifold to compare representations in brain and in models](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1053811921005474)
