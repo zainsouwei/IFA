@@ -1,3 +1,7 @@
+---
+description: https://docs.google.com/document/d/1oF6qZgwvISPINqd5BmjAFdGRmbf34Fei/edit
+---
+
 # Literature Review
 
 ## General Reviews/Resources
@@ -447,6 +451,12 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 [Bayesian Optimization Advances](https://dl.acm.org/doi/pdf/10.1145/3582078)
 
 [Bayesian Optimization Tutorial](https://arxiv.org/pdf/1807.02811.pdf)
+
+[Representational Similarity Learning with Application to Brain Networks](https://proceedings.mlr.press/v48/oswal16.html)
+
+[The Ordered Weighted ℓ1 Norm: Atomic Formulation, Projections, and Algorithms](https://arxiv.org/abs/1409.4271)
+
+[Ordered Weighted \`1 Regularized Regression with Strongly Correlated Covariates: Theoretical Aspects](https://proceedings.mlr.press/v51/figueiredo16.pdf)
 
 ## Deep Learning Approaches
 
