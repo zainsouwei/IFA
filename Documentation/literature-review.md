@@ -424,6 +424,8 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 ## Spectral Regularization, Low Rank Approximations, and Hyperparameter tuning
 
+[Automatic choice of dimensionality for PCA](https://papers.nips.cc/paper\_files/paper/2000/file/7503cfacd12053d309b6bed5c89de212-Paper.pdf)
+
 [The Power of (Non-)Linear Shrinking: A Review and Guide to Covariance Matrix Estimation](http://www.ledoit.net/Review\_Paper\_2020\_JFEc.pdf)
 
 [Regularized constraint subspace based method for image set classification](https://www.sciencedirect.com/science/article/pii/S0031320317304740#bib0003)
