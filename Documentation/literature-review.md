@@ -422,7 +422,7 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 [Exploiting fisher and fukunaga-koontz transforms in chernoff dimensionality reduction | ACM Transactions on Knowledge Discovery from Data (umich.edu)](https://dl-acm-org.proxy.lib.umich.edu/doi/10.1145/2499907.2499911)
 
-## Spectral Regularization, Low Rank Approximations, and Hyperparameter tuning
+## Spectral Regularization, Low Rank Approximations, Hyperparameter tuning, and Dimension Estimation
 
 [Automatic choice of dimensionality for PCA](https://papers.nips.cc/paper\_files/paper/2000/file/7503cfacd12053d309b6bed5c89de212-Paper.pdf)
 
@@ -459,6 +459,20 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 [The Ordered Weighted ℓ1 Norm: Atomic Formulation, Projections, and Algorithms](https://arxiv.org/abs/1409.4271)
 
 [Ordered Weighted \`1 Regularized Regression with Strongly Correlated Covariates: Theoretical Aspects](https://proceedings.mlr.press/v51/figueiredo16.pdf)
+
+[Simultaneous Regression Shrinkage, Variable Selection, and Supervised Clustering of Predictors with OSCAR](https://pubmed.ncbi.nlm.nih.gov/17608783/)
+
+[Automatic Choice of Dimensionality for PCA](https://proceedings.neurips.cc/paper/2000/hash/7503cfacd12053d309b6bed5c89de212-Abstract.html)
+
+[A review on the selection criteria for the truncated SVD in Data Science applications](https://www.sciencedirect.com/science/article/pii/S2772415822000244)
+
+[Exact dimensionality selection for Bayesian PCA](https://onlinelibrary.wiley.com/doi/full/10.1111/sjos.12424)
+
+[Exploring dimension learning via a penalized probabilistic principal component analysis](https://arxiv.org/pdf/1803.07548)
+
+[Perfect Dimensionality Recovery by Variational Bayesian PCA](https://proceedings.neurips.cc/paper\_files/paper/2012/file/26337353b7962f533d78c762373b3318-Paper.pdf)
+
+[Automatic PCA Dimension Selection for High Dimensional Data and Small Sample Sizes](https://www.jmlr.org/papers/volume9/hoyle08a/hoyle08a.pdf)
 
 ## Deep Learning Approaches
 
