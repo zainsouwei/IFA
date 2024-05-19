@@ -517,18 +517,30 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 [Conjugate distributions](https://vioshyvo.github.io/Bayesian\_inference/conjugate-distributions.html)
 
-[Probabilistic principal component analysis](https://www.cs.columbia.edu/\~blei/seminar/2020-representation/readings/TippingBishop1999.pdf#page=11.16)\
-[Bayesian common spatial patterns](https://ieeexplore.ieee.org/abstract/document/6506606)\
-[Probabilistic Linear Discriminant Analysis](https://link.springer.com/chapter/10.1007/11744085\_41)\
-[Why direct LDA is not equivalent to LDA](https://www.sciencedirect.com/science/article/pii/S0031320305004401)\
-[Probabilistic Linear Discriminant Analysis Based on L1-Norm and Its Bayesian Variational Inference](https://ieeexplore.ieee.org/abstract/document/9086883)\
-[An Enhanced Probabilistic LDA for Multi-Class Brain Computer Interface](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0014634)\
-[Probabilistic Rank-One Discriminant Analysis via Collective and Individual Variation Modeling](https://ieeexplore.ieee.org/abstract/document/8481385)\
-[A statistical analysis of Fukunaga-Koontz transform](https://ieeexplore.ieee.org/abstract/document/1261954)\
-[Probabilistic Common Spatial Patterns for Multichannel EEG Analysis](https://ieeexplore.ieee.org/abstract/document/6832647)\
-[Probabilistic Models for Common Spatial Patterns: Parameter-Expanded EM and Variational Bayes](https://ojs.aaai.org/index.php/AAAI/article/view/8277)\
-[Information based source number estimation for probabilistic common spatial pattern in motor imagery BCI system](https://ieeexplore.ieee.org/abstract/document/7585584)\
-[Sparse Bayesian Learning for End-to-End EEG Decoding](https://ieeexplore.ieee.org/abstract/document/10197212)\
+[Probabilistic principal component analysis](https://www.cs.columbia.edu/\~blei/seminar/2020-representation/readings/TippingBishop1999.pdf#page=11.16)
+
+[Bayesian common spatial patterns](https://ieeexplore.ieee.org/abstract/document/6506606)
+
+[Probabilistic Linear Discriminant Analysis](https://link.springer.com/chapter/10.1007/11744085\_41)
+
+[Why direct LDA is not equivalent to LDA](https://www.sciencedirect.com/science/article/pii/S0031320305004401)
+
+[Probabilistic Linear Discriminant Analysis Based on L1-Norm and Its Bayesian Variational Inference](https://ieeexplore.ieee.org/abstract/document/9086883)
+
+[An Enhanced Probabilistic LDA for Multi-Class Brain Computer Interface](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0014634)
+
+[Probabilistic Rank-One Discriminant Analysis via Collective and Individual Variation Modeling](https://ieeexplore.ieee.org/abstract/document/8481385)
+
+[A statistical analysis of Fukunaga-Koontz transform](https://ieeexplore.ieee.org/abstract/document/1261954)
+
+[Probabilistic Common Spatial Patterns for Multichannel EEG Analysis](https://ieeexplore.ieee.org/abstract/document/6832647)
+
+[Probabilistic Models for Common Spatial Patterns: Parameter-Expanded EM and Variational Bayes](https://ojs.aaai.org/index.php/AAAI/article/view/8277)
+
+[Information based source number estimation for probabilistic common spatial pattern in motor imagery BCI system](https://ieeexplore.ieee.org/abstract/document/7585584)
+
+[Sparse Bayesian Learning for End-to-End EEG Decoding](https://ieeexplore.ieee.org/abstract/document/10197212)
+
 [EEG Signal Processing in MI-BCI Applications With Improved Covariance Matrix Estimators](https://pubmed.ncbi.nlm.nih.gov/30990183/)
 
 ## Deep Learning Approaches
