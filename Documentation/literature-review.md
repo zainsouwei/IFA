@@ -24,7 +24,9 @@ description: https://docs.google.com/document/d/1oF6qZgwvISPINqd5BmjAFdGRmbf34Fe
 
 [Feature Selection and Feature Extraction in Pattern Analysis: A Literature Review](https://arxiv.org/pdf/1905.02845)
 
-[https://neurosynth.org/locations/](https://neurosynth.org/locations/)
+{% embed url="https://neurosynth.org/locations/" %}
+
+[Eigenvalue and Generalized Eigenvalue Problems: Tutorial](https://arxiv.org/pdf/1903.11240)
 
 {% @github-files/github-code-block url="https://github.com/pyRiemann/pyRiemann/tree/master" %}
 
