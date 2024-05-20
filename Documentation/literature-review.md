@@ -513,6 +513,8 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 [Marchenko–Pastur distribution](https://en.wikipedia.org/wiki/Marchenko%E2%80%93Pastur\_distribution)
 
+[Sparse Bayesian Learning and the Relevance Vector Machine](https://www.jmlr.org/papers/volume1/tipping01a/tipping01a.pdf?ref=https://githubhelp.com)
+
 ## Probabilistic Extensions of Spectral Methods (PCA/ICA/LDA/FKT)
 
 [Conjugate distributions](https://vioshyvo.github.io/Bayesian\_inference/conjugate-distributions.html)
