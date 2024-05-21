@@ -50,8 +50,6 @@ description: https://docs.google.com/document/d/1oF6qZgwvISPINqd5BmjAFdGRmbf34Fe
 
 [Discriminant analysis of functional connectivity patterns on Grassmann manifold - ScienceDirect (umich.edu)](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1053811911003296?via%3Dihub#section-cited-by)
 
-[Discriminative subspace learning via optimization on Riemannian manifold - ScienceDirect (umich.edu)](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S0031320323001504?ref=pdf\_download\&fr=RR-2\&rr=83786d8a49f2b88e)
-
 [Discriminative analysis of resting-state functional connectivity patterns of schizophrenia using low dimensional embedding of fMRI - ScienceDirect (umich.edu)](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1053811909011951?casa\_token=05VQByhs-9MAAAAA:Wpy5Av28NSFseBDSuCmT4fqCXzmoaY-457dJ7SG6WE4Yvzfw4zJW-o6-OmTc2ocBzXJmwjpMfw8)
 
 [Locally Linear Embedding and fMRI Feature Selection in Psychiatric Classification | IEEE Journals & Magazine | IEEE Xplore (umich.edu)](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/8807145)
@@ -391,7 +389,7 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 [Grassmannian Diffusion Maps--Based Dimension Reduction and Classification for High-Dimensional Data](https://epubs.siam.org/doi/10.1137/20M137001X)
 
-
+[Discriminative subspace learning via optimization on Riemannian manifold](https://www.sciencedirect.com/science/article/pii/S0031320323001504)
 
 ## Spectral Manifold Analysis (GEVD, PCA, etc)
 
