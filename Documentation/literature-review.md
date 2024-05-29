@@ -1,3 +1,7 @@
+---
+description: https://docs.google.com/document/d/1oF6qZgwvISPINqd5BmjAFdGRmbf34Fei/edit
+---
+
 # Literature Review
 
 ## General Reviews/Resources
@@ -14,7 +18,19 @@
 
 [A Review on fMRI Signal Analysis and Brain Mapping Methodologies](https://link-springer-com.proxy.lib.umich.edu/chapter/10.1007/978-981-10-2471-9\_30)
 
-## fMRI Manifold Analysis
+[On the interpretation of weight vectors of linear models in multivariate neuroimaging](https://www.sciencedirect.com/science/article/pii/S1053811913010914)
+
+[Factor Analysis, Probabilistic Principal Component Analysis, Variational Inference, and Variational Autoencoder: Tutorial and Survey](https://arxiv.org/pdf/2101.00734)
+
+[Feature Selection and Feature Extraction in Pattern Analysis: A Literature Review](https://arxiv.org/pdf/1905.02845)
+
+{% embed url="https://neurosynth.org/locations/" %}
+
+[Eigenvalue and Generalized Eigenvalue Problems: Tutorial](https://arxiv.org/pdf/1903.11240)
+
+{% @github-files/github-code-block url="https://github.com/pyRiemann/pyRiemann/tree/master" %}
+
+## fMRI/EEG Manifold Analysis
 
 [Using distance on the Riemannian manifold to compare representations in brain and in models](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1053811921005474)
 
@@ -33,8 +49,6 @@
 [Comparison Of Brain Connectomes Using Geodesic Distance On Manifold: A Twins Study](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/8759407)
 
 [Discriminant analysis of functional connectivity patterns on Grassmann manifold - ScienceDirect (umich.edu)](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1053811911003296?via%3Dihub#section-cited-by)
-
-[Discriminative subspace learning via optimization on Riemannian manifold - ScienceDirect (umich.edu)](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S0031320323001504?ref=pdf\_download\&fr=RR-2\&rr=83786d8a49f2b88e)
 
 [Discriminative analysis of resting-state functional connectivity patterns of schizophrenia using low dimensional embedding of fMRI - ScienceDirect (umich.edu)](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S1053811909011951?casa\_token=05VQByhs-9MAAAAA:Wpy5Av28NSFseBDSuCmT4fqCXzmoaY-457dJ7SG6WE4Yvzfw4zJW-o6-OmTc2ocBzXJmwjpMfw8)
 
@@ -69,6 +83,14 @@
 [Manifold Learning-based Common Spatial Pattern for EEG Signal Classification](https://ieeexplore.ieee.org/abstract/document/10413532)
 
 [Common Spatial Pattern and Riemannian Manifold-Based Real-Time Multiclass Motor Imagery EEG Classification](https://ieeexplore.ieee.org/abstract/document/10348559)
+
+[EEG emotion recognition based on enhanced SPD matrix and manifold dimensionality reduction](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S0010482522003985#sec3)
+
+[Rank-based Discriminative Feature Learning for Motor Imagery Classification in EEG signals](https://ieeexplore.ieee.org/abstract/document/9385305?casa\_token=swIpnN4XmZwAAAAA:WgbDzT27kJk\_t3IEbayj7T-4SLDPxkVEyqSzS7Z-Qytd80X4X0gYUHcJwi01l39v0zToH9nHz4sJ4Q)
+
+[Towards Analysis of Covariance Matrices through Bures-Wasserstein Distance](https://www.researchsquare.com/article/rs-3911651/v1)
+
+[Bilinear Regularized Locality Preserving Learning on Riemannian Graph for Motor Imagery BCI](https://pubmed.ncbi.nlm.nih.gov/29522413/)
 
 ## Similarity, Metrics, & NetMats/FCs
 
@@ -134,7 +156,10 @@
 
 [Signal Processing for Brain–Computer Interfaces: A review and current perspectives](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/10188493)
 
-[A review of critical challenges in MI-BCI: From conventional to deep learning methods](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S016502702200262X)
+[A review of critical challenges in MI-BCI: From conventional to deep learning methods](https://www-sciencedirect-com.proxy.lib.umich.edu/science/article/pii/S016502702200262X)\
+[A Complete Survey on Common Spatial Pattern Techniques in Motor Imagery BCI](https://www.academia.edu/107769041/A\_Complete\_Survey\_on\_Common\_Spatial\_Pattern\_Techniques\_in\_Motor\_Imagery\_BCI?uc-sb-sw=7700667)
+
+[Optimal Channel Selection Using Correlation Coefficient for CSP Based EEG Classification](https://ieeexplore.ieee.org/document/9119424)
 
 ### Regularized CSP Methods
 
@@ -143,6 +168,8 @@
 [Common Spatial Pattern Reformulated for Regularizations in Brain–Computer Interfaces](https://ieeexplore.ieee.org/abstract/document/9076261)
 
 ### Riemannian CSP
+
+[Revisiting Riemannian geometry-based EEG decoding through approximate joint diagonalization](https://iopscience.iop.org/article/10.1088/1741-2552/aca4fc/meta)
 
 [Classification of covariance matrices using a Riemannian-based kernel for BCI applications](https://hal.archives-ouvertes.fr/hal-00820475/)
 
@@ -356,6 +383,14 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 [Manifold Contrastive Learning with Variational Lie Group Operators](https://openreview.net/forum?id=lVE1VeGQwg)
 
+[2D-DLPP Algorithm Based on SPD Manifold Tangent Space](https://link.springer.com/chapter/10.1007/978-981-99-4752-2\_17)
+
+[Learning adaptive Grassmann neighbors for image-set analysis](https://www.sciencedirect.com/science/article/pii/S0957417424001817)
+
+[Grassmannian Diffusion Maps--Based Dimension Reduction and Classification for High-Dimensional Data](https://epubs.siam.org/doi/10.1137/20M137001X)
+
+[Discriminative subspace learning via optimization on Riemannian manifold](https://www.sciencedirect.com/science/article/pii/S0031320323001504)
+
 ## Spectral Manifold Analysis (GEVD, PCA, etc)
 
 [Manopt Matlab toolbox contains some Eigen Value manifold solvers](https://github.com/NicolasBoumal/manopt/tree/master/examples)
@@ -380,6 +415,8 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 [Riemannian Optimization on Tensor Products of Grassmann Manifolds: Applications to Generalized Rayleigh-Quotients](https://epubs.siam.org/doi/abs/10.1137/100792032)
 
+[Eigenspectrum Regularization on Grassmann Discriminant Analysis With Image Set Classification](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/8869890)
+
 ## Maximum Margin Criterion & Difference of Classes
 
 [Efficient and robust feature extraction by maximum margin criterion | IEEE Journals & Magazine | IEEE Xplore (umich.edu)](https://ieeexplore-ieee-org.proxy.lib.umich.edu/document/1593700)
@@ -389,6 +426,8 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 [Domain Adaptation via Low Rank and Class Discriminative Representation for Autism Spectrum Disorder Identification: A Multi-Site fMRI Study](https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=10012442)
 
 ## Fukunaga Koontz Transform + Extensions
+
+[When Fisher meets Fukunaga-Koontz: A New Look at Linear Discriminants](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=\&arnumber=1640776)
 
 [Application of the Karhunen-Loève Expansion to Feature Selection and Ordering | IEEE Journals & Magazine | IEEE Xplore (umich.edu)](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/1671511)
 
@@ -414,7 +453,9 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 [Exploiting fisher and fukunaga-koontz transforms in chernoff dimensionality reduction | ACM Transactions on Knowledge Discovery from Data (umich.edu)](https://dl-acm-org.proxy.lib.umich.edu/doi/10.1145/2499907.2499911)
 
-## Spectral Regularization, Low Rank Approximations, and Hyperparameter tuning
+## Spectral Regularization, Low Rank Approximations, Hyperparameter tuning, and Dimension Estimation
+
+[Automatic choice of dimensionality for PCA](https://papers.nips.cc/paper\_files/paper/2000/file/7503cfacd12053d309b6bed5c89de212-Paper.pdf)
 
 [The Power of (Non-)Linear Shrinking: A Review and Guide to Covariance Matrix Estimation](http://www.ledoit.net/Review\_Paper\_2020\_JFEc.pdf)
 
@@ -443,6 +484,64 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 [Bayesian Optimization Advances](https://dl.acm.org/doi/pdf/10.1145/3582078)
 
 [Bayesian Optimization Tutorial](https://arxiv.org/pdf/1807.02811.pdf)
+
+[Representational Similarity Learning with Application to Brain Networks](https://proceedings.mlr.press/v48/oswal16.html)
+
+[The Ordered Weighted ℓ1 Norm: Atomic Formulation, Projections, and Algorithms](https://arxiv.org/abs/1409.4271)
+
+[Ordered Weighted \`1 Regularized Regression with Strongly Correlated Covariates: Theoretical Aspects](https://proceedings.mlr.press/v51/figueiredo16.pdf)
+
+[Simultaneous Regression Shrinkage, Variable Selection, and Supervised Clustering of Predictors with OSCAR](https://pubmed.ncbi.nlm.nih.gov/17608783/)
+
+[Automatic Choice of Dimensionality for PCA](https://proceedings.neurips.cc/paper/2000/hash/7503cfacd12053d309b6bed5c89de212-Abstract.html)
+
+[A review on the selection criteria for the truncated SVD in Data Science applications](https://www.sciencedirect.com/science/article/pii/S2772415822000244)
+
+[Exact dimensionality selection for Bayesian PCA](https://onlinelibrary.wiley.com/doi/full/10.1111/sjos.12424)
+
+[Exploring dimension learning via a penalized probabilistic principal component analysis](https://arxiv.org/pdf/1803.07548)
+
+[Perfect Dimensionality Recovery by Variational Bayesian PCA](https://proceedings.neurips.cc/paper\_files/paper/2012/file/26337353b7962f533d78c762373b3318-Paper.pdf)
+
+[Automatic PCA Dimension Selection for High Dimensional Data and Small Sample Sizes](https://www.jmlr.org/papers/volume9/hoyle08a/hoyle08a.pdf)
+
+[On the distribution of the largest principal component](https://web.mit.edu/18.325/www/johnstone00distribution.pdf)
+
+[Random matrices](https://arxiv.org/pdf/2009.05157#page=6.15)
+
+[Marchenko–Pastur distribution](https://en.wikipedia.org/wiki/Marchenko%E2%80%93Pastur\_distribution)
+
+[Sparse Bayesian Learning and the Relevance Vector Machine](https://www.jmlr.org/papers/volume1/tipping01a/tipping01a.pdf?ref=https://githubhelp.com)
+
+## Probabilistic Extensions of Spectral Methods (PCA/ICA/LDA/FKT)
+
+[Conjugate distributions](https://vioshyvo.github.io/Bayesian\_inference/conjugate-distributions.html)
+
+[Probabilistic principal component analysis](https://www.cs.columbia.edu/\~blei/seminar/2020-representation/readings/TippingBishop1999.pdf#page=11.16)
+
+[Bayesian common spatial patterns](https://ieeexplore.ieee.org/abstract/document/6506606)
+
+[Probabilistic Linear Discriminant Analysis](https://link.springer.com/chapter/10.1007/11744085\_41)
+
+[Why direct LDA is not equivalent to LDA](https://www.sciencedirect.com/science/article/pii/S0031320305004401)
+
+[Probabilistic Linear Discriminant Analysis Based on L1-Norm and Its Bayesian Variational Inference](https://ieeexplore.ieee.org/abstract/document/9086883)
+
+[An Enhanced Probabilistic LDA for Multi-Class Brain Computer Interface](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0014634)
+
+[Probabilistic Rank-One Discriminant Analysis via Collective and Individual Variation Modeling](https://ieeexplore.ieee.org/abstract/document/8481385)
+
+[A statistical analysis of Fukunaga-Koontz transform](https://ieeexplore.ieee.org/abstract/document/1261954)
+
+[Probabilistic Common Spatial Patterns for Multichannel EEG Analysis](https://ieeexplore.ieee.org/abstract/document/6832647)
+
+[Probabilistic Models for Common Spatial Patterns: Parameter-Expanded EM and Variational Bayes](https://ojs.aaai.org/index.php/AAAI/article/view/8277)
+
+[Information based source number estimation for probabilistic common spatial pattern in motor imagery BCI system](https://ieeexplore.ieee.org/abstract/document/7585584)
+
+[Sparse Bayesian Learning for End-to-End EEG Decoding](https://ieeexplore.ieee.org/abstract/document/10197212)
+
+[EEG Signal Processing in MI-BCI Applications With Improved Covariance Matrix Estimators](https://pubmed.ncbi.nlm.nih.gov/30990183/)
 
 ## Deep Learning Approaches
 
