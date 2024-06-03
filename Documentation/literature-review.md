@@ -417,6 +417,8 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 [Eigenspectrum Regularization on Grassmann Discriminant Analysis With Image Set Classification](https://ieeexplore-ieee-org.proxy.lib.umich.edu/abstract/document/8869890)
 
+[TRACE OPTIMIZATION AND EIGENPROBLEMS IN DIMENSION REDUCTION METHODS](https://www-users.cse.umn.edu/\~saad/PDF/umsi-2009-31.pdf)
+
 ## Maximum Margin Criterion & Difference of Classes
 
 [Efficient and robust feature extraction by maximum margin criterion | IEEE Journals & Magazine | IEEE Xplore (umich.edu)](https://ieeexplore-ieee-org.proxy.lib.umich.edu/document/1593700)
