@@ -1,0 +1,13 @@
+#!/bin/sh
+
+if [ $# -lt 2 ] ; then
+  echo "Usage: $0 <inputfile> <outputfile>"
+  echo "    converts inputfile to a nifti pair called outputfile"
+  return 1;
+fi
+
+FSLOUTPUTTYPE=NIFTI_PAIR
+export FSLOUTPUTTYPE
+
+$FSLDIR/bin/avwmaths $1 $2
+
