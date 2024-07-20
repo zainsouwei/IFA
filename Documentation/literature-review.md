@@ -567,3 +567,18 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 [A discriminative SPD feature learning approach on Riemannian manifolds for EEG classification](https://www.sciencedirect.com/science/article/pii/S0031320323004491#bib0006)
 
+## ICA Extensions
+
+[Deterministic Independent Component Analysis](https://proceedings.mlr.press/v37/huangb15.html)
+
+[Deep Deterministic Independent Component Analysis for Hyperspectral Unmixing](http://arxiv.org/abs/2202.02951)
+
+[Provable ICA with Unknown Gaussian Noise, with Implications for Gaussian Mixtures and Autoencoders](https://proceedings.neurips.cc/paper\_files/paper/2012/hash/09c6c3783b4a70054da74f2538ed47c6-Abstract.html)
+
+[Complete Dictionary Recovery Over the Sphere I: Overview and the Geometric Picture](https://ieeexplore.ieee.org/abstract/document/7755794)
+
+[Symmetry, Saddle Points, and Global Optimization Landscape of Nonconvex Matrix Factorization](https://ieeexplore.ieee.org/abstract/document/8675509)
+
+[Overcomplete Independent Component Analysis via SDP](https://proceedings.mlr.press/v89/podosinnikova19a.html)
+
+[Free Component Analysis: Theory, Algorithms and Applications](https://link.springer.com/article/10.1007/s10208-022-09564-w)
