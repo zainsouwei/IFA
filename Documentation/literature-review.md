@@ -515,6 +515,8 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 [Sparse Bayesian Learning and the Relevance Vector Machine](https://www.jmlr.org/papers/volume1/tipping01a/tipping01a.pdf?ref=https://githubhelp.com)
 
+[Intrinsic dimensionality estimation using Normalizing Flows](https://openreview.net/forum?id=wA7vZS-mSxv)
+
 ## Probabilistic Extensions of Spectral Methods (PCA/ICA/LDA/FKT)
 
 [Conjugate distributions](https://vioshyvo.github.io/Bayesian\_inference/conjugate-distributions.html)
