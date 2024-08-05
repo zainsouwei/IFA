@@ -391,6 +391,22 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 
 [Discriminative subspace learning via optimization on Riemannian manifold](https://www.sciencedirect.com/science/article/pii/S0031320323001504)
 
+[Fréchet mean-based Grassmann discriminant analysis](https://link.springer.com/article/10.1007/s00530-019-00629-5)
+
+[Distances Between Subspaces](https://kristianeschenburg.netlify.app/post/comparing-subspaces/)
+
+[Distances Between Subspaces](https://web.ma.utexas.edu/users/vandyke/notes/deep\_learning\_presentation/presentation.pdf)
+
+[Intrinsic Grassmann Averages for Online Linear, Robust and Nonlinear Subspace Learning](https://arxiv.org/abs/1702.01005)
+
+[Grassmann Distances](https://uqpyproject.readthedocs.io/en/stable/utilities/distances/grassmann\_distances.html)
+
+[A Grassmann manifold handbook: basic geometry and computational aspects](https://link.springer.com/article/10.1007/s10444-023-10090-8)
+
+[Grassmann Averages for Scalable Robust PCA](https://openaccess.thecvf.com/content\_cvpr\_2014/html/Hauberg\_Grassmann\_Averages\_for\_2014\_CVPR\_paper.html)
+
+[Grassmann clustering](https://ieeexplore.ieee.org/abstract/document/7071681)
+
 ## Spectral Manifold Analysis (GEVD, PCA, etc)
 
 [Manopt Matlab toolbox contains some Eigen Value manifold solvers](https://github.com/NicolasBoumal/manopt/tree/master/examples)
