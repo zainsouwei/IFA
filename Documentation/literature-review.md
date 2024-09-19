@@ -209,6 +209,10 @@ description: https://docs.google.com/document/d/1oF6qZgwvISPINqd5BmjAFdGRmbf34Fe
 
 [Manifold Learning-based Common Spatial Pattern for EEG Signal Classification](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=\&arnumber=10413532)
 
+[The Riemannian spatial pattern method: mapping and clustering movement imagery using Riemannian geometry](https://iopscience.iop.org/article/10.1088/1741-2552/abf291/meta)
+
+[Riemannian Geometry-Based EEG Approaches: A Literature Review](https://arxiv.org/abs/2407.20250)
+
 ## FKT+fMRI
 
 [Identification of lateralized compensatory neural activities within the social brain due to autism spectrum disorder in adolescent males - Subbaraju - 2018 - European Journal of Neuroscience - Wiley Online Library (umich.edu)](https://onlinelibrary-wiley-com.proxy.lib.umich.edu/doi/full/10.1111/ejn.13634)
@@ -600,3 +604,15 @@ Fukunaga Introduction to Statistical Pattern Recognition 1990 Parametric Classif
 [Overcomplete Independent Component Analysis via SDP](https://proceedings.mlr.press/v89/podosinnikova19a.html)
 
 [Free Component Analysis: Theory, Algorithms and Applications](https://link.springer.com/article/10.1007/s10208-022-09564-w)
+
+## HCP Phenotypes/Phenotype Classification
+
+[A Deep Network Model on Dynamic Functional Connectivity With Applications to Gender Classification and Intelligence Prediction](https://www.frontiersin.org/journals/neuroscience/articles/10.3389/fnins.2020.00881/full)
+
+[Beyond functional connectivity: deep learning applied to resting-state fMRI time series in the prediction of 58 human traits in the HCP](https://www.biorxiv.org/content/10.1101/2024.03.07.583858v1.abstract)
+
+[Sex classification from functional brain connectivity: Generalization to multiple datasets](https://onlinelibrary.wiley.com/doi/full/10.1002/hbm.26683)
+
+[Predicting Sex from Resting-State fMRI Across Multiple Independent Acquired Datasets](https://storage.prod.researchhub.com/uploads/papers/2023/10/26/2020.08.20.259945.full.pdf)
+
+[Sex classification from functional brain connectivity: Generalization to multiple datasets Generalizability of sex classifiers](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10491190/)
