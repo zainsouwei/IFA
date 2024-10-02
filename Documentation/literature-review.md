@@ -92,6 +92,8 @@ description: https://docs.google.com/document/d/1oF6qZgwvISPINqd5BmjAFdGRmbf34Fe
 
 [Bilinear Regularized Locality Preserving Learning on Riemannian Graph for Motor Imagery BCI](https://pubmed.ncbi.nlm.nih.gov/29522413/)
 
+[Transport on Riemannian Manifold for Connectivity-Based Brain Decoding](https://ieeexplore.ieee.org/document/7175050)
+
 ## Similarity, Metrics, & NetMats/FCs
 
 [Log Covariance Matrix Estimation (rice.edu)](https://www.stat.rice.edu/\~jrojo/4th-Lehmann/slides/Deng.pdf)
