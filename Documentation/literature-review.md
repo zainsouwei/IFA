@@ -94,6 +94,8 @@ description: https://docs.google.com/document/d/1oF6qZgwvISPINqd5BmjAFdGRmbf34Fe
 
 [Transport on Riemannian Manifold for Connectivity-Based Brain Decoding](https://ieeexplore.ieee.org/document/7175050)
 
+[The tangent space in sub-Riemannian geometry](https://link.springer.com/chapter/10.1007/978-3-0348-9210-0\_1)
+
 ## Similarity, Metrics, & NetMats/FCs
 
 [Log Covariance Matrix Estimation (rice.edu)](https://www.stat.rice.edu/\~jrojo/4th-Lehmann/slides/Deng.pdf)
