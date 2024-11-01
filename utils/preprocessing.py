@@ -1,0 +1,158 @@
+import os
+import numpy as np
+import pandas as pd
+import re
+import traceback
+from concurrent.futures import ProcessPoolExecutor, TimeoutError
+import hcp_utils as hcp # https://rmldj.github.io/hcp-utils/
+import nibabel as nib
+
+
+def extract_phenotype(phenotypes, file_path_restricted='../HCP/RESTRICTED_zainsou_8_6_2024_2_11_21.csv', file_path_unrestricted='../HCP/unrestricted_zainsou_8_2_2024_6_13_22.csv'):
+    try:
+        # Load data from CSV files
+        data_r = pd.read_csv(file_path_restricted)
+        data_ur = pd.read_csv(file_path_unrestricted)
+    except FileNotFoundError:
+        print(f"File not found: {file_path_restricted} or {file_path_unrestricted}")
+        raise
+
+    # Combine restricted and unrestricted data on Subject ID
+    data = pd.merge(data_r, data_ur, on='Subject', how='outer')
+
+    # Filter out rows with NaNs in the specified phenotypes and where '3T_RS-fMRI_Count' is not equal to 4
+    data_filtered = data[data['3T_RS-fMRI_Count'] == 4]
+    data_filtered = data_filtered[phenotypes].dropna()
+    
+    return data_filtered
+
+def get_meta_data(base_directory='/project_cephfs/3022017.01/S1200'):
+    # Metadata keys and variables
+    subid = "Subject"
+    familyid = "Family_ID"
+    # Confounders 
+    # confounds detailed in https://www.sciencedirect.com/science/article/pii/S1053811920300914 & https://www.humanconnectome.org/storage/app/media/documentation/s500/HCP500_MegaTrawl_April2015.pdf
+    # In Data Table: Age (Age_in_Yrs), Sex (Gender), Ethnicity (Ethnicity), Weight (Weight), Brain Size (FS_BrainSeg_Vol), Intracranial Volume (FS_IntraCranial_Vol), Confounds Modelling Slow Drift (TestRetestInterval), reconstruction code version (fMRI_3T_ReconVrs) or Acquisition Quarter (Acquisition)
+    # In pathfile: Head Motion (a summation over all timepoints of timepoint-to-timepoint relative head motion or average) Movement_RelativeRMS_mean.txt (Since LR RL and session scans are concateanted, take average of this average)
+    # Mentioned in papers but not found: variables (x, y, z, table) related to bed position in scanner
+    age = "Age_in_Yrs"
+    sex = "Gender"
+    ethnicity = "Ethnicity"
+    weight = "Weight"
+    brain_size = "FS_BrainSeg_Vol"
+    intracranial_volume = "FS_IntraCranial_Vol"
+    reconstruction_code = "fMRI_3T_ReconVrs"
+
+    # Extract metadata using a hypothetical function (replace with your actual data extraction logic)
+    data_dict_data = [subid, familyid, age, sex, ethnicity, weight, brain_size, intracranial_volume, reconstruction_code]
+    data_dict_data_df = extract_phenotype(data_dict_data)
+
+    # Set up directories and file paths for fMRI data
+    subdirectory = "MNINonLinear/Results"
+    folders = ["rfMRI_REST1_LR", "rfMRI_REST1_RL", "rfMRI_REST2_LR", "rfMRI_REST2_RL"]
+    file_suffix = "_Atlas_MSMAll_hp2000_clean.dtseries.nii"
+    motion_file = "Movement_RelativeRMS_mean.txt"
+    # Initialize lists to store subject IDs, scan paths, and single motion values
+    valid_subids = []
+    all_scan_paths = []
+    all_motion_values = []
+
+    # Vectorized iteration over the subject IDs
+    subids = data_dict_data_df[subid].tolist()
+    for sub in subids:
+        subject_scans = []
+        subject_motion = []
+
+        # Collect scan paths and single motion values for each session
+        for folder in folders:
+            scan_path = os.path.join(base_directory, str(sub), subdirectory, folder, folder + file_suffix)
+            motion_path = os.path.join(base_directory, str(sub), subdirectory, folder, motion_file)
+
+            if os.path.exists(scan_path) and os.path.exists(motion_path):
+                subject_scans.append(scan_path)
+                # Read only the first line of motion values (single value)
+                with open(motion_path, 'r') as f:
+                    motion_value = float(f.readline().strip())
+                subject_motion.append(motion_value)
+
+        # Only add subjects with all required scan and motion files
+        if len(subject_scans) == len(folders):
+            valid_subids.append(sub)
+            all_scan_paths.append(subject_scans)
+            all_motion_values.append(subject_motion)  # List of single values
+
+    # Create a new DataFrame from the collected scan paths and motion values
+    motion_data_df = pd.DataFrame({
+        'Subject': valid_subids,
+        'paths': all_scan_paths,
+        'motion': all_motion_values
+    })
+
+    # Perform an intersection merge to keep only subjects present in both DataFrames
+    combined_df = data_dict_data_df.merge(motion_data_df, on='Subject', how='inner')
+
+    return combined_df
+    
+
+def process_subject(sub):
+    try:
+        concatenated_data = []
+        for task in sub:
+            X = nib.load(task).get_fdata(dtype=np.float32)
+            Xn = hcp.normalize(X-X.mean(axis=1, keepdims=True))
+            concatenated_data.append(Xn)
+            del X, Xn
+
+        # Concatenate data along the first axis
+        subject = np.concatenate(concatenated_data, axis=0)
+        del concatenated_data  # Explicitly delete the concatenated data list
+
+        Xp = hcp.parcellate(hcp.normalize(subject - subject.mean(axis=1,keepdims=True)), hcp.mmp)
+        Xp = hcp.normalize(Xp - Xp.mean(axis=1,keepdims=True))
+        del subject  # Explicitly delete the subject array
+
+        return Xp
+
+    except Exception as e:
+        print(f"Error processing subject: {e}")
+        traceback.print_exc()  # Print the full traceback
+        return None
+
+           
+def parcellate(output_dir,base_directory = "/project_cephfs/3022017.01/S1200", target_shape=(4800, 379),n_workers=.7):
+    meta_data_df = get_meta_data(base_directory=base_directory)
+    subids = meta_data_df["Subject"].tolist()[0,1,2,3]
+    paths = meta_data_df["paths"].tolist()[0,1,2,3]
+
+    try:
+        with ProcessPoolExecutor(max_workers=(int(os.cpu_count()*n_workers))) as executor:
+            # Use map to process subjects in parallel
+            group_parcellated = list(executor.map(process_subject, paths))
+        
+        # Filter out any None results and ensure correct shape
+        valid_index = [index for index, result in enumerate(group_parcellated) if result is not None and result.shape == target_shape]
+
+        # Filter subids and parcellated data using list comprehensions
+        valid_subids = [subids[index] for index in valid_index]
+        valid_parcellated = [group_parcellated[index] for index in valid_index]
+
+        # Create a new DataFrame with valid subids and parcellated data
+        parcellated_data_df = pd.DataFrame({
+            'Subject': valid_subids,
+            'parcellated_data': valid_parcellated
+        })
+
+        # Perform an inner join with the metadata DataFrame
+        full_df = meta_data_df.merge(parcellated_data_df, on='Subject', how='inner')
+
+        # Save the combined DataFrame as a pickle file
+        pickle_path = os.path.join(output_dir, "combined_data.pkl")
+        full_df.to_pickle(pickle_path)
+        print(f"Data successfully saved to {pickle_path}")
+
+        return full_df
+
+    except Exception as e:
+        print(f"Error in parcellation process: {e}")
+        traceback.print_exc()
+        return []
