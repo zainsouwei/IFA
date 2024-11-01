@@ -7,7 +7,7 @@ import hcp_utils as hcp # https://rmldj.github.io/hcp-utils/
 import nibabel as nib
 
 
-def extract_phenotype(phenotypes, file_path_restricted='../HCP/RESTRICTED_zainsou_8_6_2024_2_11_21.csv', file_path_unrestricted='../HCP/unrestricted_zainsou_8_2_2024_6_13_22.csv'):
+def extract_phenotype(phenotypes, file_path_restricted='/project/3022057.01/HCP/RESTRICTED_zainsou_8_6_2024_2_11_21.csv', file_path_unrestricted='/project/3022057.01/HCP/unrestricted_zainsou_8_2_2024_6_13_22.csv'):
     try:
         # Load data from CSV files
         data_r = pd.read_csv(file_path_restricted)
@@ -120,8 +120,8 @@ def process_subject(sub):
            
 def parcellate(output_dir,base_directory = "/project_cephfs/3022017.01/S1200", target_shape=(4800, 379),n_workers=.4):
     meta_data_df = get_meta_data(base_directory=base_directory)
-    subids = meta_data_df["Subject"].tolist()[:5]
-    paths = meta_data_df["paths"].tolist()[:5]
+    subids = meta_data_df["Subject"].tolist()
+    paths = meta_data_df["paths"].tolist()
 
     try:
         with ProcessPoolExecutor(max_workers=(int(os.cpu_count()*n_workers))) as executor:
