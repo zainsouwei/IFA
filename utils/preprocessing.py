@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import pandas as pd
-import re
 import traceback
 from concurrent.futures import ProcessPoolExecutor, TimeoutError
 import hcp_utils as hcp # https://rmldj.github.io/hcp-utils/
@@ -119,10 +118,10 @@ def process_subject(sub):
         return None
 
            
-def parcellate(output_dir,base_directory = "/project_cephfs/3022017.01/S1200", target_shape=(4800, 379),n_workers=.7):
+def parcellate(output_dir,base_directory = "/project_cephfs/3022017.01/S1200", target_shape=(4800, 379),n_workers=.4):
     meta_data_df = get_meta_data(base_directory=base_directory)
-    subids = meta_data_df["Subject"].tolist()[0,1,2,3]
-    paths = meta_data_df["paths"].tolist()[0,1,2,3]
+    subids = meta_data_df["Subject"].tolist()[:5]
+    paths = meta_data_df["paths"].tolist()[:5]
 
     try:
         with ProcessPoolExecutor(max_workers=(int(os.cpu_count()*n_workers))) as executor:
