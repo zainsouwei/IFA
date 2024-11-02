@@ -181,59 +181,63 @@ def parcellate(output_dir,base_directory = "/project_cephfs/3022017.01/S1200", t
         traceback.print_exc()
         return []
     
-def get_groups(phenotypes, data_path='/project/3022057.01/HCP/combined_data.pkl', regression=False, visualize=True):
+def get_groups(phenotypes, quantile=0.33, data_path='/project/3022057.01/HCP/combined_data.pkl', regression=False, visualize=True):
     # Load the phenotype data
     columns = ["Subject"] + phenotypes
     phenotype_data = extract_phenotype(columns)
 
+    if regression:
+        # Ensure all phenotypes are continuous for regression
+        if any(phenotype_data[phenotype].nunique() <= 2 for phenotype in phenotypes):
+            raise ValueError("All phenotypes must be continuous for regression.")
+        
+        # Compute and return the summed phenotype values
+        phenotype_data["SummedValues"] = phenotype_data[phenotypes].sum(axis=1)
+        
+        if visualize:
+            # Plot histogram for the summed values
+            plt.figure(figsize=(10, 6))
+            plt.hist(phenotype_data["SummedValues"], bins=30, alpha=0.7, color='green')
+            plt.xlabel('Summed Phenotype Values')
+            plt.ylabel('Frequency')
+            plt.title('Histogram of Summed Phenotype Values for Regression Case')
+            plt.show()
+        
+        return phenotype_data
+
+    # Initialize subject sets for intersection
     group_a_subjects = set(phenotype_data["Subject"])
     group_b_subjects = set(phenotype_data["Subject"])
 
     for phenotype in phenotypes:
-        # Check if the phenotype is continuous or discrete
         unique_values = phenotype_data[phenotype].nunique()
-        
-        if unique_values > 2: 
-            # Split into quantiles for continuous data
-            lower_quantile = phenotype_data[phenotype].quantile(0.33)
-            upper_quantile = phenotype_data[phenotype].quantile(0.67)
-            
-            # Identify subjects in the top and bottom quantiles
-            top_quantile_subjects = set(phenotype_data[phenotype_data[phenotype] >= upper_quantile]["Subject"])
-            bottom_quantile_subjects = set(phenotype_data[phenotype_data[phenotype] <= lower_quantile]["Subject"])
-        elif unique_values <= 2: 
-            # For discrete data, use the unique classes to split
+
+        if unique_values > 2:  # Continuous phenotype
+            lower_quantile = phenotype_data[phenotype].quantile(quantile)
+            upper_quantile = phenotype_data[phenotype].quantile(1 - quantile)
+            top_quantile_subjects = phenotype_data[phenotype_data[phenotype] >= upper_quantile]["Subject"]
+            bottom_quantile_subjects = phenotype_data[phenotype_data[phenotype] <= lower_quantile]["Subject"]
+        elif unique_values == 2:  # Binary discrete phenotype
             classes = phenotype_data[phenotype].unique()
-            if len(classes) == 2:  # Binary classes
-                top_class = classes[0]
-                bottom_class = classes[1]
-            else:
-                raise ValueError(f"Discrete measure {phenotype} has more than two classes, which is not supported yet.")
-            
-            # Identify subjects in each class
-            top_quantile_subjects = set(phenotype_data[phenotype_data[phenotype] == top_class]["Subject"])
-            bottom_quantile_subjects = set(phenotype_data[phenotype_data[phenotype] == bottom_class]["Subject"])
+            top_class, bottom_class = classes[0], classes[1]
+            top_quantile_subjects = phenotype_data[phenotype_data[phenotype] == top_class]["Subject"]
+            bottom_quantile_subjects = phenotype_data[phenotype_data[phenotype] == bottom_class]["Subject"]
         else:
-            raise ValueError(f"Feature {phenotype} is a mix of discrete and continuous, which is not supported yet.")
+            raise ValueError(f"Unsupported feature type for phenotype '{phenotype}'.")
 
-        # Intersect subjects for all phenotypes
-        group_a_subjects &= top_quantile_subjects
-        group_b_subjects &= bottom_quantile_subjects
+        # Update sets with the intersection of subjects
+        group_a_subjects &= set(top_quantile_subjects)
+        group_b_subjects &= set(bottom_quantile_subjects)
 
-    # Return the groups as DataFrames
+    # Filter phenotype data for the subject groups
     group_a = phenotype_data[phenotype_data["Subject"].isin(group_a_subjects)]
     group_b = phenotype_data[phenotype_data["Subject"].isin(group_b_subjects)]
 
-    if regression:
-        # Placeholder for regression logic if needed
-        pass
-
     if visualize:
-        # Combine all phenotypes into a single array for each group
-        group_a_values = np.sum(group_a[phenotypes].to_numpy(),axis=1)
-        group_b_values = np.sum(group_b[phenotypes].to_numpy(),axis=1)
+        # Plot histograms for Group A and Group B
+        group_a_values = group_a[phenotypes].to_numpy().sum(axis=1)
+        group_b_values = group_b[phenotypes].to_numpy().sum(axis=1)
 
-        # Plot histograms of both classes
         plt.figure(figsize=(10, 6))
         plt.hist(group_a_values, bins=30, alpha=0.5, label='Group A (Top Quantiles)', color='blue')
         plt.hist(group_b_values, bins=30, alpha=0.5, label='Group B (Bottom Quantiles)', color='red')
@@ -243,6 +247,4 @@ def get_groups(phenotypes, data_path='/project/3022057.01/HCP/combined_data.pkl'
         plt.legend()
         plt.show()
 
-
     return group_a, group_b
-
