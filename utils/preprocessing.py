@@ -240,7 +240,9 @@ def get_groups(phenotypes, quantile=0.33, data_path='/project/3022057.01/HCP/com
     # Filter phenotype data for the subject groups
     group_a = phenotype_data[phenotype_data["Subject"].isin(group_a_subjects)].merge(loaded_data, on="Subject", how="inner")
     group_b = phenotype_data[phenotype_data["Subject"].isin(group_b_subjects)].merge(loaded_data, on="Subject", how="inner")
-
+    print(phenotype_data.columns)
+    print(loaded_data.columns)
+    print(group_a.columns)
     if visualize:
         # Plot histograms for Group A and Group B
         group_a_values = group_a[phenotypes].to_numpy().sum(axis=1)
