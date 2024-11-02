@@ -186,12 +186,19 @@ def get_groups(phenotypes, quantile=0.33, data_path='/project/3022057.01/HCP/com
     columns = ["Subject"] + phenotypes
     phenotype_data = extract_phenotype(columns)
 
+    # Load additional data from the provided data path
+    loaded_data = pd.read_pickle(data_path)
+    
+    # Perform intersection on the 'Subject' column and filter phenotype data
+    common_subjects = phenotype_data.merge(loaded_data, on="Subject", how="inner")["Subject"]
+    phenotype_data = phenotype_data[phenotype_data["Subject"].isin(common_subjects)]
+
     if regression:
         # Ensure all phenotypes are continuous for regression
         if any(phenotype_data[phenotype].nunique() <= 2 for phenotype in phenotypes):
             raise ValueError("All phenotypes must be continuous for regression.")
-        
-        # Compute and return the summed phenotype values
+
+        # Compute summed phenotype values
         phenotype_data["SummedValues"] = phenotype_data[phenotypes].sum(axis=1)
         
         if visualize:
@@ -203,7 +210,8 @@ def get_groups(phenotypes, quantile=0.33, data_path='/project/3022057.01/HCP/com
             plt.title('Histogram of Summed Phenotype Values for Regression Case')
             plt.show()
         
-        return phenotype_data
+        # Join the phenotype data with the loaded data
+        return phenotype_data.merge(loaded_data, on="Subject", how="inner")
 
     # Initialize subject sets for intersection
     group_a_subjects = set(phenotype_data["Subject"])
@@ -230,8 +238,8 @@ def get_groups(phenotypes, quantile=0.33, data_path='/project/3022057.01/HCP/com
         group_b_subjects &= set(bottom_quantile_subjects)
 
     # Filter phenotype data for the subject groups
-    group_a = phenotype_data[phenotype_data["Subject"].isin(group_a_subjects)]
-    group_b = phenotype_data[phenotype_data["Subject"].isin(group_b_subjects)]
+    group_a = phenotype_data[phenotype_data["Subject"].isin(group_a_subjects)].merge(loaded_data, on="Subject", how="inner")
+    group_b = phenotype_data[phenotype_data["Subject"].isin(group_b_subjects)].merge(loaded_data, on="Subject", how="inner")
 
     if visualize:
         # Plot histograms for Group A and Group B
