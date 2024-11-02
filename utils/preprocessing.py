@@ -5,6 +5,32 @@ import traceback
 from concurrent.futures import ProcessPoolExecutor, TimeoutError
 import hcp_utils as hcp # https://rmldj.github.io/hcp-utils/
 import nibabel as nib
+import resource
+import psutil
+import torch
+import matplotlib.pyplot as plt
+
+def gpu_mem():
+    # Memory usage information
+    print(f"Total memory available: {(torch.cuda.get_device_properties('cuda').total_memory / 1024**3):.2f} GB")
+    print(f"Allocated memory: {torch.cuda.memory_allocated() / 1024**3:.2f} GB")
+    print(f"Reserved memory: {torch.cuda.memory_reserved() / 1024**3:.2f} GB")
+
+def cpu_mem():
+    # Get the soft and hard limits of virtual memory (address space)
+    soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+    print(f"Soft limit: {soft / (1024 ** 3):.2f} GB")
+    print(f"Hard limit: {hard / (1024 ** 3):.2f} GB")
+
+    # Get the soft and hard limits of the data segment (physical memory usage)
+    soft, hard = resource.getrlimit(resource.RLIMIT_DATA)
+    print(f"Soft limit: {soft / (1024 ** 3):.2f} GB")
+    print(f"Hard limit: {hard / (1024 ** 3):.2f} GB")
+   # Display memory information
+    print(f"Total Memory: { psutil.virtual_memory().total / (1024**3):.2f} GB")
+    print(f"Available Memory: { psutil.virtual_memory().available / (1024**3):.2f} GB")
+    print(f"Used Memory: { psutil.virtual_memory().used / (1024**3):.2f} GB")
+    print(f"Memory Usage: { psutil.virtual_memory().percent}%")
 
 
 def extract_phenotype(phenotypes, file_path_restricted='/project/3022057.01/HCP/RESTRICTED_zainsou_8_6_2024_2_11_21.csv', file_path_unrestricted='/project/3022057.01/HCP/unrestricted_zainsou_8_2_2024_6_13_22.csv'):
@@ -42,7 +68,6 @@ def get_meta_data(base_directory='/project_cephfs/3022017.01/S1200'):
     intracranial_volume = "FS_IntraCranial_Vol"
     reconstruction_code = "fMRI_3T_ReconVrs"
 
-    # Extract metadata using a hypothetical function (replace with your actual data extraction logic)
     data_dict_data = [subid, familyid, age, sex, ethnicity, weight, brain_size, intracranial_volume, reconstruction_code]
     data_dict_data_df = extract_phenotype(data_dict_data)
 
@@ -155,3 +180,69 @@ def parcellate(output_dir,base_directory = "/project_cephfs/3022017.01/S1200", t
         print(f"Error in parcellation process: {e}")
         traceback.print_exc()
         return []
+    
+def get_groups(phenotypes, data_path='/project/3022057.01/HCP/combined_data.pkl', regression=False, visualize=True):
+    # Load the phenotype data
+    columns = ["Subject"] + phenotypes
+    phenotype_data = extract_phenotype(columns)
+
+    group_a_subjects = set(phenotype_data["Subject"])
+    group_b_subjects = set(phenotype_data["Subject"])
+
+    for phenotype in phenotypes:
+        # Check if the phenotype is continuous or discrete
+        unique_values = phenotype_data[phenotype].nunique()
+        
+        if unique_values > 2: 
+            # Split into quantiles for continuous data
+            lower_quantile = phenotype_data[phenotype].quantile(0.33)
+            upper_quantile = phenotype_data[phenotype].quantile(0.67)
+            
+            # Identify subjects in the top and bottom quantiles
+            top_quantile_subjects = set(phenotype_data[phenotype_data[phenotype] >= upper_quantile]["Subject"])
+            bottom_quantile_subjects = set(phenotype_data[phenotype_data[phenotype] <= lower_quantile]["Subject"])
+        elif unique_values <= 2: 
+            # For discrete data, use the unique classes to split
+            classes = phenotype_data[phenotype].unique()
+            if len(classes) == 2:  # Binary classes
+                top_class = classes[0]
+                bottom_class = classes[1]
+            else:
+                raise ValueError(f"Discrete measure {phenotype} has more than two classes, which is not supported yet.")
+            
+            # Identify subjects in each class
+            top_quantile_subjects = set(phenotype_data[phenotype_data[phenotype] == top_class]["Subject"])
+            bottom_quantile_subjects = set(phenotype_data[phenotype_data[phenotype] == bottom_class]["Subject"])
+        else:
+            raise ValueError(f"Feature {phenotype} is a mix of discrete and continuous, which is not supported yet.")
+
+        # Intersect subjects for all phenotypes
+        group_a_subjects &= top_quantile_subjects
+        group_b_subjects &= bottom_quantile_subjects
+
+    # Return the groups as DataFrames
+    group_a = phenotype_data[phenotype_data["Subject"].isin(group_a_subjects)]
+    group_b = phenotype_data[phenotype_data["Subject"].isin(group_b_subjects)]
+
+    if regression:
+        # Placeholder for regression logic if needed
+        pass
+
+    if visualize:
+        # Combine all phenotypes into a single array for each group
+        group_a_values = np.sum(group_a[phenotypes].to_numpy(),axis=1)
+        group_b_values = np.sum(group_b[phenotypes].to_numpy(),axis=1)
+
+        # Plot histograms of both classes
+        plt.figure(figsize=(10, 6))
+        plt.hist(group_a_values, bins=30, alpha=0.5, label='Group A (Top Quantiles)', color='blue')
+        plt.hist(group_b_values, bins=30, alpha=0.5, label='Group B (Bottom Quantiles)', color='red')
+        plt.xlabel('Phenotype Values')
+        plt.ylabel('Frequency')
+        plt.title('Histogram of Phenotype Values for Group A and Group B')
+        plt.legend()
+        plt.show()
+
+
+    return group_a, group_b
+
