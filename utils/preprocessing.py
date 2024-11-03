@@ -218,6 +218,7 @@ def get_groups(phenotypes, quantile=0.33, data_path='/project/3022057.01/HCP/com
     group_a_subjects = set(phenotype_data["Subject"])
     group_b_subjects = set(phenotype_data["Subject"])
 
+    labels = ["Upper Quantile", "Lower Quantile"]
     for phenotype in phenotypes:
         unique_values = phenotype_data[phenotype].nunique()
 
@@ -228,6 +229,7 @@ def get_groups(phenotypes, quantile=0.33, data_path='/project/3022057.01/HCP/com
             bottom_quantile_subjects = phenotype_data[phenotype_data[phenotype] <= lower_quantile]["Subject"]
         elif unique_values == 2:  # Binary discrete phenotype
             classes = phenotype_data[phenotype].unique()
+            labels = classes
             top_class, bottom_class = classes[0], classes[1]
             top_quantile_subjects = phenotype_data[phenotype_data[phenotype] == top_class]["Subject"]
             bottom_quantile_subjects = phenotype_data[phenotype_data[phenotype] == bottom_class]["Subject"]
@@ -239,6 +241,13 @@ def get_groups(phenotypes, quantile=0.33, data_path='/project/3022057.01/HCP/com
     # Filter phenotype data for the subject groups
     group_a = phenotype_data[phenotype_data["Subject"].isin(group_a_subjects)]
     group_b = phenotype_data[phenotype_data["Subject"].isin(group_b_subjects)]
+    group_a["Label"] = labels[0]
+    group_b["Label"] = labels[1]
+
+    # Check for overlapping subjects and raise a warning if found
+    if np.sum(group_a["Subject"].isin(group_b["Subject"])) > 0:
+        raise ValueError("Overlap bnetween subejcts in each class")
+
 
     if visualize:
         # Plot histograms for Group A and Group B
