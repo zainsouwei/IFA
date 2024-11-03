@@ -117,11 +117,10 @@ def get_meta_data(base_directory='/project_cephfs/3022017.01/S1200'):
 
     return combined_df
     
-
-def process_subject(sub):
+def load_subject(subject):
     try:
         concatenated_data = []
-        for task in sub:
+        for task in subject:
             X = nib.load(task).get_fdata(dtype=np.float32)
             Xn = hcp.normalize(X-X.mean(axis=1, keepdims=True))
             concatenated_data.append(Xn)
@@ -130,10 +129,21 @@ def process_subject(sub):
         # Concatenate data along the first axis
         subject = np.concatenate(concatenated_data, axis=0)
         del concatenated_data  # Explicitly delete the concatenated data list
-
-        Xp = hcp.parcellate(hcp.normalize(subject - subject.mean(axis=1,keepdims=True)), hcp.mmp)
-        Xp = hcp.normalize(Xp - Xp.mean(axis=1,keepdims=True))
+        subject_normalized = hcp.normalize(subject - subject.mean(axis=1,keepdims=True))
         del subject  # Explicitly delete the subject array
+        return subject_normalized
+
+    except Exception as e:
+        print(f"Error processing subject: {e}")
+        traceback.print_exc()  # Print the full traceback
+        return None
+
+def process_subject(sub):
+    try:
+        normalized_subject = load_subject(sub)
+        Xp = hcp.parcellate(normalized_subject)
+        del normalized_subject  # Explicitly delete the subject array
+        Xp = hcp.normalize(Xp - Xp.mean(axis=1,keepdims=True))
 
         return Xp
 
