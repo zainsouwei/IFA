@@ -117,11 +117,9 @@ def FKT(groupA_cov_matrices, groupB_cov_matrices, metric="riemann", visualize=Tr
 
     return fkt_riem_eigs, filters
 
-def TSSF(groupA_covs, groupB_covs, clf=clf_dict["L2 SVM (C=1)"], metric="riemann", z_score=2, haufe=True, visualize=False,n=0):
+def TSSF(covs, labels, clf=clf_dict["L2 SVM (C=1)"], metric="riemann", z_score=2, haufe=True, visualize=False,n=0):
     # https://ieeexplore.ieee.org/abstract/document/9630144/references#references
     # https://arxiv.org/abs/1909.10567
-    covs = np.concatenate((groupA_covs, groupB_covs))
-    labels = np.concatenate((np.ones(groupA_covs.shape[0]) , np.zeros(groupB_covs.shape[0])))
     data, Frechet_Mean = tangent_transform(covs,metric=metric)
 
     if z_score == 1:
