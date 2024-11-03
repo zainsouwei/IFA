@@ -25,7 +25,8 @@ clf_dict = {
         "Logistic Regression (elasticnet)": LogisticRegression(penalty='elasticnet', C=1, solver='saga', l1_ratio=0.1, class_weight='balanced')
     }
 
-def linear_classifier(X_train, y_train, X_test, y_test, clf=clf_dict["SVM (C=1)"], z_score=2):
+def linear_classifier(X_train, y_train, X_test, y_test, clf_str="SVM (C=1)", z_score=2):
+    clf = clf_dict[clf_str]
     if z_score == 1:
         scaler = StandardScaler(with_mean=True, with_std=False)
         X_train = scaler.fit_transform(X_train)
@@ -41,7 +42,8 @@ def linear_classifier(X_train, y_train, X_test, y_test, clf=clf_dict["SVM (C=1)"
     correct_predictions = np.sum(predictions == y_test)
     total_predictions = len(y_test)
     # Confusion matrix to get per-class accuracy
-    cm = confusion_matrix(y_test, predictions, labels=[1, 0])
+    unique_labels = np.unique(y_test)
+    cm = confusion_matrix(y_test, predictions, labels=[unique_labels[1], unique_labels[0]])
     per_class_correct = np.diag(cm)
     per_class_total = np.sum(cm, axis=1)
     per_class_accuracy = per_class_correct / per_class_total

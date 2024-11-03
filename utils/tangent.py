@@ -5,7 +5,7 @@ from pyriemann.utils.tangentspace import tangent_space
 import sys
 sys.path.append('/utils')
 
-from classification import clf_dict, linear_classifier
+from classification import linear_classifier
 
 def tangent_transform(train, test=None, metric="riemann"):
     if test is not None:
@@ -21,8 +21,8 @@ def tangent_transform(train, test=None, metric="riemann"):
         train = tangent_space(train, Frechet_Mean, metric=metric)
         return train, Frechet_Mean
 
-def tangent_classification(covs_train, y_train, covs_test, y_test, clf=clf_dict["SVM (C=1)"], z_score=2, metric="riemann"):
+def tangent_classification(covs_train, y_train, covs_test, y_test, clf_str="SVM (C=1)", z_score=2, metric="riemann"):
     X_train, X_test, _ = tangent_transform(covs_train, covs_test, metric=metric)
-    summary = linear_classifier(X_train, y_train, X_test, y_test, clf=clf, z_score=z_score)
+    summary = linear_classifier(X_train, y_train, X_test, y_test, clf_str=clf_str, z_score=z_score)
 
     return summary

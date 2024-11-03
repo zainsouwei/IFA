@@ -11,7 +11,7 @@ import sys
 sys.path.append('/utils')
 
 from tangent import tangent_transform
-from classification import clf_dict, linear_classifier
+from classification import linear_classifier, clf_dict
 from haufe import haufe_transform
 
 def feature_generation(train,test, filters,method='log-var',metric='riemann',cov="oas"):
@@ -30,16 +30,21 @@ def feature_generation(train,test, filters,method='log-var',metric='riemann',cov
 
     return train_features, test_features
 
-def test_filters(train, train_labels, test, test_labels, filters, metric="riemann", method='log-cov',clf=clf_dict["SVM (C=1)"]):
+def test_filters(train, train_labels, test, test_labels, filters, metric="riemann", method='log-cov',clf_str="SVM (C=1)"):
     train_features, test_features = feature_generation(train, test, filters, method=method,metric=metric)
-    accuracy = linear_classifier(train_features, train_labels, test_features, test_labels, clf=clf, z_score=2)
+    accuracy = linear_classifier(train_features, train_labels, test_features, test_labels, clf_str=clf_str, z_score=2)
     return accuracy
 
-def test_visualize_variance(groupA, groupB, filters):
+def test_visualize_variance(data, labels, filters):
     for i in range(0,filters.shape[1]//2):
-        train_1_transform = np.var(groupA@filters[i,-(i+1)],axis=1)
-        train_2_transform = np.var(groupB@filters[i,-(i+1)],axis=1)
+        data_transform = np.var(data@filters[:,[i,-(i+1)]],axis=1)
+        unique_labels = np.unique(labels)
 
+        # Visualize variance based on the unique labels
+        if len(unique_labels) == 2:  # Assuming binary classification
+            data_1_transform = data_transform[labels == unique_labels[0]]
+            data_2_transform = data_transform[labels == unique_labels[1]]
+            
         # Create figure and gridspec layout
         fig = plt.figure(figsize=(8, 8))
         gs = gridspec.GridSpec(4, 4)
@@ -50,10 +55,10 @@ def test_visualize_variance(groupA, groupB, filters):
         ax_hist_y = fig.add_subplot(gs[1:4, 3], sharey=ax_scatter)
 
         # Scatter plot
-        ax_scatter.scatter(train_1_transform[:, 0], train_1_transform[:, 1], label='Group A', color='blue', alpha=0.5)
-        ax_scatter.scatter(train_2_transform[:, 0], train_2_transform[:, 1], label='Group B', color='red', alpha=0.5)
-        ax_scatter.set_xlabel('Projection onto Filter B')
-        ax_scatter.set_ylabel('Projection onto Filter A')
+        ax_scatter.scatter(data_1_transform[:, 0], data_1_transform[:, 1], label=f'Group {unique_labels[0]}', color='blue', alpha=0.5)
+        ax_scatter.scatter(data_2_transform[:, 0], data_2_transform[:, 1], label=f'Group {unique_labels[1]}', color='red', alpha=0.5)
+        ax_scatter.set_xlabel(f'Projection onto Filter {i}')
+        ax_scatter.set_ylabel(f'Projection onto Filter {filters.shape[1]-(i+1)}')
         ax_scatter.legend()
         ax_scatter.grid(True)
 
@@ -61,15 +66,15 @@ def test_visualize_variance(groupA, groupB, filters):
         bins = 30
 
         # Histograms for X axis (top)
-        ax_hist_x.hist(train_1_transform[:, 0], bins=bins, color='blue', alpha=0.5, density=True, label='Group A')
-        ax_hist_x.hist(train_2_transform[:, 0], bins=bins, color='red', alpha=0.5, density=True, label='Group B')
+        ax_hist_x.hist(data_1_transform[:, 0], bins=bins, color='blue', alpha=0.5, density=True, label='Group A')
+        ax_hist_x.hist(data_2_transform[:, 0], bins=bins, color='red', alpha=0.5, density=True, label='Group B')
         ax_hist_x.set_ylabel('Density')
         ax_hist_x.legend()
         ax_hist_x.grid(True)
 
         # Histograms for Y axis (right)
-        ax_hist_y.hist(train_1_transform[:, 1], bins=bins, orientation='horizontal', color='blue', alpha=0.5, density=True)
-        ax_hist_y.hist(train_2_transform[:, 1], bins=bins, orientation='horizontal', color='red', alpha=0.5, density=True)
+        ax_hist_y.hist(data_1_transform[:, 1], bins=bins, orientation='horizontal', color='blue', alpha=0.5, density=True)
+        ax_hist_y.hist(data_2_transform[:, 1], bins=bins, orientation='horizontal', color='red', alpha=0.5, density=True)
         ax_hist_y.set_xlabel('Density')
         ax_hist_y.grid(True)
 
@@ -82,13 +87,14 @@ def test_visualize_variance(groupA, groupB, filters):
         plt.show()
 
 def evaluate_filters(train, train_labels, test, test_labels, filters, metric="riemann"):
-    test_visualize_variance(test[test_labels == 1], test[test_labels == 0], filters)
+
+    test_visualize_variance(test, test_labels, filters)
     metrics_dict_logvar = {}
     metrics_dict_logcov = {}
-    for key, clf in clf_dict.items():
-        logvar_stats = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-var',clf=clf)
+    for key, _ in clf_dict.items():
+        logvar_stats = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-var',clf_str=key)
         metrics_dict_logvar[key] = logvar_stats
-        logcov_stats = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-cov',clf=clf)
+        logcov_stats = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-cov',clf_str=key)
         metrics_dict_logcov[key] = logcov_stats
 
     return metrics_dict_logvar, metrics_dict_logcov
@@ -117,7 +123,8 @@ def FKT(groupA_cov_matrices, groupB_cov_matrices, metric="riemann", visualize=Tr
 
     return fkt_riem_eigs, filters
 
-def TSSF(covs, labels, clf=clf_dict["L2 SVM (C=1)"], metric="riemann", z_score=2, haufe=True, visualize=False,n=0):
+def TSSF(covs, labels, clf_str=clf_dict["L2 SVM (C=1)"], metric="riemann", z_score=2, haufe=True, visualize=False,n=0):
+    clf = clf_dict[clf_str]
     # https://ieeexplore.ieee.org/abstract/document/9630144/references#references
     # https://arxiv.org/abs/1909.10567
     data, Frechet_Mean = tangent_transform(covs,metric=metric)
