@@ -35,7 +35,7 @@ def FKT(groupA_cov_matrices, groupB_cov_matrices, metric="riemann", visualize=Tr
 
     return fkt_riem_eigs, filters, filtersA, filtersB
 
-def TSSF(groupA_covs, groupB_covs, clf=clf_dict["L2 SVM (C=1)"], metric="riemann", z_score=0, haufe=True, visualize=False,n=0):
+def TSSF(groupA_covs, groupB_covs, clf=clf_dict["L2 SVM (C=1)"], metric="riemann", z_score=2, haufe=True, visualize=False,n=0):
     # https://ieeexplore.ieee.org/abstract/document/9630144/references#references
     # https://arxiv.org/abs/1909.10567
     covs = np.concatenate((groupA_covs, groupB_covs))
@@ -51,7 +51,7 @@ def TSSF(groupA_covs, groupB_covs, clf=clf_dict["L2 SVM (C=1)"], metric="riemann
 
     clf.fit(data, labels)
 
-    coef = np.atleast_2d(clf.coef)
+    coef = np.atleast_2d(clf.coef_)
     if coef.shape[1] != data.shape[1]:
         coef = coef.T
 
