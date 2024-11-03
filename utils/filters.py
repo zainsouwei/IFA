@@ -7,17 +7,12 @@ from pyriemann.estimation import Covariances
 from sklearn.preprocessing import StandardScaler
 import matplotlib.gridspec as gridspec
 
-
 import sys
 sys.path.append('/utils')
 
-from tangent import tangent_transform, clf_dict
+from tangent import tangent_transform
+from classification import clf_dict, linear_classifier
 from haufe import haufe_transform
-
-def test_filters(group1_train, group1_test, group_2_train,group2_test, filters, metric="riemann", method='log-cov'):
-    train_1, test_1, train_2, test_2 = feature_generation(group1_train, group1_test, group_2_train, group2_test, filters,method=method,metric=metric)
-    fold_metrics = test_classifiers(train_1, test_1, train_2, test_2, sample_weights_train=None)
-    return fold_metrics
 
 def feature_generation(train,test, filters,method='log-var',metric='riemann',cov="oas"):
     train_transformed = train @ filters
@@ -34,6 +29,11 @@ def feature_generation(train,test, filters,method='log-var',metric='riemann',cov
         train_features, test_features, _ = tangent_transform(train_cov,  test_cov, metric)
 
     return train_features, test_features
+
+def test_filters(train, train_labels, test, test_labels, filters, metric="riemann", method='log-cov',clf=clf_dict["SVM (C=1)"]):
+    train_features, test_features = feature_generation(train, test, filters, method=method,metric=metric)
+    accuracy = linear_classifier(train_features, train_labels, test_features, test_labels, clf=clf, z_score=2)
+    return accuracy
 
 def test_visualize_variance(groupA, groupB, filters):
     for i in range(0,filters.shape[1]//2):
@@ -80,6 +80,18 @@ def test_visualize_variance(groupA, groupB, filters):
         # Adjust layout
         plt.tight_layout()
         plt.show()
+
+def evaluate_filters(train, train_labels, test, test_labels, filters, metric="riemann"):
+    test_visualize_variance(test[test_labels == 1], test[test_labels == 0], filters)
+    metrics_dict_logvar = {}
+    metrics_dict_logcov = {}
+    for key, clf in clf_dict.items():
+        logvar_stats = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-var',clf=clf)
+        metrics_dict_logvar[key] = logvar_stats
+        logcov_stats = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-cov',clf=clf)
+        metrics_dict_logcov[key] = logcov_stats
+
+    return metrics_dict_logvar, metrics_dict_logcov
 
 def FKT(groupA_cov_matrices, groupB_cov_matrices, metric="riemann", visualize=True):
     # Eigenvalues in ascending order from scipy eigh https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.eigh.html
