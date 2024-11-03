@@ -3,13 +3,83 @@ import matplotlib.pyplot as plt
 from scipy.linalg import eigh
 from pyriemann.utils.mean import mean_covariance
 from pyriemann.utils.tangentspace import untangent_space
+from pyriemann.estimation import Covariances
 from sklearn.preprocessing import StandardScaler
+import matplotlib.gridspec as gridspec
+
 
 import sys
 sys.path.append('/utils')
 
 from tangent import tangent_transform, clf_dict
 from haufe import haufe_transform
+
+def test_filters(group1_train, group1_test, group_2_train,group2_test, filters, metric="riemann", method='log-cov'):
+    train_1, test_1, train_2, test_2 = feature_generation(group1_train, group1_test, group_2_train, group2_test, filters,method=method,metric=metric)
+    fold_metrics = test_classifiers(train_1, test_1, train_2, test_2, sample_weights_train=None)
+    return fold_metrics
+
+def feature_generation(train,test, filters,method='log-var',metric='riemann',cov="oas"):
+    train_transformed = train @ filters
+    test_transformed = test @ filters
+
+    if method == 'log-var':
+        train_features = np.log(np.var(train_transformed, axis=1))
+        test_features = np.log(np.var(test_transformed, axis=1))
+    
+    elif method == 'log-cov':
+        cov_est = Covariances(estimator=cov)
+        train_cov = cov_est.transform(np.transpose(train_transformed, (0, 2, 1)))
+        test_cov = cov_est.transform(np.transpose(test_transformed, (0, 2, 1)))
+        train_features, test_features, _ = tangent_transform(train_cov,  test_cov, metric)
+
+    return train_features, test_features
+
+def test_visualize_variance(groupA, groupB, filters):
+    for i in range(0,filters.shape[1]//2):
+        train_1_transform = np.var(groupA@filters[i,-(i+1)],axis=1)
+        train_2_transform = np.var(groupB@filters[i,-(i+1)],axis=1)
+
+        # Create figure and gridspec layout
+        fig = plt.figure(figsize=(8, 8))
+        gs = gridspec.GridSpec(4, 4)
+
+        # Define the axes
+        ax_scatter = fig.add_subplot(gs[1:4, 0:3])
+        ax_hist_x = fig.add_subplot(gs[0, 0:3], sharex=ax_scatter)
+        ax_hist_y = fig.add_subplot(gs[1:4, 3], sharey=ax_scatter)
+
+        # Scatter plot
+        ax_scatter.scatter(train_1_transform[:, 0], train_1_transform[:, 1], label='Group A', color='blue', alpha=0.5)
+        ax_scatter.scatter(train_2_transform[:, 0], train_2_transform[:, 1], label='Group B', color='red', alpha=0.5)
+        ax_scatter.set_xlabel('Projection onto Filter B')
+        ax_scatter.set_ylabel('Projection onto Filter A')
+        ax_scatter.legend()
+        ax_scatter.grid(True)
+
+        # Histograms
+        bins = 30
+
+        # Histograms for X axis (top)
+        ax_hist_x.hist(train_1_transform[:, 0], bins=bins, color='blue', alpha=0.5, density=True, label='Group A')
+        ax_hist_x.hist(train_2_transform[:, 0], bins=bins, color='red', alpha=0.5, density=True, label='Group B')
+        ax_hist_x.set_ylabel('Density')
+        ax_hist_x.legend()
+        ax_hist_x.grid(True)
+
+        # Histograms for Y axis (right)
+        ax_hist_y.hist(train_1_transform[:, 1], bins=bins, orientation='horizontal', color='blue', alpha=0.5, density=True)
+        ax_hist_y.hist(train_2_transform[:, 1], bins=bins, orientation='horizontal', color='red', alpha=0.5, density=True)
+        ax_hist_y.set_xlabel('Density')
+        ax_hist_y.grid(True)
+
+        # Hide tick labels on histograms to avoid clutter
+        plt.setp(ax_hist_x.get_xticklabels(), visible=False)
+        plt.setp(ax_hist_y.get_yticklabels(), visible=False)
+
+        # Adjust layout
+        plt.tight_layout()
+        plt.show()
 
 def FKT(groupA_cov_matrices, groupB_cov_matrices, metric="riemann", visualize=True):
     # Eigenvalues in ascending order from scipy eigh https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.eigh.html
@@ -33,7 +103,7 @@ def FKT(groupA_cov_matrices, groupB_cov_matrices, metric="riemann", visualize=Tr
         plt.ylabel(r"$|\log\left(\frac{\lambda}{1 - \lambda}\right)|^2$")
         plt.show()
 
-    return fkt_riem_eigs, filters, filtersA, filtersB
+    return fkt_riem_eigs, filters
 
 def TSSF(groupA_covs, groupB_covs, clf=clf_dict["L2 SVM (C=1)"], metric="riemann", z_score=2, haufe=True, visualize=False,n=0):
     # https://ieeexplore.ieee.org/abstract/document/9630144/references#references
@@ -59,23 +129,15 @@ def TSSF(groupA_covs, groupB_covs, clf=clf_dict["L2 SVM (C=1)"], metric="riemann
         coef = haufe_transform(data, clf.coef_.T,method="basic")
 
     boundary_matrix = untangent_space(coef, Frechet_Mean)[0,:,:]
-    fkt_eigs, filters  = eigh(boundary_matrix, Frechet_Mean)
+    eigs, filters  = eigh(boundary_matrix, Frechet_Mean)
+    # TODO Dffferent transformation functions from each paper
+    fkt_riem_eigs = np.maximum(eigs,1/eigs)
 
-    # Compute the differences between consecutive eigenvalues
-    differences = np.diff(np.abs(fkt_eigs))
-
-    # Use argmax to find the index of the maximum difference (inflection point)
-    inflection_point = np.argmax(differences) + 1  # +1 to adjust for the index offset from np.diff
-
-    # Partition filters
-    filtersA = filters[:,:inflection_point]  # First half up to the inflection point
-    filtersB = filters[:,inflection_point:]  # Second half beyond the inflection point
-        
     if visualize:
-        plt.scatter(range(0,fkt_eigs.shape[0]),np.abs(fkt_eigs))
+        plt.scatter(range(0,fkt_riem_eigs.shape[0]),fkt_riem_eigs)
         plt.title("Riemannian Distance Supported by Spatial Filter")
         plt.xlabel("Max Eigenvector for Group B to Max Eigenvector for Group A")
-        plt.ylabel(r"$|\lambda|$")
+        plt.ylabel(r"$|log(\lambda)|$")
         plt.show()
 
-        return fkt_eigs, filters, filtersA, filtersB
+    return fkt_riem_eigs, filters
