@@ -239,8 +239,11 @@ def get_groups(phenotypes, quantile=0.33, data_path='/project/3022057.01/HCP/com
         group_b_subjects &= set(bottom_quantile_subjects)
 
     # Filter phenotype data for the subject groups
-    group_a = phenotype_data[phenotype_data["Subject"].isin(group_a_subjects)]
-    group_b = phenotype_data[phenotype_data["Subject"].isin(group_b_subjects)]
+    # Filter phenotype data for the subject groups and make explicit copies
+    group_a = phenotype_data[phenotype_data["Subject"].isin(group_a_subjects)].copy()
+    group_b = phenotype_data[phenotype_data["Subject"].isin(group_b_subjects)].copy()
+
+    # Add labels to the group DataFrames
     group_a["Label"] = labels[0]
     group_b["Label"] = labels[1]
 
