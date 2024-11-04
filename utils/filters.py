@@ -66,8 +66,8 @@ def test_visualize_variance(data, labels, filters):
         bins = 30
 
         # Histograms for X axis (top)
-        ax_hist_x.hist(data_1_transform[:, 0], bins=bins, color='blue', alpha=0.5, density=True, label='Group A')
-        ax_hist_x.hist(data_2_transform[:, 0], bins=bins, color='red', alpha=0.5, density=True, label='Group B')
+        ax_hist_x.hist(data_1_transform[:, 0], bins=bins, color='blue', alpha=0.5, density=True, label=f'Group {unique_labels[0]}')
+        ax_hist_x.hist(data_2_transform[:, 0], bins=bins, color='red', alpha=0.5, density=True, label=f'Group {unique_labels[1]}')
         ax_hist_x.set_ylabel('Density')
         ax_hist_x.legend()
         ax_hist_x.grid(True)
@@ -89,13 +89,8 @@ def test_visualize_variance(data, labels, filters):
 def evaluate_filters(train, train_labels, test, test_labels, filters, metric="riemann"):
 
     test_visualize_variance(test, test_labels, filters)
-    metrics_dict_logvar = {}
-    metrics_dict_logcov = {}
-    for key, _ in clf_dict.items():
-        logvar_stats = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-var',clf_str=key)
-        metrics_dict_logvar[key] = logvar_stats
-        logcov_stats = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-cov',clf_str=key)
-        metrics_dict_logcov[key] = logcov_stats
+    metrics_dict_logvar = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-var',clf_str='all')
+    metrics_dict_logcov = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-cov',clf_str='all')
 
     return metrics_dict_logvar, metrics_dict_logcov
 
@@ -123,7 +118,7 @@ def FKT(groupA_cov_matrices, groupB_cov_matrices, metric="riemann", visualize=Tr
 
     return fkt_riem_eigs, filters
 
-def TSSF(covs, labels, clf_str=clf_dict["L2 SVM (C=1)"], metric="riemann", z_score=2, haufe=True, visualize=False,n=0):
+def TSSF(covs, labels, clf_str="L2 SVM (C=1)", metric="riemann", z_score=2, haufe=True, visualize=False,n=0):
     clf = clf_dict[clf_str]
     # https://ieeexplore.ieee.org/abstract/document/9630144/references#references
     # https://arxiv.org/abs/1909.10567
