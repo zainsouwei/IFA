@@ -10,6 +10,13 @@ import psutil
 import torch
 import matplotlib.pyplot as plt
 
+# Confounders 
+# confounds detailed in https://www.sciencedirect.com/science/article/pii/S1053811920300914 & https://www.humanconnectome.org/storage/app/media/documentation/s500/HCP500_MegaTrawl_April2015.pdf
+# In Data Table: Age (Age_in_Yrs), Sex (Gender), Ethnicity (Ethnicity), Weight (Weight), Brain Size (FS_BrainSeg_Vol), Intracranial Volume (FS_IntraCranial_Vol), Confounds Modelling Slow Drift (TestRetestInterval), reconstruction code version (fMRI_3T_ReconVrs) or Acquisition Quarter (Acquisition)
+# In pathfile: Head Motion (a summation over all timepoints of timepoint-to-timepoint relative head motion or average) Movement_RelativeRMS_mean.txt (Since LR RL and session scans are concateanted, take average of this average)
+# Mentioned in papers but not found: variables (x, y, z, table) related to bed position in scanner
+confounders = ["Age_in_Yrs", "Gender", "Ethnicity", "Weight", "FS_BrainSeg_Vol", "FS_IntraCranial_Vol", "fMRI_3T_ReconVrs"]
+
 def gpu_mem():
     # Memory usage information
     print(f"Total memory available: {(torch.cuda.get_device_properties('cuda').total_memory / 1024**3):.2f} GB")
@@ -55,20 +62,8 @@ def get_meta_data(base_directory='/project_cephfs/3022017.01/S1200'):
     # Metadata keys and variables
     subid = "Subject"
     familyid = "Family_ID"
-    # Confounders 
-    # confounds detailed in https://www.sciencedirect.com/science/article/pii/S1053811920300914 & https://www.humanconnectome.org/storage/app/media/documentation/s500/HCP500_MegaTrawl_April2015.pdf
-    # In Data Table: Age (Age_in_Yrs), Sex (Gender), Ethnicity (Ethnicity), Weight (Weight), Brain Size (FS_BrainSeg_Vol), Intracranial Volume (FS_IntraCranial_Vol), Confounds Modelling Slow Drift (TestRetestInterval), reconstruction code version (fMRI_3T_ReconVrs) or Acquisition Quarter (Acquisition)
-    # In pathfile: Head Motion (a summation over all timepoints of timepoint-to-timepoint relative head motion or average) Movement_RelativeRMS_mean.txt (Since LR RL and session scans are concateanted, take average of this average)
-    # Mentioned in papers but not found: variables (x, y, z, table) related to bed position in scanner
-    age = "Age_in_Yrs"
-    sex = "Gender"
-    ethnicity = "Ethnicity"
-    weight = "Weight"
-    brain_size = "FS_BrainSeg_Vol"
-    intracranial_volume = "FS_IntraCranial_Vol"
-    reconstruction_code = "fMRI_3T_ReconVrs"
 
-    data_dict_data = [subid, familyid, age, sex, ethnicity, weight, brain_size, intracranial_volume, reconstruction_code]
+    data_dict_data = [subid, familyid] + confounders
     data_dict_data_df = extract_phenotype(data_dict_data)
 
     # Set up directories and file paths for fMRI data

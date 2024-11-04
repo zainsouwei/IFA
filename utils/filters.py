@@ -143,13 +143,15 @@ def TSSF(covs, labels, clf_str="L2 SVM (C=1)", metric="riemann", z_score=2, hauf
     boundary_matrix = untangent_space(coef, Frechet_Mean)[0,:,:]
     eigs, filters  = eigh(boundary_matrix, Frechet_Mean)
     # TODO Dffferent transformation functions from each paper
-    fkt_riem_eigs = np.maximum(eigs,1/eigs)
+    # fkt_riem_eigs = np.maximum(eigs,1/eigs)
+    # TODO Specific for Log Euclidean case
+    riem_eig = np.abs(np.log(eigs))
 
     if visualize:
-        plt.scatter(range(0,fkt_riem_eigs.shape[0]),fkt_riem_eigs)
+        plt.scatter(range(0,riem_eig.shape[0]),riem_eig)
         plt.title("Riemannian Distance Supported by Spatial Filter")
         plt.xlabel("Max Eigenvector for Group B to Max Eigenvector for Group A")
         plt.ylabel(r"$|log(\lambda)|$")
         plt.show()
 
-    return fkt_riem_eigs, filters
+    return riem_eig, filters
