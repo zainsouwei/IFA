@@ -118,7 +118,7 @@ def FKT(groupA_cov_matrices, groupB_cov_matrices, metric="riemann", visualize=Tr
 
     return fkt_riem_eigs, filters
 
-def TSSF(covs, labels, clf_str="L2 SVM (C=1)", metric="riemann", z_score=2, haufe=True, visualize=False,n=0):
+def TSSF(covs, labels, clf_str="L2 SVM (C=1)", metric="riemann", z_score=2, haufe=True, visualize=False):
     clf = clf_dict[clf_str]
     # https://ieeexplore.ieee.org/abstract/document/9630144/references#references
     # https://arxiv.org/abs/1909.10567
