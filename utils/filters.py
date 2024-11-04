@@ -145,6 +145,8 @@ def TSSF(covs, labels, clf_str="L2 SVM (C=1)", metric="riemann", z_score=2, hauf
     # TODO Dffferent transformation functions from each paper
     # fkt_riem_eigs = np.maximum(eigs,1/eigs)
     # TODO Specific for Log Euclidean case
+    # Equivalent to the 2 norm of the distance to reference eigenvalue on the tangent space
+    # sqrt((log(lamda) - log(1))^2) == abs(log(lamda) - log(1)) == abs(log(lambda))
     riem_eig = np.abs(np.log(eigs))
 
     if visualize:
