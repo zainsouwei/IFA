@@ -16,6 +16,8 @@ import matplotlib.pyplot as plt
 # In pathfile: Head Motion (a summation over all timepoints of timepoint-to-timepoint relative head motion or average) Movement_RelativeRMS_mean.txt (Since LR RL and session scans are concateanted, take average of this average)
 # Mentioned in papers but not found: variables (x, y, z, table) related to bed position in scanner
 confounders = ["Age_in_Yrs", "Gender", "Ethnicity", "Weight", "FS_BrainSeg_Vol", "FS_IntraCranial_Vol", "fMRI_3T_ReconVrs"]
+continuous_confounders = ["Age_in_Yrs", "Weight", "FS_BrainSeg_Vol", "FS_IntraCranial_Vol"]
+categorical_confounders = ["Gender", "Ethnicity", "fMRI_3T_ReconVrs"]
 
 def gpu_mem():
     # Memory usage information
