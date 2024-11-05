@@ -31,8 +31,10 @@ def feature_generation(train,test, filters,method='log-var',metric='riemann',cov
 
     return train_features, test_features
 
-def test_filters(train, train_labels, test, test_labels, filters, metric="riemann", method='log-cov',clf_str="SVM (C=1)"):
+def test_filters(train, train_labels, test, test_labels, filters, metric="riemann", method='log-cov',clf_str="SVM (C=1)", deconf=False,con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None):
     train_features, test_features = feature_generation(train, test, filters, method=method,metric=metric)
+    if deconf:
+        train_features, test_features = deconfound(train_features, con_confounder_train, cat_confounder_train, X_test=test_features, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test, age_var="Age_in_Yrs", sex_var="Gender")
     accuracy = linear_classifier(train_features, train_labels, test_features, test_labels, clf_str=clf_str, z_score=2)
     return accuracy
 
@@ -87,11 +89,14 @@ def test_visualize_variance(data, labels, filters):
         plt.tight_layout()
         plt.show()
 
-def evaluate_filters(train, train_labels, test, test_labels, filters, metric="riemann"):
+def evaluate_filters(train, train_labels, test, test_labels, filters, metric="riemann", deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None):
 
     test_visualize_variance(test, test_labels, filters)
     metrics_dict_logvar = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-var',clf_str='all')
     metrics_dict_logcov = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-cov',clf_str='all')
+    if deconf:
+        metrics_dict_logvar = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-var',clf_str='all', deconf=deconf,con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
+        metrics_dict_logcov = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-cov',clf_str='all', deconf=deconf,con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
 
     return metrics_dict_logvar, metrics_dict_logcov
 
