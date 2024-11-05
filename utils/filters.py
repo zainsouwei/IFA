@@ -95,21 +95,20 @@ def evaluate_filters(train, train_labels, test, test_labels, filters, metric="ri
 
     return metrics_dict_logvar, metrics_dict_logcov
 
-def FKT(groupA_cov_matrices, groupB_cov_matrices, metric="riemann", deconf=True, con_confounder_train=None, cat_confounder_train=None, visualize=True):
+def FKT(cov_matrices, labels, metric="riemann", deconf=True, con_confounder_train=None, cat_confounder_train=None, visualize=True):
     # Eigenvalues in ascending order from scipy eigh https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.eigh.html
-    
+    unique_labels = np.unique(labels)
+
     if deconf:
-        labels = np.concatenate([np.ones(len(groupA_cov_matrices)), np.zeros(len(groupB_cov_matrices))])
-        covs = np.concatenate([groupA_cov_matrices, groupA_cov_matrices], axis=0)
-        data, Frechet_Mean = tangent_transform(covs,metric=metric)
+        data, Frechet_Mean = tangent_transform(cov_matrices,metric=metric)
         data = deconfound(data, con_confounder_train, cat_confounder_train, X_test=None, con_confounder_test=None, cat_confounder_test=None, age_var="Age_in_Yrs", sex_var="Gender")
-        groupA_cov_matrices_deconf = untangent_space(data[labels == 1],Frechet_Mean,metric=metric)
-        groupB_cov_matrices_deconf = untangent_space(data[labels == 0],Frechet_Mean,metric=metric)
+        groupA_cov_matrices_deconf = untangent_space(data[labels == unique_labels[1]],Frechet_Mean,metric=metric)
+        groupB_cov_matrices_deconf = untangent_space(data[labels == unique_labels[0]],Frechet_Mean,metric=metric)
         groupA_mean_cov= mean_covariance(groupA_cov_matrices_deconf, metric=metric)
         groupB_mean_cov = mean_covariance(groupB_cov_matrices_deconf, metric=metric)
     else:
-        groupA_mean_cov= mean_covariance(groupA_cov_matrices, metric=metric)
-        groupB_mean_cov = mean_covariance(groupB_cov_matrices, metric=metric)
+        groupA_mean_cov= mean_covariance(cov_matrices[labels == unique_labels[1]], metric=metric)
+        groupB_mean_cov = mean_covariance(cov_matrices[labels == unique_labels[0]], metric=metric)
 
     eigsA, filtersA  = eigh(groupA_mean_cov, groupA_mean_cov + groupB_mean_cov,eigvals_only=False,subset_by_value=[0.5,np.inf])
     eigsB, filtersB = eigh(groupB_mean_cov, groupA_mean_cov + groupB_mean_cov,eigvals_only=False,subset_by_value=[0.5,np.inf])
