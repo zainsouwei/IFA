@@ -12,7 +12,7 @@ def deconfound(X_train, con_confounder_train, cat_confounder_train, X_test=None,
     con_confounder_train_scaled = scaler.fit_transform(con_confounder_train)
 
     # Step 2: One-hot encode the categorical confounders
-    encoder = OneHotEncoder(drop='first', sparse_output=False)  # drop='first' to avoid multicollinearity
+    encoder = OneHotEncoder(drop='first', sparse_output=False,handle_unknown='ignore')  # drop='first' to avoid multicollinearity
     cat_confounder_train_encoded = encoder.fit_transform(cat_confounder_train)
 
     age_index = continuous_confounders.index(age_var)
