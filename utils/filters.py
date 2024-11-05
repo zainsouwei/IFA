@@ -130,7 +130,7 @@ def FKT(cov_matrices, labels, metric="riemann", deconf=True, con_confounder_trai
 
     return fkt_riem_eigs, filters
 
-def TSSF(covs, labels, clf_str="L2 SVM (C=1)", metric="riemann", z_score=2, haufe=True, deconf=True, con_confounder_train=None, cat_confounder_train=None, visualize=False):
+def TSSF(covs, labels, clf_str="L2 SVM (C=1)", metric="riemann", deconf=True, con_confounder_train=None, cat_confounder_train=None, z_score=2, haufe=True, visualize=False):
     clf = clf_dict[clf_str]
     # https://ieeexplore.ieee.org/abstract/document/9630144/references#references
     # https://arxiv.org/abs/1909.10567
