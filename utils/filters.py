@@ -13,6 +13,7 @@ sys.path.append('/utils')
 from tangent import tangent_transform
 from classification import linear_classifier, clf_dict
 from haufe import haufe_transform
+from regression import deconfound
 
 def feature_generation(train,test, filters,method='log-var',metric='riemann',cov="oas"):
     train_transformed = train @ filters
@@ -94,10 +95,21 @@ def evaluate_filters(train, train_labels, test, test_labels, filters, metric="ri
 
     return metrics_dict_logvar, metrics_dict_logcov
 
-def FKT(groupA_cov_matrices, groupB_cov_matrices, metric="riemann", visualize=True):
+def FKT(groupA_cov_matrices, groupB_cov_matrices, metric="riemann", deconf=True, con_confounder_train=None, cat_confounder_train=None, visualize=True):
     # Eigenvalues in ascending order from scipy eigh https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.eigh.html
-    groupA_mean_cov= mean_covariance(groupA_cov_matrices, metric=metric)
-    groupB_mean_cov = mean_covariance(groupB_cov_matrices, metric=metric)    
+    
+    if deconf:
+        labels = np.concatenate([np.ones(len(groupA_cov_matrices)), np.zeros(len(groupB_cov_matrices))])
+        covs = np.concatenate([groupA_cov_matrices, groupA_cov_matrices], axis=0)
+        data, Frechet_Mean = tangent_transform(covs,metric=metric)
+        data = deconfound(data, con_confounder_train, cat_confounder_train, X_test=None, con_confounder_test=None, cat_confounder_test=None, age_var="Age_in_Yrs", sex_var="Gender")
+        groupA_cov_matrices_deconf = untangent_space(data[labels == 1],Frechet_Mean,metric=metric)
+        groupB_cov_matrices_deconf = untangent_space(data[labels == 0],Frechet_Mean,metric=metric)
+        groupA_mean_cov= mean_covariance(groupA_cov_matrices_deconf, metric=metric)
+        groupB_mean_cov = mean_covariance(groupB_cov_matrices_deconf, metric=metric)
+    else:
+        groupA_mean_cov= mean_covariance(groupA_cov_matrices, metric=metric)
+        groupB_mean_cov = mean_covariance(groupB_cov_matrices, metric=metric)
 
     eigsA, filtersA  = eigh(groupA_mean_cov, groupA_mean_cov + groupB_mean_cov,eigvals_only=False,subset_by_value=[0.5,np.inf])
     eigsB, filtersB = eigh(groupB_mean_cov, groupA_mean_cov + groupB_mean_cov,eigvals_only=False,subset_by_value=[0.5,np.inf])
@@ -106,6 +118,7 @@ def FKT(groupA_cov_matrices, groupB_cov_matrices, metric="riemann", visualize=Tr
     filters = np.concatenate((filtersB[:, ::-1], filtersA), axis=1)
 
     # Transform Eigenvalues to Approximate Riemannian Distance https://ieeexplore.ieee.org/document/5662067
+    # TODO Specific for AIR and is support of distance not distance, make equivalance between TSSF calculation and FKT
     fkt_riem_eigs = np.abs(np.log(eigs/(1-eigs)))**2
     
     if visualize:
@@ -118,11 +131,12 @@ def FKT(groupA_cov_matrices, groupB_cov_matrices, metric="riemann", visualize=Tr
 
     return fkt_riem_eigs, filters
 
-def TSSF(covs, labels, clf_str="L2 SVM (C=1)", metric="riemann", z_score=2, haufe=True, visualize=False):
+def TSSF(covs, labels, con_confounder_train, cat_confounder_train, clf_str="L2 SVM (C=1)", metric="riemann", z_score=2, haufe=True, visualize=False):
     clf = clf_dict[clf_str]
     # https://ieeexplore.ieee.org/abstract/document/9630144/references#references
     # https://arxiv.org/abs/1909.10567
     data, Frechet_Mean = tangent_transform(covs,metric=metric)
+    data = deconfound(data, con_confounder_train, cat_confounder_train, X_test=None, con_confounder_test=None, cat_confounder_test=None, age_var="Age_in_Yrs", sex_var="Gender")
 
     if z_score == 1:
         scaler = StandardScaler(with_mean=True, with_std=False)
