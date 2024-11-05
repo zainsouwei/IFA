@@ -6,6 +6,8 @@ from pyriemann.utils.tangentspace import untangent_space
 from pyriemann.estimation import Covariances
 from sklearn.preprocessing import StandardScaler
 import matplotlib.gridspec as gridspec
+from scipy.linalg import svd
+
 
 import sys
 sys.path.append('/utils')
@@ -177,3 +179,54 @@ def TSSF(covs, labels, clf_str="L2 SVM (C=1)", metric="riemann", deconf=True, co
         plt.show()
 
     return riem_eig, filters
+
+def orthonormalize_filters(W1, W2):
+    # Stack the two filters into a single matrix
+    W = np.concatenate((W1, W2)).T  # shape: (features x 2)
+    print(W.shape)
+    
+    # Perform QR decomposition to orthonormalize the filters
+    Q, _ = np.linalg.qr(W)
+    
+    print(Q.shape)
+
+    # Verify that the inner product between the two orthonormalized vectors is 0 (orthogonality)
+    print(f'Inner product between Q[:, 0] and Q[:, 1]: {np.dot(Q[:, 0].T, Q[:, 1])} (should be 0)')
+    
+    # Verify that the inner product within each vector is 1 (normalization)
+    print(f'Norm of Q[:, 0]: {np.dot(Q[:, 0].T, Q[:, 0])} (should be 1)')
+    print(f'Norm of Q[:, 1]: {np.dot(Q[:, 1].T, Q[:, 1])} (should be 1)')
+    
+    return Q
+
+def whiten(X,n_components, method="SVD", visualize=False):
+    # -1 to account for demean
+    n_samples = X.shape[-1]-1
+    X_mean = X.mean(axis=-1)
+    X -= X_mean[:, np.newaxis]
+
+    if method == "SVD":
+        u, d = svd(X, full_matrices=False, check_finite=False)[:2]
+        # Give consistent eigenvectors for both svd solvers
+        # u *= np.sign(u[0])
+        K = (u / d).T[:n_components]  # see (6.33) p.140
+        del u, d
+        whitening_matrix = np.sqrt(n_samples)*K
+    elif method == "Cholesky":
+    # Does not Orthogonalize, just has unit covariance
+        # Step 2: Perform Cholesky decomposition
+        L = np.linalg.cholesky(np.cov(X,ddof=1))
+        # Step 3:
+        whitening_matrix = np.linalg.inv(L)
+    elif method == "InvCov":
+        # Calculate the covariance matrix of the centered data
+        cov_matrix = np.cov(X)
+        # Perform eigenvalue decomposition of the covariance matrix
+        eigvals, eigvecs = np.linalg.eigh(cov_matrix)
+        # Calculate the whitening matrix
+        D_inv_sqrt = np.diag(1.0 / np.sqrt(eigvals))
+        whitening_matrix = eigvecs @ D_inv_sqrt @ eigvecs.T
+   
+    whitened_data = whitening_matrix@X
+
+    return whitened_data, whitening_matrix
