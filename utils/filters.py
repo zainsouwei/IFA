@@ -130,12 +130,14 @@ def FKT(cov_matrices, labels, metric="riemann", deconf=True, con_confounder_trai
 
     return fkt_riem_eigs, filters
 
-def TSSF(covs, labels, con_confounder_train, cat_confounder_train, clf_str="L2 SVM (C=1)", metric="riemann", z_score=2, haufe=True, visualize=False):
+def TSSF(covs, labels, clf_str="L2 SVM (C=1)", metric="riemann", z_score=2, haufe=True, deconf=True, con_confounder_train=None, cat_confounder_train=None, visualize=False):
     clf = clf_dict[clf_str]
     # https://ieeexplore.ieee.org/abstract/document/9630144/references#references
     # https://arxiv.org/abs/1909.10567
     data, Frechet_Mean = tangent_transform(covs,metric=metric)
-    data = deconfound(data, con_confounder_train, cat_confounder_train, X_test=None, con_confounder_test=None, cat_confounder_test=None, age_var="Age_in_Yrs", sex_var="Gender")
+    
+    if deconf:
+        data = deconfound(data, con_confounder_train, cat_confounder_train, X_test=None, con_confounder_test=None, cat_confounder_test=None, age_var="Age_in_Yrs", sex_var="Gender")
 
     if z_score == 1:
         scaler = StandardScaler(with_mean=True, with_std=False)
