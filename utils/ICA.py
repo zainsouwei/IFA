@@ -32,7 +32,7 @@ def ICA(data,whitened_data, output_dir="plots"):
 
     # Adjust layout
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "ICA_reconstruction.png"))
+    plt.savefig(os.path.join(output_dir, "ICA_reconstruction.svg"))
     plt.close(fig)
 
     return IFA_components, A, W
@@ -96,7 +96,7 @@ def threshold_and_visualize(data, W, components,visualize=False,output_dir="plot
             plt.title(f"Histogram for Filter {i} NO SIGNIFICANT VALUES")
             plt.xlabel('Value')
             plt.ylabel('Frequency')
-            plt.savefig(os.path.join(components_dir, f"component_{i}.png"))
+            plt.savefig(os.path.join(components_dir, f"component_{i}.svg"))
 
         else:
             if visualize:
@@ -111,7 +111,7 @@ def threshold_and_visualize(data, W, components,visualize=False,output_dir="plot
                 ax_hist1.set_title(f"Histogram for Filter {i}")
                 ax_hist1.set_xlabel('Value')
                 ax_hist1.set_ylabel('Frequency')
-                plt.savefig(os.path.join(components_dir, f"component_{i}.png"))
+                plt.savefig(os.path.join(components_dir, f"component_{i}.svg"))
                 plt.close(fig)
 
 
@@ -131,7 +131,7 @@ def threshold_and_visualize(data, W, components,visualize=False,output_dir="plot
 
     # Adjust layout
     plt.tight_layout()
-    plt.savefig(os.path.join(components_dir, f"spatial_heatmap.png"))
+    plt.savefig(os.path.join(components_dir, f"spatial_heatmap.svg"))
     plt.close(fig)
 
     return z_scores, z_scores_array
