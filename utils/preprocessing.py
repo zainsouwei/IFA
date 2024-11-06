@@ -188,7 +188,7 @@ def parcellate(output_dir,base_directory = "/project_cephfs/3022017.01/S1200", t
         traceback.print_exc()
         return []
     
-def get_groups(phenotypes, quantile=0.33, data_path='/project/3022057.01/HCP/combined_data.pkl', regression=False, visualize=True):
+def get_groups(phenotypes, quantile=0.33, data_path='/project/3022057.01/HCP/combined_data.pkl', regression=False, visualize=True, output_dir="plots"):
     # Load the phenotype data
     columns = ["Subject"] + phenotypes
     phenotype_data = extract_phenotype(columns)
@@ -218,7 +218,8 @@ def get_groups(phenotypes, quantile=0.33, data_path='/project/3022057.01/HCP/com
             plt.ylabel('Frequency')
             plt.title('Histogram of Summed Phenotype Values for Regression Case')
             plt.show()
-        
+            plt.savefig(os.path.join(output_dir, "phenotype_values_histogram.png"))
+
         return phenotype_data
 
     # Initialize subject sets for intersection
@@ -272,5 +273,7 @@ def get_groups(phenotypes, quantile=0.33, data_path='/project/3022057.01/HCP/com
         plt.title('Histogram of Phenotype Values for Group A and Group B')
         plt.legend()
         plt.show()
+        plt.savefig(os.path.join(output_dir, "group_a_b_phenotype_values_histogram.png"))
+
 
     return group_a, group_b

@@ -1,4 +1,5 @@
 import numpy as np
+import os
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.decomposition import FastICA
@@ -6,7 +7,7 @@ from scipy.stats import norm
 from statsmodels.stats.multitest import multipletests
 
 
-def ICA(data,whitened_data):
+def ICA(data,whitened_data, output_dir="plots"):
     ica = FastICA(whiten=False)
     # Takes in array-like of shape (n_samples, n_features) and returns ndarray of shape (n_samples, n_components)
     IFA_components = ica.fit_transform(whitened_data.T).T
@@ -31,11 +32,12 @@ def ICA(data,whitened_data):
 
     # Adjust layout
     plt.tight_layout()
-    plt.show()
+    plt.savefig(os.path.join(output_dir, "ICA_reconstruction.png"))
+    plt.close(fig)
 
     return IFA_components, A, W
 
-def noise_projection(W,data, visualize=True):
+def noise_projection(W,data, visualize=True, output_dir="plots"):
 
     Signals = np.linalg.pinv(W)@(W@data)
     Residuals = data - Signals
@@ -54,21 +56,27 @@ def noise_projection(W,data, visualize=True):
         # plt.plot(data[:n,0:1] - (Signals[:n,0:1]+Residuals[:n,0:1]))
         plt.legend(['Signal','Noise', 'Data' ,'Reconstruction Error'])
         plt.title("Calculations based on pinv(W)W Projection Matrix")
-        plt.show()
+        plt.savefig(os.path.join(output_dir, "reconstruction.png"))
+
 
         plt.scatter(range(0,residual_std.shape[0]), residual_std)
         plt.title("Noise std Per Voxel based on pinv(W)W Projection Matrix")
-        plt.show()
+        plt.savefig(os.path.join(output_dir, "noisestd.png"))
+
     return residual_std
 
 
-def threshold_and_visualize(data, W, components,visualize=False):
+def threshold_and_visualize(data, W, components,visualize=False,output_dir="plots"):
     
-    voxel_noise = noise_projection(W,data)[:, np.newaxis]
+    voxel_noise = noise_projection(W,data,visualize=True,output_dir=output_dir)[:, np.newaxis]
     z_scores_array = np.zeros_like(components)
     z_scores = np.zeros_like(components)
 
     # Process each filter individually
+    components_dir = os.path.join(output_dir, "Components")
+    if not os.path.exists(components_dir):
+        os.makedirs(components_dir)
+
     for i in range(components.shape[1]):
         z_score = ((components[:, i:i+1]))/voxel_noise
         # P(Z < -z \text{ or } Z > z) = (1 - \text{CDF}(z)) + (1 - \text{CDF}(z)) = 2 \times (1 - \text{CDF}(z))
@@ -88,7 +96,8 @@ def threshold_and_visualize(data, W, components,visualize=False):
             plt.title(f"Histogram for Filter {i} NO SIGNIFICANT VALUES")
             plt.xlabel('Value')
             plt.ylabel('Frequency')
-            plt.show()
+            plt.savefig(os.path.join(components_dir, f"component_{i}.png"))
+
         else:
             if visualize:
                 # Create a figure and axes for subplots (1 row of 2 plots per filter)
@@ -102,6 +111,10 @@ def threshold_and_visualize(data, W, components,visualize=False):
                 ax_hist1.set_title(f"Histogram for Filter {i}")
                 ax_hist1.set_xlabel('Value')
                 ax_hist1.set_ylabel('Frequency')
+                plt.savefig(os.path.join(components_dir, f"component_{i}.png"))
+                plt.close(fig)
+
+
     
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
     # Heat map for the combined unmixing matrix
@@ -118,6 +131,7 @@ def threshold_and_visualize(data, W, components,visualize=False):
 
     # Adjust layout
     plt.tight_layout()
-    plt.show()
+    plt.savefig(os.path.join(components_dir, f"spatial_heatmap.png"))
+    plt.close(fig)
 
     return z_scores, z_scores_array

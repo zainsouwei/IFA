@@ -1,4 +1,5 @@
 import numpy as np
+import os
 import matplotlib.pyplot as plt
 from scipy.linalg import eigh
 from pyriemann.utils.mean import mean_covariance
@@ -40,7 +41,7 @@ def test_filters(train, train_labels, test, test_labels, filters, metric="rieman
     accuracy = linear_classifier(train_features, train_labels, test_features, test_labels, clf_str=clf_str, z_score=2)
     return accuracy
 
-def test_visualize_variance(data, labels, filters):
+def test_visualize_variance(data, labels, filters,output_dir="plots"):
     for i in range(0,filters.shape[1]//2):
         data_transform = np.var(data@filters[:,[i,-(i+1)]],axis=1)
         unique_labels = np.unique(labels)
@@ -89,20 +90,22 @@ def test_visualize_variance(data, labels, filters):
 
         # Adjust layout
         plt.tight_layout()
-        plt.show()
+        plt.savefig(os.path.join(output_dir, f"Filter_{i}_{filters.shape[1]-(i+1)}_var.png"))
 
-def evaluate_filters(train, train_labels, test, test_labels, filters, metric="riemann", deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None):
 
-    test_visualize_variance(test, test_labels, filters)
-    metrics_dict_logvar = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-var',clf_str='all')
-    metrics_dict_logcov = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-cov',clf_str='all')
+def evaluate_filters(train, train_labels, test, test_labels, filters, metric="riemann", deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None,output_dir="plots"):
+
     if deconf:
         metrics_dict_logvar = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-var',clf_str='all', deconf=deconf,con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
         metrics_dict_logcov = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-cov',clf_str='all', deconf=deconf,con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
+    else:
+        test_visualize_variance(test, test_labels, filters,output_dir=output_dir)
+        metrics_dict_logvar = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-var',clf_str='all')
+        metrics_dict_logcov = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-cov',clf_str='all')
 
     return metrics_dict_logvar, metrics_dict_logcov
 
-def FKT(cov_matrices, labels, metric="riemann", deconf=True, con_confounder_train=None, cat_confounder_train=None, visualize=True):
+def FKT(cov_matrices, labels, metric="riemann", deconf=True, con_confounder_train=None, cat_confounder_train=None, visualize=True,output_dir="plots"):
     # Eigenvalues in ascending order from scipy eigh https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.eigh.html
     unique_labels = np.unique(labels)
 
@@ -133,11 +136,12 @@ def FKT(cov_matrices, labels, metric="riemann", deconf=True, con_confounder_trai
         plt.title("Riemannian Distance Supported by Spatial Filter")
         plt.xlabel("Max Eigenvector for Group B to Max Eigenvector for Group A")
         plt.ylabel(r"$|\log\left(\frac{\lambda}{1 - \lambda}\right)|^2$")
-        plt.show()
+        plt.savefig(os.path.join(output_dir, "fkt_scree.png"))
+
 
     return fkt_riem_eigs, filters
 
-def TSSF(covs, labels, clf_str="L2 SVM (C=1)", metric="riemann", deconf=True, con_confounder_train=None, cat_confounder_train=None, z_score=2, haufe=True, visualize=False):
+def TSSF(covs, labels, clf_str="L2 SVM (C=1)", metric="riemann", deconf=True, con_confounder_train=None, cat_confounder_train=None, z_score=2, haufe=True, visualize=False,output_dir="plots"):
     clf = clf_dict[clf_str]
     # https://ieeexplore.ieee.org/abstract/document/9630144/references#references
     # https://arxiv.org/abs/1909.10567
@@ -169,14 +173,16 @@ def TSSF(covs, labels, clf_str="L2 SVM (C=1)", metric="riemann", deconf=True, co
     # TODO Specific for Log Euclidean case
     # Equivalent to the 2 norm of the distance to reference eigenvalue on the tangent space
     # sqrt((log(lamda) - log(1))^2) == abs(log(lamda) - log(1)) == abs(log(lambda))
-    riem_eig = np.abs(np.log(eigs))
+    # riem_eig = np.abs(np.log(eigs))
+    riem_eig = (np.log(eigs))**2
 
     if visualize:
         plt.scatter(range(0,riem_eig.shape[0]),riem_eig)
         plt.title("Riemannian Distance Supported by Spatial Filter")
         plt.xlabel("Max Eigenvector for Group B to Max Eigenvector for Group A")
-        plt.ylabel(r"$|log(\lambda)|$")
-        plt.show()
+        # plt.ylabel(r"$|log(\lambda)|$")
+        plt.ylabel(r"$\log(\lambda)^2$")
+        plt.savefig(os.path.join(output_dir, "fkt_scree.png"))
 
     return riem_eig, filters
 
@@ -199,7 +205,7 @@ def orthonormalize_filters(W1, W2):
     
     return Q
 
-def whiten(X,n_components, method="SVD", visualize=False):
+def whiten(X,n_components, method="SVD"):
     # -1 to account for demean
     n_samples = X.shape[-1]-1
     X_mean = X.mean(axis=-1)
