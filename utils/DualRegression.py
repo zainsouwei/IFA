@@ -71,7 +71,7 @@ def dual_regress_sub(sub_path, z_maps_1, z_maps_2):
 
 def dual_regress(group_paths, z_maps_1, z_maps_2):
     # Use partial to avoid duplicating z_maps in memory
-    with ProcessPoolExecutor(max_workers=int(os.cpu_count() * 0.7)) as executor:
+    with ProcessPoolExecutor(max_workers=int(os.cpu_count() * 0.4)) as executor:
         # Create a partial function that "binds" the z_maps_1 and z_maps_2 without duplicating them
         partial_func = partial(dual_regress_sub, z_maps_1=z_maps_1, z_maps_2=z_maps_2)
 

@@ -1,0 +1,11 @@
+{
+    "phenotype": "CogTotalComp_AgeAdj",
+    "percentile": 0.15,
+    "outputfolder": "Run_1",
+    "n_folds": 5,
+    "random_state": 42,
+    "n_filters_per_group": 2,
+    "nPCA": 20,
+    "Tangent_Class": true,
+    "metric": "logeuclid"
+}
