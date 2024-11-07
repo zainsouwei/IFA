@@ -179,7 +179,7 @@ def var_diff(train_data, train_covs, train_labels, test_data, test_labels, metri
     results = []
     for n in range(1, filters_all.shape[1] // 2 + 1): 
         filters = np.hstack([filters_all[:, :n], filters_all[:, -n:]])  # Select top and bottom n eigenvectors
-        train_features, test_features = feature_generation(train_data,test_data, filters,method=method,metric=metric,cov="oas")
+        train_features, test_features = feature_generation(train_data,test_data, filters,method=method,metric=metric,cov="scm")
 
         # Train SVM regression classifier on training data
         clf.fit(train_features, train_labels)
