@@ -179,7 +179,7 @@ def var_diff(train_data, train_covs, train_labels, test_data, test_labels, metri
     results = []
     for n in range(1, filters_all.shape[1] // 2 + 1): 
         filters = np.hstack([filters_all[:, :n], filters_all[:, -n:]])  # Select top and bottom n eigenvectors
-        train_features, test_features = feature_generation(train_data,test_data, filters,method=method,metric=metric,cov="scm")
+        train_features, test_features = feature_generation(train_data,test_data, filters,method=method,metric=metric,cov="oas")
 
         # Train SVM regression classifier on training data
         clf.fit(train_features, train_labels)
@@ -220,10 +220,24 @@ def var_diff(train_data, train_covs, train_labels, test_data, test_labels, metri
 
     return np.array(results)
 
+def reconstruction_plot(IFA_recon, ICA_recon,label="Train"):
+    plt.figure(figsize=(10, 6))
+    sns.kdeplot(IFA_recon, label=f'IFA {label} Reconstruction Error', color='blue', fill=True, alpha=0.3)
+    sns.kdeplot(ICA_recon, label=f'ICA {label} Reconstruction Error', color='orange', fill=True, alpha=0.3)
+    plt.xlabel('% of Original Data Variance Explained by Reconstructing Subject Data from Group Spatial Maps')
+    plt.ylabel('Frequency')
+    plt.title(f'Distribution of IFA and ICA {label} Reconstruction Errors')
+    plt.legend()
+    plt.show()
+
+
 def evaluate_IFA_results(IFA, ICA, train_labels, test_labels, alpha=.05, permutations=False, correction='fdr_bh', metric='riemannian'):
-    IFA_A_train, IFA_Netmats_train, IFA_A_test, IFA_Netmats_test = IFA
-    ICA_A_train, ICA_Netmats_train, ICA_A_test, ICA_Netmats_test = ICA
+    IFA_A_train, IFA_Netmats_train, IFA_train_recon_error, IFA_A_test, IFA_Netmats_test, IFA_test_recon_error= IFA
+    ICA_A_train, ICA_Netmats_train, ICA_train_recon_error, ICA_A_test, ICA_Netmats_test, ICA_test_recon_error = ICA
     
+    reconstruction_plot(IFA_train_recon_error, ICA_train_recon_error,label="Train")
+    reconstruction_plot(IFA_test_recon_error, ICA_test_recon_error,label="Test")
+
     IFA_var_results = var_diff(IFA_A_train, IFA_Netmats_train, train_labels, IFA_A_test, test_labels, metric=metric, method='log-var', basis="IFA")
     ICA_var_results = var_diff(ICA_A_train, ICA_Netmats_train, train_labels, ICA_A_test, test_labels, metric=metric, method='log-var', basis="ICA")
     scatter_with_lines(IFA_var_results[:, [0, 2]], ICA_var_results[:, [0, 2]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='SVM Accuracy', title='Accuracies Across FKT Dimensions (log-var)')
