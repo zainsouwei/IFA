@@ -238,14 +238,14 @@ def evaluate_IFA_results(IFA, ICA, train_labels, test_labels, alpha=.05, permuta
     reconstruction_plot(IFA_train_recon_error, ICA_train_recon_error,label="Train")
     reconstruction_plot(IFA_test_recon_error, ICA_test_recon_error,label="Test")
 
-    IFA_var_results = var_diff(IFA_A_train, IFA_Netmats_train, train_labels, IFA_A_test, test_labels, metric=metric, method='log-var', basis="IFA", deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train)
-    ICA_var_results = var_diff(ICA_A_train, ICA_Netmats_train, train_labels, ICA_A_test, test_labels, metric=metric, method='log-var', basis="ICA", deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train)
+    IFA_var_results = var_diff(IFA_A_train, IFA_Netmats_train, train_labels, IFA_A_test, test_labels, metric=metric, method='log-var', basis="IFA",  deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
+    ICA_var_results = var_diff(ICA_A_train, ICA_Netmats_train, train_labels, ICA_A_test, test_labels, metric=metric, method='log-var', basis="ICA",  deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
 
     scatter_with_lines(IFA_var_results[:, [0, 2]], ICA_var_results[:, [0, 2]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='SVM Accuracy', title='Accuracies Across FKT Dimensions (log-var)')
     scatter_with_lines(IFA_var_results[:, [0, 1]], ICA_var_results[:, [0, 1]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='Riemannian Distance', title='Distance of Group Means Across FKT Dimensions  (log-var)')
 
-    IFA_var_results = var_diff(IFA_A_train, IFA_Netmats_train, train_labels, IFA_A_test, test_labels, metric=metric, method='log-cov', basis="IFA", deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train)
-    ICA_var_results = var_diff(ICA_A_train, ICA_Netmats_train, train_labels, ICA_A_test, test_labels, metric=metric, method='log-cov', basis="ICA", deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train)
+    IFA_var_results = var_diff(IFA_A_train, IFA_Netmats_train, train_labels, IFA_A_test, test_labels, metric=metric, method='log-cov', basis="IFA",  deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
+    ICA_var_results = var_diff(ICA_A_train, ICA_Netmats_train, train_labels, ICA_A_test, test_labels, metric=metric, method='log-cov', basis="ICA",  deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
     scatter_with_lines(IFA_var_results[:, [0, 2]], ICA_var_results[:, [0, 2]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='SVM Accuracy', title='Accuracies Across FKT Dimensions (log-cov)')
     scatter_with_lines(IFA_var_results[:, [0, 1]], ICA_var_results[:, [0, 1]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='Riemannian Distance', title='Distance of Group Means Across FKT Dimensions (log-cov)')
 
@@ -253,5 +253,5 @@ def evaluate_IFA_results(IFA, ICA, train_labels, test_labels, alpha=.05, permuta
     ICA_Class_Result = tangent_classification(ICA_Netmats_train, train_labels, ICA_Netmats_test, test_labels, clf_str='all', z_score=0, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
     scatter_with_lines(IFA_Class_Result, ICA_Class_Result, label1='IFA', label2='ICA', xlabel='Classifiers', ylabel='Accuracies', title='Netmat Tangent Classifier Accuracies')
 
-    tangent_t_test(IFA_Netmats_train, IFA_Netmats_test,test_labels, alpha=alpha, permutations=permutations, correction=correction, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train)
-    tangent_t_test(ICA_Netmats_train, ICA_Netmats_test,test_labels, alpha=alpha, permutations=permutations, correction=correction, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train)
+    tangent_t_test(IFA_Netmats_train, IFA_Netmats_test,test_labels, alpha=alpha, permutations=permutations, correction=correction, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
+    tangent_t_test(ICA_Netmats_train, ICA_Netmats_test,test_labels, alpha=alpha, permutations=permutations, correction=correction, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
