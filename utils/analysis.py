@@ -13,9 +13,9 @@ from sklearn.metrics import accuracy_score
 import sys
 sys.path.append('/utils')
 
-from tangent import tangent_transform
-from filters import feature_generation
-from tangent import tangent_classification
+from tangent import tangent_transform, tangent_classification
+from filters import feature_generation, FKT
+from regression import deconfound
 
 def scatter_with_lines(data1, data2, label1='Series 1', label2='Series 2', xlabel='X', ylabel='Y', title='Scatter Plot with Connecting Lines'):
     """
@@ -82,9 +82,12 @@ def unupper_noweighting(vec):
     full_matrix[i_lower] = full_matrix.T[i_lower]
     return full_matrix
 
-def tangent_t_test(train_covs, test_covs, test_labels, alpha=.05, permutations=False, correction='fdr_bh', metric='riemannian'):
+def tangent_t_test(train_covs, test_covs, test_labels, alpha=.05, permutations=False, correction='fdr_bh', metric='riemannian', deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None):
     unique_labels = np.unique(test_labels)
-    _, test_vecs, mean = tangent_transform(train_covs, test_covs, metric=metric)
+    train_vecs, test_vecs, mean = tangent_transform(train_covs, test_covs, metric=metric)
+    if deconf:
+        train_vecs, test_vecs = deconfound(train_vecs, con_confounder_train, cat_confounder_train, X_test=test_vecs, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test, age_var="Age_in_Yrs", sex_var="Gender")
+
     t_values, p_values = ttest_ind(test_vecs[test_labels==unique_labels[1]], test_vecs[test_labels==unique_labels[0]], axis=0, permutations=permutations)
     reject, corrected_p_values, _, _ = multipletests(p_values, alpha=alpha, method=correction)
     
@@ -164,22 +167,19 @@ def tangent_t_test(train_covs, test_covs, test_labels, alpha=.05, permutations=F
     plt.show()
 
 # https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=5662067
-def var_diff(train_data, train_covs, train_labels, test_data, test_labels, metric='riemann', method='log-var', basis="ICA"):
+def var_diff(train_data, train_covs, train_labels, test_data, test_labels, metric='riemann', method='log-var', basis="ICA", deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None):
     unique_labels = np.unique(train_labels)
     clf = SVC(kernel='linear', C=0.1, class_weight='balanced')
 
-    # Compute the mean covariances using the training data only
-    group1_mean = mean_covariance(train_covs[train_labels==unique_labels[1]], metric=metric)
-    group2_mean = mean_covariance(train_covs[train_labels==unique_labels[0]], metric=metric)
-
-    # Genearlized Eigendecomposition (FKT/SPADE/CSP/GEVD) to get features
-    _, filters_all = eigh(group1_mean, group2_mean + group2_mean, eigvals_only=False)
+    _, filters_all = FKT(train_covs, train_labels, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, visualize=False, output_dir=None)
 
     # Initialize list to store results (accuracy and distance)
     results = []
     for n in range(1, filters_all.shape[1] // 2 + 1): 
         filters = np.hstack([filters_all[:, :n], filters_all[:, -n:]])  # Select top and bottom n eigenvectors
         train_features, test_features = feature_generation(train_data,test_data, filters,method=method,metric=metric,cov="oas")
+        if deconf:
+            train_features, test_features = deconfound(train_features, con_confounder_train, cat_confounder_train, X_test=test_features, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test, age_var="Age_in_Yrs", sex_var="Gender")
 
         # Train SVM regression classifier on training data
         clf.fit(train_features, train_labels)
@@ -231,25 +231,27 @@ def reconstruction_plot(IFA_recon, ICA_recon,label="Train"):
     plt.show()
 
 
-def evaluate_IFA_results(IFA, ICA, train_labels, test_labels, alpha=.05, permutations=False, correction='fdr_bh', metric='riemannian'):
+def evaluate_IFA_results(IFA, ICA, train_labels, test_labels, alpha=.05, permutations=False, correction='fdr_bh', metric='riemannian', deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None):
     IFA_A_train, IFA_Netmats_train, IFA_train_recon_error, IFA_A_test, IFA_Netmats_test, IFA_test_recon_error= IFA
     ICA_A_train, ICA_Netmats_train, ICA_train_recon_error, ICA_A_test, ICA_Netmats_test, ICA_test_recon_error = ICA
     
     reconstruction_plot(IFA_train_recon_error, ICA_train_recon_error,label="Train")
     reconstruction_plot(IFA_test_recon_error, ICA_test_recon_error,label="Test")
 
-    IFA_var_results = var_diff(IFA_A_train, IFA_Netmats_train, train_labels, IFA_A_test, test_labels, metric=metric, method='log-var', basis="IFA")
-    ICA_var_results = var_diff(ICA_A_train, ICA_Netmats_train, train_labels, ICA_A_test, test_labels, metric=metric, method='log-var', basis="ICA")
+    IFA_var_results = var_diff(IFA_A_train, IFA_Netmats_train, train_labels, IFA_A_test, test_labels, metric=metric, method='log-var', basis="IFA", deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train)
+    ICA_var_results = var_diff(ICA_A_train, ICA_Netmats_train, train_labels, ICA_A_test, test_labels, metric=metric, method='log-var', basis="ICA", deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train)
+
     scatter_with_lines(IFA_var_results[:, [0, 2]], ICA_var_results[:, [0, 2]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='SVM Accuracy', title='Accuracies Across FKT Dimensions (log-var)')
     scatter_with_lines(IFA_var_results[:, [0, 1]], ICA_var_results[:, [0, 1]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='Riemannian Distance', title='Distance of Group Means Across FKT Dimensions  (log-var)')
 
-    IFA_var_results = var_diff(IFA_A_train, IFA_Netmats_train, train_labels, IFA_A_test, test_labels, metric=metric, method='log-cov', basis="IFA")
-    ICA_var_results = var_diff(ICA_A_train, ICA_Netmats_train, train_labels, ICA_A_test, test_labels, metric=metric, method='log-cov', basis="ICA")
+    IFA_var_results = var_diff(IFA_A_train, IFA_Netmats_train, train_labels, IFA_A_test, test_labels, metric=metric, method='log-cov', basis="IFA", deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train)
+    ICA_var_results = var_diff(ICA_A_train, ICA_Netmats_train, train_labels, ICA_A_test, test_labels, metric=metric, method='log-cov', basis="ICA", deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train)
     scatter_with_lines(IFA_var_results[:, [0, 2]], ICA_var_results[:, [0, 2]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='SVM Accuracy', title='Accuracies Across FKT Dimensions (log-cov)')
     scatter_with_lines(IFA_var_results[:, [0, 1]], ICA_var_results[:, [0, 1]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='Riemannian Distance', title='Distance of Group Means Across FKT Dimensions (log-cov)')
 
-    IFA_Class_Result = tangent_classification(IFA_Netmats_train, train_labels, IFA_Netmats_test, test_labels, clf_str='all', z_score=0, metric=metric, deconf=False)
-    ICA_Class_Result = tangent_classification(ICA_Netmats_train, train_labels, ICA_Netmats_test, test_labels, clf_str='all', z_score=0, metric=metric, deconf=False)
+    IFA_Class_Result = tangent_classification(IFA_Netmats_train, train_labels, IFA_Netmats_test, test_labels, clf_str='all', z_score=0, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
+    ICA_Class_Result = tangent_classification(ICA_Netmats_train, train_labels, ICA_Netmats_test, test_labels, clf_str='all', z_score=0, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
     scatter_with_lines(IFA_Class_Result, ICA_Class_Result, label1='IFA', label2='ICA', xlabel='Classifiers', ylabel='Accuracies', title='Netmat Tangent Classifier Accuracies')
-    tangent_t_test(IFA_Netmats_train, IFA_Netmats_test,test_labels, alpha=alpha, permutations=permutations, correction=correction, metric=metric)
-    tangent_t_test(ICA_Netmats_train, ICA_Netmats_test,test_labels, alpha=alpha, permutations=permutations, correction=correction, metric=metric)
+
+    tangent_t_test(IFA_Netmats_train, IFA_Netmats_test,test_labels, alpha=alpha, permutations=permutations, correction=correction, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train)
+    tangent_t_test(ICA_Netmats_train, ICA_Netmats_test,test_labels, alpha=alpha, permutations=permutations, correction=correction, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train)
