@@ -53,8 +53,8 @@ def scatter_with_lines(data1, data2, label1='Series 1', label2='Series 2', xlabe
         
     else:
         # Assuming data is in list format for (x, y) coordinates
-        x1, y1 = data1[:,0]
-        x2, y2 = data2[:,1]
+        x1, y1 = data1[:,0], data1[:,1]
+        x2, y2 = data2[:,0], data2[:,1]
         plt.figure(figsize=(12, 6))
         plt.scatter(x1, y1, label=label1, color='blue')
         plt.scatter(x2, y2, label=label2, color='orange')
