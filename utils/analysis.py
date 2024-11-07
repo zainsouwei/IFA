@@ -231,5 +231,5 @@ def evaluate_IFA_results(IFA, ICA, train_labels, test_labels, alpha=.05, permuta
     IFA_Class_Result = tangent_classification(IFA_Netmats_train, train_labels, IFA_Netmats_test, test_labels, clf_str='all', z_score=0, metric=metric, deconf=False)
     ICA_Class_Result = tangent_classification(ICA_Netmats_train, train_labels, ICA_Netmats_test, test_labels, clf_str='all', z_score=0, metric=metric, deconf=False)
     scatter_with_lines(IFA_Class_Result, ICA_Class_Result, label1='IFA', label2='ICA', xlabel='Classifiers', ylabel='Accuracies', title='Netmat Tangent Classifier Accuracies')
-    tangent_t_test(IFA_Netmats_train, IFA_Netmats_test,test_labels, metric=metric, alpha=alpha, permutations=permutations, correction=correction, metric=metric)
-    tangent_t_test(ICA_Netmats_train, ICA_Netmats_test,test_labels, metric=metric, alpha=alpha, permutations=permutations, correction=correction, metric=metric)
+    tangent_t_test(IFA_Netmats_train, IFA_Netmats_test,test_labels, alpha=alpha, permutations=permutations, correction=correction, metric=metric)
+    tangent_t_test(ICA_Netmats_train, ICA_Netmats_test,test_labels, alpha=alpha, permutations=permutations, correction=correction, metric=metric)
