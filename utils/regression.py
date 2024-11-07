@@ -14,13 +14,12 @@ def deconfound(X_train, con_confounder_train, cat_confounder_train, X_test=None,
     # Step 2: One-hot encode the categorical confounders
     encoder = OneHotEncoder(drop='first', sparse_output=False,handle_unknown='ignore')  # drop='first' to avoid multicollinearity
     cat_confounder_train_encoded = encoder.fit_transform(cat_confounder_train)
-    print(cat_confounder_train_encoded.shape)
-    print(list(encoder.categories_))
     age_index = continuous_confounders.index(age_var)
     sex_index = categorical_confounders.index(sex_var)
 
     # Extract Age and Sex variables
     age = con_confounder_train_scaled[:, age_index]  # Age from continuous confounders
+    # TODO Aligns since drop=first so only one column (first) for sex but not stable
     sex = cat_confounder_train_encoded[:, sex_index]  # Sex from encoded categorical confounders
 
     # Construct non-linear interaction terms
