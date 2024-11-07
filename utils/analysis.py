@@ -189,8 +189,8 @@ def var_diff(train_data, train_covs, train_labels, test_data, test_labels, metri
         accuracy = accuracy_score(test_labels, y_pred)
 
         # Calculate class means for distance (using the training data)
-        mean_group1_test = np.mean(test_features[train_labels==unique_labels[1]], axis=0)
-        mean_group2_test = np.mean(test_features[train_labels==unique_labels[0]], axis=0)
+        mean_group1_test = np.mean(test_features[test_labels==unique_labels[1]], axis=0)
+        mean_group2_test = np.mean(test_features[test_labels==unique_labels[0]], axis=0)
         mean_dist = np.linalg.norm(mean_group1_test - mean_group2_test)
 
         # Store accuracy and Riemannian distance for this n
@@ -198,8 +198,8 @@ def var_diff(train_data, train_covs, train_labels, test_data, test_labels, metri
         # Plot when n=1
         if n == 1:
             plt.figure(figsize=(8, 6))
-            plt.scatter(test_features[train_labels==unique_labels[1]][:, 0], test_features[train_labels==unique_labels[1]][:, 1], label=f'Group {unique_labels[1]} Log Variance (Test)', color='blue')
-            plt.scatter(test_features[train_labels==unique_labels[0]][:, 0], test_features[train_labels==unique_labels[0]][:, 1], label=f'Group {unique_labels[0]} Log Variance (Test)', color='red')
+            plt.scatter(test_features[test_labels==unique_labels[1]][:, 0], test_features[test_labels==unique_labels[1]][:, 1], label=f'Group {unique_labels[1]} Log Variance (Test)', color='blue')
+            plt.scatter(test_features[test_labels==unique_labels[0]][:, 0], test_features[test_labels==unique_labels[0]][:, 1], label=f'Group {unique_labels[0]} Log Variance (Test)', color='red')
 
             # Plot the line connecting the two means
             plt.plot([mean_group1_test[0], mean_group2_test[0]], [mean_group1_test[1], mean_group2_test[1]], 'k--', label=f'Mean Distance: {mean_dist:.2f}')
