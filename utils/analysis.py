@@ -218,7 +218,7 @@ def var_diff(train_data, train_covs, train_labels, test_data, test_labels, metri
             plt.grid(True)
             plt.show()
 
-    return results
+    return np.array(results)
 
 def evaluate_IFA_results(IFA, ICA, train_labels, test_labels, alpha=.05, permutations=False, correction='fdr_bh', metric='riemannian'):
     IFA_A_train, IFA_Netmats_train, IFA_A_test, IFA_Netmats_test = IFA
