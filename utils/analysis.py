@@ -164,7 +164,7 @@ def tangent_t_test(train_covs, test_covs, test_labels, alpha=.05, permutations=F
     plt.show()
 
 # https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=5662067
-def var_diff(train_data, train_covs, train_labels, test_data, test_labels, metric='riemann', method="ICA"):
+def var_diff(train_data, train_covs, train_labels, test_data, test_labels, metric='riemann', method='log-var', basis="ICA"):
     unique_labels = np.unique(train_labels)
     clf = SVC(kernel='linear', C=0.1, class_weight='balanced')
 
@@ -179,7 +179,7 @@ def var_diff(train_data, train_covs, train_labels, test_data, test_labels, metri
     results = []
     for n in range(1, filters_all.shape[1] // 2 + 1): 
         filters = np.hstack([filters_all[:, :n], filters_all[:, -n:]])  # Select top and bottom n eigenvectors
-        train_features, test_features = feature_generation(train_data,test_data, filters,method='log-cov',metric=metric,cov="oas")
+        train_features, test_features = feature_generation(train_data,test_data, filters,method=method,metric=metric,cov="oas")
 
         # Train SVM regression classifier on training data
         clf.fit(train_features, train_labels)
@@ -212,7 +212,7 @@ def var_diff(train_data, train_covs, train_labels, test_data, test_labels, metri
             # Display plot
             plt.xlabel(f'Log Variance Feature {unique_labels[0]}')
             plt.ylabel(f'Log Variance Feature {unique_labels[1]}')
-            plt.title(f'{method} Log Variance FKT Feature Comparison and SVM Decision Boundary')
+            plt.title(f'{basis} Log Variance FKT Feature Comparison and SVM Decision Boundary')
             plt.text(0.05, 0.95, f'Accuracy: {accuracy:.2f}', transform=plt.gca().transAxes, fontsize=12,verticalalignment='top', bbox=dict(boxstyle='round,pad=0.3', edgecolor='black', facecolor='lightgrey'))
             plt.legend(loc='upper right')
             plt.grid(True)
@@ -224,10 +224,16 @@ def evaluate_IFA_results(IFA, ICA, train_labels, test_labels, alpha=.05, permuta
     IFA_A_train, IFA_Netmats_train, IFA_A_test, IFA_Netmats_test = IFA
     ICA_A_train, ICA_Netmats_train, ICA_A_test, ICA_Netmats_test = ICA
     
-    IFA_var_results = var_diff(IFA_A_train, IFA_Netmats_train, train_labels, IFA_A_test, test_labels, metric=metric, method="IFA")
-    ICA_var_results = var_diff(ICA_A_train, ICA_Netmats_train, train_labels, ICA_A_test, test_labels, metric=metric, method="ICA")
-    scatter_with_lines(IFA_var_results[:, [0, 2]], ICA_var_results[:, [0, 2]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='SVM Accuracy', title='Accuracies Across FKT Dimensions')
-    scatter_with_lines(IFA_var_results[:, [0, 1]], ICA_var_results[:, [0, 1]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='Riemannian Distance', title='Distance of Group Means Across FKT Dimensions')
+    IFA_var_results = var_diff(IFA_A_train, IFA_Netmats_train, train_labels, IFA_A_test, test_labels, metric=metric, method='log-var' basis="IFA")
+    ICA_var_results = var_diff(ICA_A_train, ICA_Netmats_train, train_labels, ICA_A_test, test_labels, metric=metric, method='log-var' basis="ICA")
+    scatter_with_lines(IFA_var_results[:, [0, 2]], ICA_var_results[:, [0, 2]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='SVM Accuracy', title='Accuracies Across FKT Dimensions (log-var)')
+    scatter_with_lines(IFA_var_results[:, [0, 1]], ICA_var_results[:, [0, 1]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='Riemannian Distance', title='Distance of Group Means Across FKT Dimensions  (log-var)')
+
+    IFA_var_results = var_diff(IFA_A_train, IFA_Netmats_train, train_labels, IFA_A_test, test_labels, metric=metric, method='log-cov' basis="IFA")
+    ICA_var_results = var_diff(ICA_A_train, ICA_Netmats_train, train_labels, ICA_A_test, test_labels, metric=metric, method='log-cov' basis="ICA")
+    scatter_with_lines(IFA_var_results[:, [0, 2]], ICA_var_results[:, [0, 2]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='SVM Accuracy', title='Accuracies Across FKT Dimensions (log-cov)')
+    scatter_with_lines(IFA_var_results[:, [0, 1]], ICA_var_results[:, [0, 1]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='Riemannian Distance', title='Distance of Group Means Across FKT Dimensions (log-cov)')
+
     IFA_Class_Result = tangent_classification(IFA_Netmats_train, train_labels, IFA_Netmats_test, test_labels, clf_str='all', z_score=0, metric=metric, deconf=False)
     ICA_Class_Result = tangent_classification(ICA_Netmats_train, train_labels, ICA_Netmats_test, test_labels, clf_str='all', z_score=0, metric=metric, deconf=False)
     scatter_with_lines(IFA_Class_Result, ICA_Class_Result, label1='IFA', label2='ICA', xlabel='Classifiers', ylabel='Accuracies', title='Netmat Tangent Classifier Accuracies')
