@@ -53,8 +53,8 @@ def scatter_with_lines(data1, data2, label1='Series 1', label2='Series 2', xlabe
         
     else:
         # Assuming data is in list format for (x, y) coordinates
-        x1, y1 = data1
-        x2, y2 = data2
+        x1, y1 = data1[:,0]
+        x2, y2 = data2[:,1]
         plt.figure(figsize=(12, 6))
         plt.scatter(x1, y1, label=label1, color='blue')
         plt.scatter(x2, y2, label=label2, color='orange')
@@ -226,8 +226,8 @@ def evaluate_IFA_results(IFA, ICA, train_labels, test_labels, alpha=.05, permuta
     
     IFA_var_results = var_diff(IFA_A_train, IFA_Netmats_train, train_labels, IFA_A_test, test_labels, metric=metric, method="IFA")
     ICA_var_results = var_diff(ICA_A_train, ICA_Netmats_train, train_labels, ICA_A_test, test_labels, metric=metric, method="ICA")
-    scatter_with_lines(list(IFA_var_results[:, [0, 2]]), list(ICA_var_results[:, [0, 2]]), label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='Y', title='Accuracies Across FKT Dimensions')
-    scatter_with_lines(list(IFA_var_results[:, [0, 1]]), list(ICA_var_results[:, [0, 1]]), label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='Y', title='Distance of Group Means Across FKT Dimensions')
+    scatter_with_lines(IFA_var_results[:, [0, 2]], ICA_var_results[:, [0, 2]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='Y', title='Accuracies Across FKT Dimensions')
+    scatter_with_lines(IFA_var_results[:, [0, 1]], ICA_var_results[:, [0, 1]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='Y', title='Distance of Group Means Across FKT Dimensions')
     IFA_Class_Result = tangent_classification(IFA_Netmats_train, train_labels, IFA_Netmats_test, test_labels, clf_str='all', z_score=0, metric=metric, deconf=False)
     ICA_Class_Result = tangent_classification(ICA_Netmats_train, train_labels, ICA_Netmats_test, test_labels, clf_str='all', z_score=0, metric=metric, deconf=False)
     scatter_with_lines(IFA_Class_Result, ICA_Class_Result, label1='IFA', label2='ICA', xlabel='Classifiers', ylabel='Accuracies', title='Netmat Tangent Classifier Accuracies')
