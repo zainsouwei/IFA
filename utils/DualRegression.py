@@ -40,7 +40,7 @@ def calculate_netmat_and_spatial_map(Xn, z_maps):
 
     return An, netmat, spatial_map, reconstruction_error
 
-def dual_regress_sub(sub_path, z_maps_1, z_maps_2):
+def dual_regress_sub(sub_path, IFA_z_maps, ICA_z_maps):
     try:
         concatenated_data = []
         for task in sub_path:
@@ -58,28 +58,28 @@ def dual_regress_sub(sub_path, z_maps_1, z_maps_2):
         del subject
         
         # Calculate netmat and spatial map for the first set of z_maps
-        An_1, netmat_1, spatial_map_1, reconstruction_error_1 = calculate_netmat_and_spatial_map(Xn, z_maps_1)
+        IFA_An, IFA_netmat, IFA_spatial_map, IFA_reconstruction_error = calculate_netmat_and_spatial_map(Xn, IFA_z_maps)
 
         # Calculate netmat and spatial map for the second set of z_maps
-        An_2, netmat_2, spatial_map_2, reconstruction_error_2 = calculate_netmat_and_spatial_map(Xn, z_maps_2)
+        ICA_An, ICA_netmat, ICA_spatial_map, ICA_reconstruction_error = calculate_netmat_and_spatial_map(Xn, ICA_z_maps)
 
-        return (An_1, netmat_1, spatial_map_1, reconstruction_error_1), (An_2, netmat_2, spatial_map_2, reconstruction_error_2)
+        return (IFA_An, IFA_netmat, IFA_spatial_map, IFA_reconstruction_error), (ICA_An, ICA_netmat, ICA_spatial_map, ICA_reconstruction_error)
 
     except Exception as e:
         print(f"Error processing subject: {e}")
         return None, None
 
-def dual_regress(group_paths, z_maps_1, z_maps_2):
+def dual_regress(paths, IFA_z_maps, ICA_z_maps):
     # Use partial to avoid duplicating z_maps in memory
     with ProcessPoolExecutor(max_workers=int(os.cpu_count() * 0.4)) as executor:
         # Create a partial function that "binds" the z_maps_1 and z_maps_2 without duplicating them
-        partial_func = partial(dual_regress_sub, z_maps_1=z_maps_1, z_maps_2=z_maps_2)
+        partial_func = partial(dual_regress_sub, IFA_z_maps=IFA_z_maps, ICA_z_maps=ICA_z_maps)
 
         # Pass the subject paths to the executor without copying z_maps
-        results = list(executor.map(partial_func, group_paths))
+        results = list(executor.map(partial_func, paths))
         
         # Separate the results for the two bases, collecting An, netmat, and spatial_map
-        An_1, netmats_1, spatial_maps_1, reconstruction_errors_1 = zip(*[(res[0][0], res[0][1], res[0][2], res[0][3]) for res in results if res[0] is not None])
-        An_2, netmats_2, spatial_maps_2, reconstruction_errors_2 = zip(*[(res[1][0], res[1][1], res[1][2], res[1][3]) for res in results if res[1] is not None])
+        IFA_An_all, IFA_netmat_all, IFA_spatial_map_all, IFA_reconstruction_error_all = zip(*[(res[0][0], res[0][1], res[0][2], res[0][3]) for res in results if res[0] is not None])
+        ICA_An_all, ICA_netmat_all, ICA_spatial_map_all, ICA_reconstruction_error_all = zip(*[(res[1][0], res[1][1], res[1][2], res[1][3]) for res in results if res[1] is not None])
 
-        return (np.array(An_1), np.array(netmats_1), np.array(spatial_maps_1), np.array(reconstruction_errors_1)), (np.array(An_2), np.array(netmats_2), np.array(spatial_maps_2), np.array(reconstruction_errors_2))
+        return (np.array(IFA_An_all), np.array(IFA_netmat_all), np.array(IFA_spatial_map_all), np.array(IFA_reconstruction_error_all)), (np.array(ICA_An_all), np.array(ICA_netmat_all), np.array(ICA_spatial_map_all), np.array(ICA_reconstruction_error_all))

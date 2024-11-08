@@ -7,8 +7,8 @@ from scipy.stats import norm
 from statsmodels.stats.multitest import multipletests
 
 
-def ICA(data,whitened_data, output_dir="plots"):
-    ica = FastICA(whiten=False)
+def ICA(data,whitened_data, output_dir="plots", random_state=None):
+    ica = FastICA(whiten=False, random_state=random_state)
     # Takes in array-like of shape (n_samples, n_features) and returns ndarray of shape (n_samples, n_components)
     IFA_components = ica.fit_transform(whitened_data.T).T
     A = data@np.linalg.pinv(IFA_components)
