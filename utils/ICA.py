@@ -7,8 +7,12 @@ from scipy.stats import norm
 from statsmodels.stats.multitest import multipletests
 
 
-def ICA(data,whitened_data, output_dir="plots", random_state=None):
-    ica = FastICA(whiten=False, random_state=random_state)
+def ICA(data,whitened_data, whiten=False, output_dir="plots", random_state=None):
+    if whiten:
+        ica = FastICA(whiten='unit-variance', random_state=random_state)
+    else:
+        # Assume basis is already whitened
+        ica = FastICA(whiten=False, random_state=random_state)
     # Takes in array-like of shape (n_samples, n_features) and returns ndarray of shape (n_samples, n_components)
     IFA_components = ica.fit_transform(whitened_data.T).T
     A = data@np.linalg.pinv(IFA_components)
@@ -32,6 +36,7 @@ def ICA(data,whitened_data, output_dir="plots", random_state=None):
 
     # Adjust layout
     plt.tight_layout()
+    plt.show()
     plt.savefig(os.path.join(output_dir, "ICA_reconstruction.svg"))
     plt.close(fig)
 
@@ -48,20 +53,26 @@ def noise_projection(W,data, visualize=True, output_dir="plots"):
 
 
     if visualize:
-        n=1000
+        signal_std = np.std(Signals, axis=0, ddof=(Signals.shape[0] - np.linalg.matrix_rank(W)))
+        # Find a voxel where the signal is stronger than the noise
+        signal_to_noise_ratios = signal_std /residual_std
+        high_snr_voxel = np.argmax(signal_to_noise_ratios)
+        
         plt.figure()
-        plt.plot(Signals[:n,0:1])
-        plt.plot(Residuals[:n,0:1])
-        # plt.plot(data[:n,0:1])
-        # plt.plot(data[:n,0:1] - (Signals[:n,0:1]+Residuals[:n,0:1]))
-        plt.legend(['Signal','Noise', 'Data' ,'Reconstruction Error'])
-        plt.title("Calculations based on pinv(W)W Projection Matrix")
-        plt.savefig(os.path.join(output_dir, "reconstruction.png"))
+        plt.plot(Signals[:, high_snr_voxel:high_snr_voxel+1])
+        plt.plot(Residuals[:, high_snr_voxel:high_snr_voxel+1])
+        plt.legend(['Signal', 'Noise'])
+        plt.title(f"Signal and Noise in High SNR Voxel ({high_snr_voxel})")
+        plt.show()
+        plt.savefig(os.path.join(output_dir, "reconstruction_high_snr_voxel.svg"))
 
-
-        plt.scatter(range(0,residual_std.shape[0]), residual_std)
-        plt.title("Noise std Per Voxel based on pinv(W)W Projection Matrix")
-        plt.savefig(os.path.join(output_dir, "noisestd.png"))
+        plt.figure()
+        plt.scatter(range(signal_std.shape[0]), signal_std, label="Signal Std ")
+        plt.scatter(range(residual_std.shape[0]), residual_std, label="Residual Std")
+        plt.title("Noise Std per Voxel based on pinv(W)W Projection Matrix")
+        plt.legend()
+        plt.show()
+        plt.savefig(os.path.join(output_dir, "noisestd.svg"))
 
     return residual_std
 
@@ -96,26 +107,24 @@ def threshold_and_visualize(data, W, components,visualize=False,output_dir="plot
             plt.title(f"Histogram for Filter {i} NO SIGNIFICANT VALUES")
             plt.xlabel('Value')
             plt.ylabel('Frequency')
+            plt.show()
             plt.savefig(os.path.join(components_dir, f"component_{i}.svg"))
+            plt.close()
+
 
         else:
             if visualize:
                 # Create a figure and axes for subplots (1 row of 2 plots per filter)
-                fig, axes = plt.subplots(1, 2, figsize=(18, 10))
-
-                ax_hist1 = axes[0]
-                ax_img = axes[1]
-
+                plt.figure()
                 # Plot the histogram of the current filter
-                ax_hist1.hist(z_score, bins=30, color='blue', alpha=0.7)
-                ax_hist1.set_title(f"Histogram for Filter {i}")
-                ax_hist1.set_xlabel('Value')
-                ax_hist1.set_ylabel('Frequency')
-                plt.savefig(os.path.join(components_dir, f"component_{i}.svg"))
-                plt.close(fig)
+                plt.hist(z_score, bins=30, color='blue', alpha=0.7)
+                plt.title(f"Histogram for Filter {i}")
+                plt.xlabel('Value')
+                plt.ylabel('Frequency')
+                plt.show()
+                plt.savefig(os.path.join(components_dir, f"spatial_heatmap.svg"))
+                plt.close()
 
-
-    
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
     # Heat map for the combined unmixing matrix
     sns.heatmap(z_scores, cmap='viridis', ax=axes[0])
@@ -131,6 +140,7 @@ def threshold_and_visualize(data, W, components,visualize=False,output_dir="plot
 
     # Adjust layout
     plt.tight_layout()
+    plt.show()
     plt.savefig(os.path.join(components_dir, f"spatial_heatmap.svg"))
     plt.close(fig)
 

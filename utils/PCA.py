@@ -18,12 +18,15 @@ def migp(subs, batch_size=2, m=4800):
         batch_subs = subs[batch_start:batch_start + batch_size]
         batch_paths = [path for sublist in batch_subs for path in sublist]
         try:
-
+            # Treat all of the scans in the batch as one subject
+            # # Each timeseries in each individual scan is standardized before concatenated
+            # # Each timeseries in the concatenated is the standardized again
             batch = load_subject(batch_paths)
 
             with torch.no_grad():
                 # Convert to torch tensor and move to GPU
-                batch_gpu = torch.tensor(batch, dtype=torch.float32, device="cuda")
+                device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+                batch_gpu = torch.tensor(batch, dtype=torch.float32, device=device)
                 del batch
                 if torch.isnan(batch_gpu).any():
                     print("NaNs detected in the batch data. Aborting SVD operation.")
