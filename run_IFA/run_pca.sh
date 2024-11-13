@@ -18,6 +18,6 @@ eval "$(conda shell.bash hook)"
 conda activate IFAslurmv2 || { echo "Failed to activate Conda environment"; exit 1; }
 
 # Run the PCA Python script with the arguments passed from sbatch
-python /project/3022057.01/run_IFA/run_pca.py "$1" "$2" "$3" || { echo "Failed to run PCA script"; exit 1; }
+python /project/3022057.01/IFA/run_IFA/run_pca.py "$1" "$2" "$3" || { echo "Failed to run PCA script"; exit 1; }
 
 echo "PCA job completed successfully."

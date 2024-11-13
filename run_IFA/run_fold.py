@@ -168,7 +168,7 @@ def run_fold(outputfolder, fold):
     
     # Submit Separate Job for PCA Related Stuff which uses GPU
     # Submit the PCA job using sbatch
-    pca_script = "/project/3022057.01/run_IFA/run_pca.sh"
+    pca_script = "/project/3022057.01/IFA/run_IFA/run_pca.sh"
     pca_command = [
         "sbatch",
         "--output", os.path.join(fold_output_dir, "pca-%j.out"),
