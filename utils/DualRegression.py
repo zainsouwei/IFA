@@ -30,15 +30,16 @@ def calculate_netmat_and_spatial_map(Xn, z_maps):
    
     # Normalized Time x Components matrix
     An = hcp.normalize(A)  # An is Time x Components (T x C)
+    Adm = A - A.mean(axis=0,keepdims=True)
     del A
 
     # Components x Components network matrix
     netmat = (An.T @ An) / (Xn.shape[0] - 1)  # Netmat is Components x Components (C x C)
-
+    netmatdm = (Adm.T @ Adm) / (Xn.shape[0] - 1)
     # Components x Grayordinates spatial map
     spatial_map = np.linalg.pinv(An) @ Xn  # Spatial map is Components x Grayordinates (C x V)
-
-    return An, netmat, spatial_map, reconstruction_error
+    spatial_mapdm = np.linalg.pinv(Adm) @ Xn
+    return An, netmat, spatial_map, reconstruction_error, Adm, netmatdm, spatial_mapdm
 
 def dual_regress_sub(sub_path, IFA_z_maps, ICA_z_maps):
     try:
@@ -57,29 +58,31 @@ def dual_regress_sub(sub_path, IFA_z_maps, ICA_z_maps):
         Xn = hcp.normalize(subject - subject.mean(axis=1,keepdims=True))  # Time x Grayordinates normalized data (T x V)
         del subject
         
-        # Calculate netmat and spatial map for the first set of z_maps
-        IFA_An, IFA_netmat, IFA_spatial_map, IFA_reconstruction_error = calculate_netmat_and_spatial_map(Xn, IFA_z_maps)
-
-        # Calculate netmat and spatial map for the second set of z_maps
-        ICA_An, ICA_netmat, ICA_spatial_map, ICA_reconstruction_error = calculate_netmat_and_spatial_map(Xn, ICA_z_maps)
-
-        return (IFA_An, IFA_netmat, IFA_spatial_map, IFA_reconstruction_error), (ICA_An, ICA_netmat, ICA_spatial_map, ICA_reconstruction_error)
-
+        # Calculate for IFA z_maps
+        IFA_An, IFA_netmat, IFA_spatial_map, IFA_reconstruction_error, IFA_Adm, IFA_netmatdm, IFA_spatial_mapdm = calculate_netmat_and_spatial_map(Xn, IFA_z_maps)
+        
+        # Calculate for ICA z_maps
+        ICA_An, ICA_netmat, ICA_spatial_map, ICA_reconstruction_error, ICA_Adm, ICA_netmatdm, ICA_spatial_mapdm = calculate_netmat_and_spatial_map(Xn, ICA_z_maps)
+        
+        return (IFA_An, IFA_netmat, IFA_spatial_map, IFA_reconstruction_error, IFA_Adm, IFA_netmatdm, IFA_spatial_mapdm), \
+               (ICA_An, ICA_netmat, ICA_spatial_map, ICA_reconstruction_error, ICA_Adm, ICA_netmatdm, ICA_spatial_mapdm)
+    
     except Exception as e:
         print(f"Error processing subject: {e}")
         return None, None
 
 def dual_regress(paths, IFA_z_maps, ICA_z_maps):
-    # Use partial to avoid duplicating z_maps in memory
     with ProcessPoolExecutor(max_workers=int(os.cpu_count() * 0.3)) as executor:
-        # Create a partial function that "binds" the z_maps_1 and z_maps_2 without duplicating them
         partial_func = partial(dual_regress_sub, IFA_z_maps=IFA_z_maps, ICA_z_maps=ICA_z_maps)
-
-        # Pass the subject paths to the executor without copying z_maps
         results = list(executor.map(partial_func, paths))
         
-        # Separate the results for the two bases, collecting An, netmat, and spatial_map
-        IFA_An_all, IFA_netmat_all, IFA_spatial_map_all, IFA_reconstruction_error_all = zip(*[(res[0][0], res[0][1], res[0][2], res[0][3]) for res in results if res[0] is not None])
-        ICA_An_all, ICA_netmat_all, ICA_spatial_map_all, ICA_reconstruction_error_all = zip(*[(res[1][0], res[1][1], res[1][2], res[1][3]) for res in results if res[1] is not None])
+        # Separate results for normalized (An) and demeaned (Adm) outputs
+        IFA_An_all, IFA_netmat_all, IFA_spatial_map_all, IFA_reconstruction_error_all, \
+        IFA_Adm_all, IFA_netmatdm_all, IFA_spatial_mapdm_all = zip(*[(res[0][0], res[0][1], res[0][2], res[0][3], res[0][4], res[0][5], res[0][6]) 
+                                                                     for res in results if res[0] is not None])
 
-        return (np.array(IFA_An_all), np.array(IFA_netmat_all), np.array(IFA_spatial_map_all), np.array(IFA_reconstruction_error_all)), (np.array(ICA_An_all), np.array(ICA_netmat_all), np.array(ICA_spatial_map_all), np.array(ICA_reconstruction_error_all))
+        ICA_An_all, ICA_netmat_all, ICA_spatial_map_all, ICA_reconstruction_error_all, \
+        ICA_Adm_all, ICA_netmatdm_all, ICA_spatial_mapdm_all = zip(*[(res[1][0], res[1][1], res[1][2], res[1][3], res[1][4], res[1][5], res[1][6]) 
+                                                                     for res in results if res[1] is not None])
+        # Return both normalized and demeaned results for further use if needed
+        return ((np.array(IFA_An_all), np.array(IFA_netmat_all), np.array(IFA_spatial_map_all), np.array(IFA_reconstruction_error_all)), (np.array(IFA_Adm_all), np.array(IFA_netmatdm_all), np.array(IFA_spatial_mapdm_all))),((np.array(ICA_An_all), np.array(ICA_netmat_all), np.array(ICA_spatial_map_all), np.array(ICA_reconstruction_error_all)),(np.array(ICA_Adm_all), np.array(ICA_netmatdm_all), np.array(ICA_spatial_mapdm_all)))

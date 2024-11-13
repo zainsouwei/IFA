@@ -36,7 +36,6 @@ def ICA(data,whitened_data, whiten=False, output_dir="plots", random_state=None)
 
     # Adjust layout
     plt.tight_layout()
-    plt.show()
     plt.savefig(os.path.join(output_dir, "ICA_reconstruction.svg"))
     plt.close(fig)
 
@@ -63,7 +62,6 @@ def noise_projection(W,data, visualize=True, output_dir="plots"):
         plt.plot(Residuals[:, high_snr_voxel:high_snr_voxel+1])
         plt.legend(['Signal', 'Noise'])
         plt.title(f"Signal and Noise in High SNR Voxel ({high_snr_voxel})")
-        plt.show()
         plt.savefig(os.path.join(output_dir, "reconstruction_high_snr_voxel.svg"))
 
         plt.figure()
@@ -71,7 +69,6 @@ def noise_projection(W,data, visualize=True, output_dir="plots"):
         plt.scatter(range(residual_std.shape[0]), residual_std, label="Residual Std")
         plt.title("Noise Std per Voxel based on pinv(W)W Projection Matrix")
         plt.legend()
-        plt.show()
         plt.savefig(os.path.join(output_dir, "noisestd.svg"))
 
     return residual_std
@@ -107,7 +104,6 @@ def threshold_and_visualize(data, W, components,visualize=False,output_dir="plot
             plt.title(f"Histogram for Filter {i} NO SIGNIFICANT VALUES")
             plt.xlabel('Value')
             plt.ylabel('Frequency')
-            plt.show()
             plt.savefig(os.path.join(components_dir, f"component_{i}.svg"))
             plt.close()
 
@@ -121,7 +117,6 @@ def threshold_and_visualize(data, W, components,visualize=False,output_dir="plot
                 plt.title(f"Histogram for Filter {i}")
                 plt.xlabel('Value')
                 plt.ylabel('Frequency')
-                plt.show()
                 plt.savefig(os.path.join(components_dir, f"spatial_heatmap.svg"))
                 plt.close()
 
@@ -140,7 +135,6 @@ def threshold_and_visualize(data, W, components,visualize=False,output_dir="plot
 
     # Adjust layout
     plt.tight_layout()
-    plt.show()
     plt.savefig(os.path.join(components_dir, f"spatial_heatmap.svg"))
     plt.close(fig)
 

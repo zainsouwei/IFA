@@ -128,25 +128,25 @@ def tangent_t_test(train_covs, test_covs, test_labels, alpha=.05, permutations=F
     ax4 = fig.add_subplot(2, 2, 4, polar=True)
 
     # Plot 1: Corrected P-values
-    im1 = plot_connectivity_circle(np.where(diff_thresholded_matrix < alpha, diff_thresholded_matrix, np.nan), labels, facecolor=(0.2, 0.2, 0.2, 1), colormap=green_cmap, vmin=diff_thresholded_matrix.min(), vmax=alpha, fig=fig, ax=ax1, show=False, colorbar=False)
+    im1 = plot_connectivity_circle(np.where(diff_thresholded_matrix < alpha, diff_thresholded_matrix, np.nan), labels, facecolor=(0.3, 0.3, 0.3, 1), colormap=green_cmap, vmin=diff_thresholded_matrix.min(), vmax=alpha, fig=fig, ax=ax1, show=False, colorbar=False)
     ax1.set_title("Corrected P-values", fontsize=12)
     cbar1 = fig.colorbar(plt.cm.ScalarMappable(cmap=green_cmap, norm=plt.Normalize(vmin=diff_thresholded_matrix.min(), vmax=alpha)), ax=ax1, shrink=0.7, orientation='vertical')
     cbar1.set_label('Corrected P-values', fontsize=10)
 
     # Plot 2: T-values
-    im2 = plot_connectivity_circle(np.where(np.abs(t_values_thresholded_matrix) > 0, t_values_thresholded_matrix, np.nan), labels, facecolor=(0.2, 0.2, 0.2, 1), colormap=custom_cmap, vmin=t_values_thresholded_matrix.min(), vmax=t_values_thresholded_matrix.max(), fig=fig, ax=ax2, show=False, colorbar=False)
+    im2 = plot_connectivity_circle(np.where(np.abs(t_values_thresholded_matrix) > 0, t_values_thresholded_matrix, np.nan), labels, facecolor=(0.3, 0.3, 0.3, 1), colormap=custom_cmap, vmin=t_values_thresholded_matrix.min(), vmax=t_values_thresholded_matrix.max(), fig=fig, ax=ax2, show=False, colorbar=False)
     ax2.set_title("T-values", fontsize=12)
     cbar2 = fig.colorbar(plt.cm.ScalarMappable(cmap=custom_cmap, norm=plt.Normalize(vmin=t_values_thresholded_matrix.min(), vmax=t_values_thresholded_matrix.max())), ax=ax2, shrink=0.7, orientation='vertical')
     cbar2.set_label('Tangent T-values', fontsize=10)
 
     # Plot 3: Group A Connectivity
-    im3 = plot_connectivity_circle(np.where(np.abs(groupA) > 0, groupA, np.nan), labels, facecolor=(0.2, 0.2, 0.2, 1), colormap=custom_cmap, vmin=groupA.min(), vmax=groupA.max(), fig=fig, ax=ax3, show=False, colorbar=False)
+    im3 = plot_connectivity_circle(np.where(np.abs(groupA) > 0, groupA, np.nan), labels, facecolor=(0.3, 0.3, 0.3, 1), colormap=custom_cmap, vmin=groupA.min(), vmax=groupA.max(), fig=fig, ax=ax3, show=False, colorbar=False)
     ax3.set_title(f'Group {unique_labels[1]} Connectivity', fontsize=12)
     cbar3 = fig.colorbar(plt.cm.ScalarMappable(cmap=custom_cmap, norm=plt.Normalize(vmin=groupA.min(), vmax=groupA.max())), ax=ax3, shrink=0.7, orientation='vertical')
     cbar3.set_label('Covariance', fontsize=10)
 
     # Plot 4: Group B Connectivity
-    im4 = plot_connectivity_circle(np.where(np.abs(groupB) > 0, groupB, np.nan),labels, facecolor=(0.2, 0.2, 0.2, 1), colormap=custom_cmap, vmin=groupB.min(), vmax=groupB.max(), fig=fig, ax=ax4, show=False, colorbar=False)
+    im4 = plot_connectivity_circle(np.where(np.abs(groupB) > 0, groupB, np.nan),labels, facecolor=(0.3, 0.3, 0.3, 1), colormap=custom_cmap, vmin=groupB.min(), vmax=groupB.max(), fig=fig, ax=ax4, show=False, colorbar=False)
     ax4.set_title(f'Group {unique_labels[0]} Connectivity', fontsize=12)
     cbar4 = fig.colorbar(plt.cm.ScalarMappable(cmap=custom_cmap, norm=plt.Normalize(vmin=groupB.min(), vmax=groupB.max())),ax=ax4, shrink=0.7, orientation='vertical')
     cbar4.set_label('Covariance', fontsize=10)
@@ -165,7 +165,7 @@ def tangent_t_test(train_covs, test_covs, test_labels, alpha=.05, permutations=F
     sns.heatmap(groupB, cmap=custom_cmap, vmin=global_min, vmax=global_max, center=0, cbar_kws={'label': 'Covariance'}, ax=axes[1, 1])
     axes[1, 1].set_title(f'Group {unique_labels[0]} Mean Connectivity')
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "{basis}_connectivity.svg"))
+    plt.savefig(os.path.join(output_dir, f"{basis}_connectivity.svg"))
 
     return (diff_thresholded_matrix, t_values_thresholded_matrix, groupA, groupB)
 
@@ -264,7 +264,7 @@ def evaluate_IFA_results(IFA, ICA, train_labels, test_labels, alpha=.05, permuta
     ICA_Class_Result = tangent_classification(ICA_Netmats_train, train_labels, ICA_Netmats_test, test_labels, clf_str='all', z_score=0, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
 
     # Scatter plot for classifier accuracies
-    scatter_with_lines(IFA_Class_Result, ICA_Class_Result, label1='IFA', label2='ICA', xlabel='Classifiers', ylabel='Accuracies', title='Netmat_Tangent_Classifier_Accuracies')
+    scatter_with_lines(IFA_Class_Result, ICA_Class_Result, label1='IFA', label2='ICA', xlabel='Classifiers', ylabel='Accuracies', title='Netmat_Tangent_Classifier_Accuracies',output_dir=output_dir)
 
     # T-test results
     IFA_t_test = tangent_t_test(IFA_Netmats_train, IFA_Netmats_test, test_labels, alpha=alpha, permutations=permutations, correction=correction, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test, output_dir=output_dir, basis="IFA")
