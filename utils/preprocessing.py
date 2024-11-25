@@ -188,7 +188,7 @@ def parcellate(output_dir,base_directory = "/project_cephfs/3022017.01/S1200", t
         traceback.print_exc()
         return []
     
-def get_groups(phenotypes, quantile=0.33, data_path='/project/3022057.01/HCP/combined_data.pkl', regression=False, visualize=True, output_dir="plots"):
+def get_groups(phenotypes, quantile=0.33, data_path='/project/3022057.01/HCP/combined_data.pkl', regression=False, visualize=True, output_dir="plots",bins=30):
     # Load the phenotype data
     columns = ["Subject"] + phenotypes
     phenotype_data = extract_phenotype(columns)
@@ -213,7 +213,7 @@ def get_groups(phenotypes, quantile=0.33, data_path='/project/3022057.01/HCP/com
         if visualize:
             # Plot histogram for the summed values
             plt.figure(figsize=(10, 6))
-            plt.hist(phenotype_data["SummedValues"], bins=30, alpha=0.7, color='green')
+            plt.hist(phenotype_data["SummedValues"], bins=bins, alpha=0.7, color='green')
             plt.xlabel('Summed Phenotype Values')
             plt.ylabel('Frequency')
             plt.title('Histogram of Summed Phenotype Values for Regression Case')
@@ -265,8 +265,8 @@ def get_groups(phenotypes, quantile=0.33, data_path='/project/3022057.01/HCP/com
         group_b_values = group_b[phenotypes].to_numpy().sum(axis=1)
 
         plt.figure(figsize=(10, 6))
-        plt.hist(group_a_values, bins=30, alpha=0.5, label='Group A (Top Quantiles)', color='blue')
-        plt.hist(group_b_values, bins=30, alpha=0.5, label='Group B (Bottom Quantiles)', color='red')
+        plt.hist(group_a_values, bins=bins, alpha=0.5, label='Group A (Top Quantiles)', color='blue')
+        plt.hist(group_b_values, bins=bins, alpha=0.5, label='Group B (Bottom Quantiles)', color='red')
         plt.xlabel('Phenotype Values')
         plt.ylabel('Frequency')
         plt.title('Histogram of Phenotype Values for Group A and Group B')
