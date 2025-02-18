@@ -1,17 +1,26 @@
 import numpy as np
 import os
-from scipy.stats import ttest_ind
-from statsmodels.stats.multitest import multipletests
 from matplotlib.colors import LinearSegmentedColormap
 from mne_connectivity.viz import plot_connectivity_circle
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.svm import SVC
-from scipy.linalg import eigh
+from scipy.linalg import eigh,subspace_angles
 from pyriemann.utils.tangentspace import untangent_space, mean_covariance
 from sklearn.metrics import accuracy_score
-
+from sklearn.covariance import OAS,LedoitWolf, EmpiricalCovariance
+import hcp_utils as hcp
+from nilearn import plotting
+from pyriemann.estimation import Covariances
+from sklearn.decomposition import MiniBatchSparsePCA
+from filters import TSSF
+from classification import linear_classifier
+import torch
+from nilearn.mass_univariate import permuted_ols
+from mne.stats import permutation_t_test, permutation_cluster_1samp_test, permutation_cluster_test, ttest_ind_no_p, ttest_1samp_no_p
+from nilearn.plotting import view_surf
 import sys
+import pickle
 sys.path.append('/utils')
 
 from tangent import tangent_transform, tangent_classification
@@ -72,6 +81,7 @@ def scatter_with_lines(data1, data2, label1='Series 1', label2='Series 2', xlabe
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, f"{title}.svg"))
+    plt.close('all')
 
 def unupper_noweighting(vec):
     # Compute the matrix size `n`
@@ -83,27 +93,34 @@ def unupper_noweighting(vec):
     full_matrix[i_lower] = full_matrix.T[i_lower]
     return full_matrix
 
-def tangent_t_test(train_covs, test_covs, test_labels, alpha=.05, permutations=False, correction='fdr_bh', metric='riemannian', deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None,output_dir="path",basis="ICA"):
-    unique_labels = np.unique(test_labels)
+def tangent_t_test(train_covs, test_covs, test_labels, alpha=.05, permutations=False, paired=True, metric='riemann', deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None,output_dir="path",basis="ICA", random_seed=42):
     train_vecs, test_vecs, mean = tangent_transform(train_covs, test_covs, metric=metric)
     if deconf:
-        train_vecs, test_vecs = deconfound(train_vecs, con_confounder_train, cat_confounder_train, X_test=test_vecs, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test, age_var="Age_in_Yrs", sex_var="Gender")
+        train_vecs, test_vecs = deconfound(train_vecs, con_confounder_train, cat_confounder_train, X_test=test_vecs, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
 
-    t_values, p_values = ttest_ind(test_vecs[test_labels==unique_labels[1]], test_vecs[test_labels==unique_labels[0]], axis=0, permutations=permutations)
-    reject, corrected_p_values, _, _ = multipletests(p_values, alpha=alpha, method=correction)
-    
-    if np.sum(reject) == 0:
-        print("No significant differences")
-        return
-    
+    if paired:
+        # Paired: compute differences between conditions and use MNE's one-sample permutation t-test.
+        diffs = test_vecs[test_labels == 1] - test_vecs[test_labels == 0]
+        t_values, corrected_p_values, _ = permutation_t_test(diffs, n_permutations=permutations, tail=0, n_jobs=-1, seed=random_seed, verbose=False)
+        reject = corrected_p_values < alpha
+    else:
+        groupA = test_vecs[test_labels == 1]
+        groupB = test_vecs[test_labels == 0]
+        design_matrix = np.column_stack((np.ones(test_vecs.shape[0]), np.concatenate([np.ones(groupA.shape[0]), np.zeros(groupB.shape[0])])))
+        data = np.concatenate([groupA, groupB])
+        res = permuted_ols(design_matrix, data, n_perm=permutations, two_sided_test=True, n_jobs=-1, random_state=random_seed, output_type='dict')
+        t_values = res['t'][1, :]
+        corrected_p_values = 10 ** (-res['logp_max_t'][1, :])
+        reject = corrected_p_values < alpha
+
     t_values_thresholded = t_values * reject
     diff_thresholded = corrected_p_values * reject
     diff_thresholded[diff_thresholded == 0.0] = alpha + 1e-5
     
     diff_thresholded_matrix = unupper_noweighting(diff_thresholded)
     t_values_thresholded_matrix = unupper_noweighting(t_values_thresholded)
-    groupA = untangent_space(np.mean(test_vecs[test_labels==unique_labels[1]], axis=0)[np.newaxis, :], mean, metric=metric)[0, :, :] * unupper_noweighting(reject)
-    groupB = untangent_space(np.mean(test_vecs[test_labels==unique_labels[0]], axis=0)[np.newaxis, :], mean, metric=metric)[0, :, :] * unupper_noweighting(reject)
+    groupA = untangent_space(np.mean(test_vecs[test_labels==1], axis=0)[np.newaxis, :], mean, metric=metric)[0, :, :] * unupper_noweighting(reject)
+    groupB = untangent_space(np.mean(test_vecs[test_labels==0], axis=0)[np.newaxis, :], mean, metric=metric)[0, :, :] * unupper_noweighting(reject)
     
     global_min = min(groupA.min(), groupB.min())
     global_max = max(groupA.max(), groupB.max())
@@ -141,13 +158,13 @@ def tangent_t_test(train_covs, test_covs, test_labels, alpha=.05, permutations=F
 
     # Plot 3: Group A Connectivity
     im3 = plot_connectivity_circle(np.where(np.abs(groupA) > 0, groupA, np.nan), labels, facecolor=(0.3, 0.3, 0.3, 1), colormap=custom_cmap, vmin=groupA.min(), vmax=groupA.max(), fig=fig, ax=ax3, show=False, colorbar=False)
-    ax3.set_title(f'Group {unique_labels[1]} Connectivity', fontsize=12)
+    ax3.set_title(f'Group {1} Connectivity', fontsize=12)
     cbar3 = fig.colorbar(plt.cm.ScalarMappable(cmap=custom_cmap, norm=plt.Normalize(vmin=groupA.min(), vmax=groupA.max())), ax=ax3, shrink=0.7, orientation='vertical')
     cbar3.set_label('Covariance', fontsize=10)
 
     # Plot 4: Group B Connectivity
     im4 = plot_connectivity_circle(np.where(np.abs(groupB) > 0, groupB, np.nan),labels, facecolor=(0.3, 0.3, 0.3, 1), colormap=custom_cmap, vmin=groupB.min(), vmax=groupB.max(), fig=fig, ax=ax4, show=False, colorbar=False)
-    ax4.set_title(f'Group {unique_labels[0]} Connectivity', fontsize=12)
+    ax4.set_title(f'Group {0} Connectivity', fontsize=12)
     cbar4 = fig.colorbar(plt.cm.ScalarMappable(cmap=custom_cmap, norm=plt.Normalize(vmin=groupB.min(), vmax=groupB.max())),ax=ax4, shrink=0.7, orientation='vertical')
     cbar4.set_label('Covariance', fontsize=10)
     plt.tight_layout()
@@ -161,13 +178,15 @@ def tangent_t_test(train_covs, test_covs, test_labels, alpha=.05, permutations=F
     sns.heatmap(t_values_thresholded_matrix, cmap=custom_cmap, center=0, cbar_kws={'label': 'Tangent T-values'}, ax=axes[0, 1])
     axes[0, 1].set_title(f'T-values on Tangent Plane | {np.linalg.norm(t_values_thresholded_matrix)}')
     sns.heatmap(groupA, cmap=custom_cmap, vmin=global_min, vmax=global_max, center=0, cbar_kws={'label': 'Covariance'}, ax=axes[1, 0])
-    axes[1, 0].set_title(f'Group {unique_labels[1]} Mean Connectivity')
+    axes[1, 0].set_title(f'Group {1} Mean Connectivity')
     sns.heatmap(groupB, cmap=custom_cmap, vmin=global_min, vmax=global_max, center=0, cbar_kws={'label': 'Covariance'}, ax=axes[1, 1])
-    axes[1, 1].set_title(f'Group {unique_labels[0]} Mean Connectivity')
+    axes[1, 1].set_title(f'Group {0} Mean Connectivity')
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, f"{basis}_connectivity.svg"))
+    plt.close('all')
 
     return (diff_thresholded_matrix, t_values_thresholded_matrix, groupA, groupB)
+
 
 # https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=5662067
 def var_diff(train_data, train_covs, train_labels, test_data, test_labels, metric='riemann', method='log-var', basis="ICA", deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None,output_dir="path"):
@@ -182,7 +201,7 @@ def var_diff(train_data, train_covs, train_labels, test_data, test_labels, metri
         filters = np.hstack([filters_all[:, :n], filters_all[:, -n:]])  # Select top and bottom n eigenvectors
         train_features, test_features = feature_generation(train_data,test_data, filters,method=method,metric=metric,cov="oas")
         if deconf:
-            train_features, test_features = deconfound(train_features, con_confounder_train, cat_confounder_train, X_test=test_features, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test, age_var="Age_in_Yrs", sex_var="Gender")
+            train_features, test_features = deconfound(train_features, con_confounder_train, cat_confounder_train, X_test=test_features, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
 
         # Train SVM regression classifier on training data
         clf.fit(train_features, train_labels)
@@ -220,7 +239,7 @@ def var_diff(train_data, train_covs, train_labels, test_data, test_labels, metri
             plt.legend(loc='upper right')
             plt.grid(True)
             plt.savefig(os.path.join(output_dir, f'{basis}_{method}_2d.svg'))
-
+            plt.close('all')
     return np.array(results)
 
 def reconstruction_plot(IFA_recon, ICA_recon,label="Train",output_dir="path"):
@@ -232,58 +251,1210 @@ def reconstruction_plot(IFA_recon, ICA_recon,label="Train",output_dir="path"):
     plt.title(f'Distribution of IFA and ICA {label} Reconstruction Errors')
     plt.legend()
     plt.savefig(os.path.join(output_dir, f'{label}_reconstruction.svg'))
+    plt.close('all')
 
 
-def evaluate_IFA_results(IFA, ICA, train_labels, test_labels, alpha=.05, permutations=False, correction='fdr_bh', metric='riemannian', deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None,output_dir="path"):
-    IFA_A_train, IFA_Netmats_train, IFA_train_recon_error, IFA_A_test, IFA_Netmats_test, IFA_test_recon_error = IFA
-    ICA_A_train, ICA_Netmats_train, ICA_train_recon_error, ICA_A_test, ICA_Netmats_test, ICA_test_recon_error = ICA
-    IFA_recon = (IFA_train_recon_error, IFA_test_recon_error)
-    ICA_recon = (ICA_train_recon_error, ICA_test_recon_error)
 
-    # Generate reconstruction plots
-    reconstruction_plot(IFA_train_recon_error, ICA_train_recon_error, label="Train",output_dir=output_dir)
-    reconstruction_plot(IFA_test_recon_error, ICA_test_recon_error, label="Test",output_dir=output_dir)
 
-    # Calculate var_diff and create scatter plots
-    IFA_var_results = var_diff(IFA_A_train, IFA_Netmats_train, train_labels, IFA_A_test, test_labels, metric=metric, method='log-var', basis="IFA", deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,output_dir=output_dir)
-    ICA_var_results = var_diff(ICA_A_train, ICA_Netmats_train, train_labels, ICA_A_test, test_labels, metric=metric, method='log-var', basis="ICA", deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,output_dir=output_dir)
+#############################################################################################################################################################
+################################################################## Under Development ########################################################################
+# Sparse Bilinear Logistic Regression https://ww3.math.ucla.edu/camreport/cam14-12.pdf
+class SparseBilinearLogisticRegression:
+    def __init__(self, s, t, r, mu1=0.1, mu2=1.0, nu1=0.1, nu2=1.0, max_iter=100, tol=1e-4):
+        self.s = s  # Feature matrix rows
+        self.t = t  # Feature matrix columns
+        self.r = r  # Low-rank factorization dimension
+        self.mu1 = mu1  # L1 regularization on U
+        self.mu2 = mu2  # L2 regularization on U
+        self.nu1 = nu1  # L1 regularization on V
+        self.nu2 = nu2  # L2 regularization on V
+        self.max_iter = max_iter
+        self.tol = tol  # Convergence tolerance
+
+        # Initialize weight matrices
+        self.U = np.random.randn(s, r)
+        self.V = np.random.randn(t, r)
+        self.b = 0.0  # Bias term
     
+    # Expit as defined by 12(a-c)
+    def expit(self, X, y):
+        trace = np.array([np.trace(self.U.T @ X_i @ self.V) for X_i in X])
+        return  np.power((1 + np.exp(y*(trace + self.b))),-1) 
+
+    # 15a
+    def gradient_U(self, X, y):
+        all_subs_grad_U = (self.expit(X, y) * y)[:, np.newaxis, np.newaxis] * (X@self.V)
+        grad_U = -np.mean(all_subs_grad_U,axis=0)
+        return grad_U
+    
+    # 15b
+    def gradient_V(self, X, y):
+        all_subs_grad_V = (self.expit(X, y) * y)[:, np.newaxis, np.newaxis] * (np.transpose(X,(0,2,1))@self.U)
+        grad_V = -np.mean(all_subs_grad_V,axis=0)
+        return grad_V
+    
+    # 15c
+    def gradient_b(self, X, y):
+        all_subs_grad_b = (self.expit(X, y) * y)
+        grad_b = -np.mean(all_subs_grad_b,axis=0)
+        return grad_b
+
+    def soft_thresholding(self, Z, tau):
+        # https://eeweb.poly.edu/iselesni/lecture_notes/sparse_penalties/sparse_penalties.pdf Page 5
+        return np.sign(Z) * np.maximum(np.abs(Z) - tau, 0)
+    
+    def fit(self, X, y):
+        n = y.shape[0]
+        U,E,Vh = np.linalg.svd(np.mean(X,axis=0),full_matrices=False)
+        self.U = U[:,:self.r]
+        self.V = Vh[:self.r,:].T
+
+        for _ in range(self.max_iter):
+            U_old = self.U
+            V_old = self.V
+            b_old = self.b
+            # Lipshitz Constant for U 
+            L_u = (np.sqrt(2)/n)*(np.sum((np.linalg.norm(X@self.V,ord='fro',axis=(1,2)) + 1)**2,axis=0))
+            # Update bhat
+            self.b = self.b - (1/L_u)*self.gradient_b(X, y)
+
+            # Update U
+            grad_U = self.gradient_U(X, y)
+            self.U = self.soft_thresholding((L_u*self.U - grad_U)/(L_u+ self.mu2), self.mu1/(L_u+ self.mu2))
+            
+            # Lipshitz Constant for v 
+            L_v = (np.sqrt(2)/n)*(np.sum((np.linalg.norm(np.transpose(X,(0,2,1))@self.U,ord='fro',axis=(1,2)) + 1)**2,axis=0))
+
+            # Update b
+            self.b = self.b - (1/L_v)*self.gradient_b(X, y)
+            
+            # Update V
+            grad_V = self.gradient_V(X, y)
+            self.V = self.soft_thresholding((L_v*self.V - grad_V)/(L_v+ self.nu2), self.nu1 /(L_v+ self.nu2))
+            
+            print(np.linalg.norm(self.U - U_old, 'fro') + np.linalg.norm(self.V - V_old, 'fro') + abs(self.b - b_old))
+
+            # Convergence check
+            if np.linalg.norm(self.U - U_old, 'fro') + np.linalg.norm(self.V - V_old, 'fro') + abs(self.b - b_old) < self.tol:
+                break
+
+    
+    def predict(self, X):
+        logits = np.array([np.trace(self.U.T @ X_i @ self.V) for X_i in X]) + self.b
+        return np.sign(logits)
+
+def bilinear_class(method, time_norm=False):
+    for fold in range(1):
+        # Load indices and labels
+        indices_dir = os.path.join(outputfolder, f"fold_{fold}", "Indices")
+        train_idx = np.load(os.path.join(indices_dir, "train_idx.npy"))
+        test_idx = np.load(os.path.join(indices_dir, "test_idx.npy"))
+        labels = np.load(os.path.join(outputfolder, "labels.npy"))
+        labels[labels == 0] = -1
+        train_labels = labels[train_idx]
+        test_labels = labels[test_idx]
+
+        # Load spatial maps
+        dual_dir = os.path.join(outputfolder, f"fold_{fold}", f"Dual_Regression_{nPCA}")
+        if time_norm:
+            SpatialMaps = np.load(os.path.join(dual_dir, f"{method}_spatial_maps.npy"))
+        else:
+            SpatialMaps = np.load(os.path.join(dual_dir, f"{method}_spatial_mapdm.npy"))
+
+        train_maps = SpatialMaps[train_idx]
+        test_maps = SpatialMaps[test_idx]
+        print(f"Training Shape: {train_maps.shape}, Testing Shape: {test_maps.shape}")
+
+        # Train Sparse Bilinear Logistic Regression
+        sblr = SparseBilinearLogisticRegression(
+            s=train_maps.shape[1], 
+            t=train_maps.shape[2], 
+            r=1,  # Assuming a reduced rank of 10
+            mu1=.1, mu2=.1, nu1=.1, nu2=.1
+        )
+
+        sblr.fit(train_maps, train_labels)
+
+        # Predict on test set
+        predictions = sblr.predict(test_maps)
+
+        # Evaluate performance
+        accuracy = np.mean(predictions == test_labels)
+        print(f"Fold {fold}: Accuracy = {accuracy:.4f}")
+        return sblr.U, sblr.V
+#############################################################################################################################################################
+#############################################################################################################################################################
+       
+# https://ieeexplore.ieee.org/abstract/document/1467563
+def spatial_fda(train_maps,train_labels,within=True):
+
+    # Separate Train Maps into Groups
+    groupA_train = train_maps[train_labels==1]
+    groupB_train = train_maps[train_labels==0]
+
+    # Calculate Average Set of Train Spatial Maps per Group
+    groupA_mean_train = np.mean(groupA_train,axis=0)
+    groupB_mean_train = np.mean(groupB_train,axis=0)
+    # cov_est = EmpiricalCovariance(assume_centered=True)
+    # cov_est = LedoitWolf(assume_centered=True)
+    cov_est = OAS(assume_centered=True)
+
+    all_mean = np.mean(train_maps,axis=0)
+    Sb = groupA_train.shape[0]*cov_est.fit((groupA_mean_train - all_mean).T).covariance_
+    Sb += groupB_train.shape[0]*cov_est.fit((groupB_mean_train - all_mean).T).covariance_
+    # Sb = (groupA_mean_train - groupB_mean_train)@(groupA_mean_train - groupB_mean_train).T
+
+    if within:
+        groupA_within = np.sum(np.array([cov_est.fit((A-groupA_mean_train).T).covariance_ for A in groupA_train]),axis=0)
+        groupB_within = np.sum(np.array([cov_est.fit((B-groupB_mean_train).T).covariance_ for B in groupB_train]),axis=0)
+        Sw = (groupA_within + groupB_within) 
+        # # An Alternative Using Weighted & Riemannian Means Instead of Sums
+        # Sb /= groupA_train.shape[0] + groupB_train.shape[0]
+        # groupA_within = np.array([cov_est.fit((A-groupA_mean_train).T).covariance_ for A in groupA_train])
+        # groupB_within = np.array([cov_est.fit((B-groupB_mean_train).T).covariance_ for B in groupB_train])
+        # Sw = mean_covariance(np.vstack((groupA_within,groupB_within)),metric=metric)
+        # For class A (shape: (N_A, C, V)) with mean groupA_mean_train (C, V)
+
+        # # An Alternative Using Pooling Prior to Covariance Formation
+        # deviations_A = np.concatenate([subject - groupA_mean_train for subject in groupA_train], axis=1)
+        # deviations_A = deviations_A.T  # shape: (N_A * V, C)
+        # # For class B (shape: (N_B, C, V)) with mean groupB_mean_train (C, V)
+        # deviations_B = np.concatenate([subject - groupB_mean_train for subject in groupB_train], axis=1)
+        # deviations_B = deviations_B.T  # shape: (N_B * V, C)
+        # # Pool all deviations together:
+        # all_deviations = np.vstack((deviations_A, deviations_B))
+        # # Compute the pooled covariance:
+        # Sw = cov_est.fit(all_deviations).covariance_
+        # print("Pooled within-class covariance (both classes) shape:", Sw.shape)
+        _, U = eigh(Sb,Sw)
+    else:
+        _, U = eigh(Sb)
+    
+    return U, U.T
+
+def sparse_spatial_dist(train_maps,train_labels,n_components=None,alpha=.01,batch_size=100):
+    # Separate Train Maps into Groups
+    groupA_train = train_maps[train_labels==1]
+    groupB_train = train_maps[train_labels==0]
+
+    # Calculate Average Set of Train Spatial Maps per Group
+    A = np.mean(groupA_train,axis=0)
+    B = np.mean(groupB_train,axis=0)
+    # Parameters for MiniBatch Sparse PCA
+    if n_components is None:
+        n_components = A.shape[0]  # Number of sparse components to extract
+
+    # Apply MiniBatch Sparse PCA
+    mini_batch_sparse_pca = MiniBatchSparsePCA(
+        n_components=n_components,
+        alpha=alpha,
+        batch_size=batch_size,
+        random_state=42
+    )
+    
+    diff_matrix = A - B
+
+    # Fit the model to the difference matrix
+    # Enforce sparsity in the Space Direction not the combination of component directions
+    mini_batch_sparse_pca.fit(diff_matrix)
+
+    # Explained variance approximation (for interpretation)
+    approximation = mini_batch_sparse_pca.transform(diff_matrix)
+    # Reverse the order of columns to be in ascending order like other two methods
+    approximation = approximation[:, ::-1]
+
+    print(np.linalg.norm(approximation,axis=0))
+    norms = np.linalg.norm(approximation,axis=0)
+    norms[norms==0] = 1
+    U = approximation/norms
+    
+    ## Get the sparse components (principal directions)
+    # sparse_components = mini_batch_sparse_pca.components_
+
+    ## Rough equivalent of eigenvalues (only measures variance explained for that component)
+    ##   U's in this case are not forced to be orthogonal, so this norm does not account for covariance
+    # e = np.linalg.norm(approximation,axis=0)**2
+
+    return U, U.T
+
+## This Learns Seperate Subspaces to Project Each Group onto so will result in higher 
+### accuracies than the other methods if want to purely maximize cosine similarity can do eigh since 
+#### this amounts to vAB.Tv where A and B are orthonormal basis, however no longer represents subspace angles
+def grassmann_dist(train_maps,train_labels):
+    # Separate Train Maps into Groups
+    groupA_train = train_maps[train_labels==1]
+    groupB_train = train_maps[train_labels==0]
+
+    # Calculate Average Set of Train Spatial Maps per Group
+    A = np.mean(groupA_train,axis=0)
+    B = np.mean(groupB_train,axis=0)
+    # The commented out code is a potential way for regularization by reducing the "sample/ambient" space via PCA"
+    # A = hcp.normalize(A.T).T
+    # B = hcp.normalize(B.T).T
+    # U, S, Red = np.linalg.svd(np.vstack((A,B)),full_matrices=False)
+    # A_q, A_r = np.linalg.qr((A@Red[:20,:].T).T)
+    # B_q, B_r = np.linalg.qr((B@Red[:20,:].T).T)
+    A_q, _ = np.linalg.qr((A).T)
+    B_q, _ = np.linalg.qr((B).T)
+    product = A_q.T @ B_q
+    U, S, Vt = np.linalg.svd(product, full_matrices=False)
+    # print(product.shape)
+    # S, U = np.linalg.eigh(product)
+    # Vt = U.T
+    angles = np.arccos(S)  # Principal angles
+    print(S)
+    # Confirm S matches subspace_angles result
+    assert np.all(np.abs(angles - subspace_angles(A.T, B.T)[::-1]) < 1e-3), "Mismatch in singular values and principal angles"
+    return U, Vt  # Principal angles and directions
+
+
+def spatial_vis(map_accs, discrim_dir_acc,outputfolder=None,basis="IFA"):
+
+    # === 1. Gather the accuracies per classifier ===
+    # Assume map_accs is a list of length n_maps; each element is a dict with keys = classifier names.
+    n_maps = len(map_accs)
+    clf_names = list(map_accs[0].keys())  # e.g., ["SVM (C=0.1)", "LDA", ...]
+    # Initialize a dictionary for each classifier to hold distributions by method.
+    acc_by_clf = {clf: {} for clf in clf_names}
+    # Collect baseline accuracies (from each map) for each classifier.
+    for clf in clf_names:
+        # Each map_accs[i][clf] is assumed to be a dict with an 'accuracy' key.
+        baseline_vals = [map_accs[i][clf]['accuracy'] for i in range(n_maps)]
+        acc_by_clf[clf]["Baseline"] = baseline_vals
+
+    # Collect accuracies from each discriminative method.
+    # Here, discrim_dir_acc is assumed to be a dictionary:
+    #   key: method (e.g., 1, 2, 4, etc.)
+    #   value: a list (length = n_maps) of result dictionaries.
+    for method, res_list in discrim_dir_acc.items():
+        label = f"Method {method}"
+        for clf in clf_names:
+            # For each projection direction (assumed one per map),
+            # extract the accuracy value from each result dictionary.
+            vals = [res[clf]['accuracy'] for res in res_list]
+            acc_by_clf[clf][label] = vals
+
+    # === 2. Plot histograms (one per classifier) with distributions overlaid ===
+    n_clf = len(clf_names)
+    fig, axes = plt.subplots(n_clf, 1, figsize=(8, 4 * n_clf))
+    if n_clf == 1:
+        axes = [axes]
+
+    # For each classifier, plot a histogram for each method distribution.
+    for i, clf in enumerate(clf_names):
+        ax = axes[i]
+        method_labels = list(acc_by_clf[clf].keys())  # e.g., ["Baseline", "Method 1", "Method 2", ...]
+        n_methods = len(method_labels)
+        colors = sns.color_palette("husl", n_methods)  # Generate distinct colors for each method.
+        for j, m_label in enumerate(method_labels):
+            data = np.array(acc_by_clf[clf][m_label])
+            # Plot histogram with a step style and overlay a KDE.
+            sns.histplot(data, bins=data.shape[0]*2, stat="frequency", element="step", fill=True,
+                         color=colors[j], alpha=0.4, ax=ax)
+            # sns.kdeplot(data, color=colors[j], ax=ax)
+            # Mark the mean of this distribution with a vertical dashed line.
+            mean_val = np.mean(data)
+            ax.axvline(mean_val, color=colors[j], linestyle="--", linewidth=2,
+                       label=f"{m_label} mean, max: {mean_val:.2f},{np.max(data):.2f}")
+        ax.set_title(f"Classifier: {clf}")
+        ax.set_xlabel("Accuracy")
+        ax.set_ylabel("Frequency")
+        ax.legend()
+    plt.tight_layout()
+
+     # === 3. Save the plot as an SVG file if an output folder is provided ===
+    if outputfolder:
+        if not os.path.exists(outputfolder):
+            os.makedirs(outputfolder)
+        svg_path = os.path.join(outputfolder, f"{basis}_spatial_discrim.svg")
+        plt.savefig(svg_path, format="svg")
+        print(f"Plot saved to {svg_path}")
+    else:
+        plt.show()
+    plt.close(fig)
+
+    # Scatter plot visualization
+    fig, axes = plt.subplots(n_clf, 1, figsize=(8, 4 * n_clf))
+    if n_clf == 1:
+        axes = [axes]
+
+    for i, clf in enumerate(clf_names):
+        ax = axes[i]
+        method_labels = list(acc_by_clf[clf].keys())
+        n_methods = len(method_labels)
+        colors = sns.color_palette("husl", n_methods)
+
+        for j, m_label in enumerate(method_labels):
+            data = np.array(acc_by_clf[clf][m_label])
+            ax.plot(range(data.shape[0]), np.sort(data), '--o',alpha=0.6, label=m_label, color=colors[j])
+
+        ax.set_xticks(range(data.shape[0]))
+        ax.set_xlabel("Map/Basis Vector Sorted By Classification Accuracy")
+        ax.set_title(f"Classifier: {clf}")
+        ax.set_ylabel("Accuracy")
+        ax.legend()
+
+    plt.tight_layout()
+
+    # Save scatter plot
+    if outputfolder:
+        scatter_path = os.path.join(outputfolder, f"{basis}_spatial_discrim_scatter.svg")
+        plt.savefig(scatter_path, format="svg")
+        print(f"Scatter plot saved to {scatter_path}")
+    else:
+        plt.show()
+    plt.close(fig)
+
+
+def reduce_dimensionality_torch(train_spatial_maps, test_spatial_maps, device=None, n=100, svd=True, demean=True):
+    # Determine device
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    elif device == "cuda" and not torch.cuda.is_available():
+        device = "cpu"
+        
+    # Convert inputs to torch tensors (if they aren’t already) and move them to the specified device.
+    if not isinstance(train_spatial_maps, torch.Tensor):
+        train_spatial_maps = torch.tensor(train_spatial_maps, dtype=torch.float32, device=device)
+    else:
+        train_spatial_maps = train_spatial_maps.to(device)
+    
+    if not isinstance(test_spatial_maps, torch.Tensor):
+        test_spatial_maps = torch.tensor(test_spatial_maps, dtype=torch.float32, device=device)
+    else:
+        test_spatial_maps = test_spatial_maps.to(device)
+    
+    n_comp = int(train_spatial_maps.shape[-1] / n)
+    
+    # Optionally demean the data using the training mean.
+    if demean:
+        train_mean = torch.mean(train_spatial_maps, dim=0)
+        train_data = train_spatial_maps - train_mean
+        test_data = test_spatial_maps - train_mean
+    else:
+        train_data = train_spatial_maps
+        test_data = test_spatial_maps
+
+    if svd:
+        # SVD branch: Use SVD on the (optionally demeaned) training data.
+        # Note: torch.linalg.svd returns singular values in descending order.
+        _, S, Vh = torch.linalg.svd(train_data, full_matrices=False)
+        # Take the top n_comp components.
+        reduced_train = train_data @ Vh[:n_comp, :].T
+        reduced_test = test_data @ Vh[:n_comp, :].T
+        return reduced_train.cpu().numpy(), reduced_test.cpu().numpy()
+    else:
+        # EVD branch: Compute the dual covariance matrix and perform eigen-decomposition.
+        cov_train = train_data @ train_data.T / train_spatial_maps.size(1)
+        
+        # Perform eigenvalue decomposition. torch.linalg.eigh returns eigenvalues in ascending order.
+        e, U = torch.linalg.eigh(cov_train)
+        # Compute principal components in the original space using the dual formulation.
+        # We select the n_comp components with the largest eigenvalues (which are at the end).
+        V = ((train_data.T @ U) / torch.sqrt(e.unsqueeze(0) + 1e-10))[:, -n_comp:]
+        
+        # Project the (optionally demeaned) training and test data.
+        X_train_reduced = train_data @ V
+        X_test_reduced = test_data @ V
+        return X_train_reduced.cpu().numpy(), X_test_reduced.cpu().numpy()
+
+def spatial_discrimination(train_maps, train_labels, test_maps, test_labels,methods=[1,2,4,5],metric="riemann",visualize=True,outputfolder=None,basis="IFA"):
+    # Note for method 1, 2, & 4 Vt == U.T, This is just done so the same code can be used for the grassmann dist
+    #           which operates on two different subspaces where U != V
+    
+    # First look at accuracy of individual maps that span the subspace
+    map_accs = []
+    for i in range(train_maps.shape[1]):
+        train_map_reduced, test_map_reduced = reduce_dimensionality_torch(train_maps[:, i, :], test_maps[:, i, :], device=None, n=100, svd=True, demean=True)
+        results = linear_classifier(train_map_reduced, train_labels, test_map_reduced, test_labels, clf_str='Logistic Regression', z_score=1)
+        map_accs.append(results)
+
+    # Compute the maximum separating directions within that subspace based on different heurstics
+    discrim_dir_acc = {}   # key: method code, value: list of accuracy result dicts (one per projection direction)
+    discrim_dir = {}       # key: method code, value: (U, Vt)
+    for method in methods:
+        # Maximize Between Class Distance Measured via Euclidean Distance
+        if method == 1:
+            U, Vt = spatial_fda(train_maps, train_labels,within=False)
+         # Maximize Between Class Distance and Minimize Within Class Spread Measured via Euclidean Distance
+        elif method == 2:
+            U, Vt = spatial_fda(train_maps, train_labels,within=True)
+        # Sparse Maximization of Between Class Distance Measured via Euclidean Distance
+        elif method == 3:
+            U, Vt = sparse_spatial_dist(train_maps, train_labels,n_components=None,alpha=.01,batch_size=100)
+        # Maximizition of Between Class Distance Measure via Cosine Similarity (i.e., Maximize Subspace Angles)
+        elif method == 4:
+            U, Vt = grassmann_dist(train_maps,train_labels)
+        # CSP (Maximize Distance Between Class Average Covariances)
+        elif method == 5:
+            cov_est = Covariances(estimator='oas')
+            train_covs = cov_est.transform(train_maps)
+            eigs, U, _, _ = TSSF(train_covs, train_labels, clf_str='Logistic Regression', metric=metric, deconf=False, con_confounder_train=None, cat_confounder_train=None, z_score=0, haufe=False, visualize=False, output_dir=None)
+            U = U[:,np.argsort(eigs)]
+            Vt = U.T
+
+        groupA_train = train_maps[train_labels==1]
+        groupB_train = train_maps[train_labels==0]
+
+        groupA_test = test_maps[test_labels==1]
+        groupB_test = test_maps[test_labels==0]
+        accs = []
+        for i in range(train_maps.shape[1]):
+            train_proj = np.vstack((U[:,i].T@groupA_train, Vt[i,:]@groupB_train))
+            proj_train_labels = np.hstack((np.ones(groupA_train.shape[0]),np.zeros(groupB_train.shape[0])))
+            test_proj = np.vstack((U[:,i].T@groupA_test, Vt[i,:]@groupB_test))
+            proj_test_labels = np.hstack((np.ones(groupA_test.shape[0]),np.zeros(groupB_test.shape[0])))
+            train_reduced,test_reduced = reduce_dimensionality_torch(train_proj, test_proj, device=None, n=100, svd=True, demean=True)
+            direction_results = linear_classifier(train_reduced, proj_train_labels, test_reduced, proj_test_labels, clf_str='Logistic Regression', z_score=1)
+            accs.append(direction_results)
+
+        discrim_dir_acc[method] = accs
+        discrim_dir[method] = (U, Vt)
+
+    if visualize:
+        spatial_vis(map_accs, discrim_dir_acc,outputfolder=outputfolder,basis=basis)
+    
+    
+    return (map_accs,discrim_dir_acc,discrim_dir)
+
+def spatial_comparison_vis(IFA_results, ICA_results, outputfolder=None, basis="IFA_vs_ICA"):
+    """
+    Compares classification results for IFA (blue) and ICA (gold) across different classifiers and dimensionality reduction methods.
+    Generates separate histograms and scatter plots for:
+      - Map accuracy (IFA vs. ICA)
+      - Discriminative accuracy (IFA vs. ICA)
+
+    Parameters:
+        IFA_results: tuple of (map_accs, discrim_dir_acc, discrim_dir) for IFA
+        ICA_results: tuple of (map_accs, discrim_dir_acc, discrim_dir) for ICA
+        outputfolder: str, optional, folder to save plots (default: None)
+        basis: str, optional, name prefix for saved plots (default: "IFA_vs_ICA")
+    """
+    
+    # Unpack results
+    IFA_map_accs, IFA_discrim_dir_acc, _ = IFA_results
+    ICA_map_accs, ICA_discrim_dir_acc, _ = ICA_results
+    
+    # Extract classifier names and methods
+    clf_names = list(IFA_map_accs[0].keys())  
+    methods = list(IFA_discrim_dir_acc.keys())  
+
+    # Define colors
+    IFA_color = "blue"
+    ICA_color = "orange"
+
+    for clf in clf_names:
+        for method in methods:
+
+            ### ======= MAP ACCURACY PLOTS (IFA vs. ICA) ======= ###
+            fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+            # Prepare data
+            IFA_data_map = [res[clf]['accuracy'] for res in IFA_map_accs]
+            ICA_data_map = [res[clf]['accuracy'] for res in ICA_map_accs]
+
+            # Histogram (Map Accuracy)
+            ax = axes[0]
+            sns.histplot(IFA_data_map, bins=20, color=IFA_color, alpha=0.5, label="IFA", ax=ax)
+            sns.histplot(ICA_data_map, bins=20, color=ICA_color, alpha=0.5, label="ICA", ax=ax)
+            
+            ax.axvline(np.mean(IFA_data_map), color=IFA_color, linestyle="--", linewidth=2, label=f"IFA Mean: {np.mean(IFA_data_map):.2f}")
+            ax.axvline(np.mean(ICA_data_map), color=ICA_color, linestyle="--", linewidth=2, label=f"ICA Mean: {np.mean(ICA_data_map):.2f}")
+            
+            ax.set_title(f"Histogram - {clf} (Method {method}) - Map Accuracy")
+            ax.set_xlabel("Accuracy")
+            ax.set_ylabel("Frequency")
+            ax.legend()
+
+            # Scatter Plot (Sorted map accuracy values)
+            ax = axes[1]
+            sorted_ifa_map = np.sort(IFA_data_map)
+            sorted_ica_map = np.sort(ICA_data_map)
+
+            ax.plot(range(len(sorted_ifa_map)), sorted_ifa_map, 'o--', alpha=0.6, color=IFA_color, label="IFA")
+            ax.plot(range(len(sorted_ica_map)), sorted_ica_map, 'o--', alpha=0.6, color=ICA_color, label="ICA")
+
+            ax.set_xticks(range(len(sorted_ifa_map)))
+            ax.set_xlabel("Sorted Instances")
+            ax.set_title(f"Scatter Plot - {clf} (Method {method}) - Map Accuracy")
+            ax.set_ylabel("Accuracy")
+            ax.legend()
+
+            plt.tight_layout()
+
+            # Save Map Accuracy Plots
+            if outputfolder:
+                if not os.path.exists(outputfolder):
+                    os.makedirs(outputfolder)
+                plot_path = os.path.join(outputfolder, f"{basis}_{clf}_Method_{method}_Map_Accuracy.svg")
+                plt.savefig(plot_path, format="svg")
+                print(f"Map Accuracy Plot saved to {plot_path}")
+            else:
+                plt.show()
+            plt.close(fig)
+
+            ### ======= DISCRIMINATIVE ACCURACY PLOTS (IFA vs. ICA) ======= ###
+            fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+            # Prepare data
+            IFA_data_disc = [res[clf]['accuracy'] for res in IFA_discrim_dir_acc[method]]
+            ICA_data_disc = [res[clf]['accuracy'] for res in ICA_discrim_dir_acc[method]]
+
+            # Histogram (Discriminative Accuracy)
+            ax = axes[0]
+            sns.histplot(IFA_data_disc, bins=20, color=IFA_color, alpha=0.6, label="IFA", ax=ax)
+            sns.histplot(ICA_data_disc, bins=20, color=ICA_color, alpha=0.6, label="ICA", ax=ax)
+            
+            ax.axvline(np.mean(IFA_data_disc), color=IFA_color, linestyle="--", alpha=0.6, linewidth=2, label=f"IFA Mean: {np.mean(IFA_data_disc):.2f}")
+            ax.axvline(np.mean(ICA_data_disc), color=ICA_color, linestyle="--", alpha=0.6, linewidth=2, label=f"ICA Mean: {np.mean(ICA_data_disc):.2f}")
+            
+            ax.set_title(f"Histogram - {clf} (Method {method}) - Discriminative Accuracy")
+            ax.set_xlabel("Accuracy")
+            ax.set_ylabel("Frequency")
+            ax.legend()
+
+            # Scatter Plot (Sorted discriminative accuracy values)
+            ax = axes[1]
+            sorted_ifa_disc = np.sort(IFA_data_disc)
+            sorted_ica_disc = np.sort(ICA_data_disc)
+
+            ax.plot(range(len(sorted_ifa_disc)), sorted_ifa_disc, 'o--', alpha=0.6, color=IFA_color, label="IFA")
+            ax.plot(range(len(sorted_ica_disc)), sorted_ica_disc, 'o--', alpha=0.6, color=ICA_color, label="ICA")
+
+            ax.set_xticks(range(len(sorted_ifa_disc)))
+            ax.set_xlabel("Sorted Instances")
+            ax.set_title(f"Scatter Plot - {clf} (Method {method}) - Discriminative Accuracy")
+            ax.set_ylabel("Accuracy")
+            ax.legend()
+
+            plt.tight_layout()
+
+            # Save Discriminative Accuracy Plots
+            if outputfolder:
+                plot_path = os.path.join(outputfolder, f"{basis}_{clf}_Method_{method}_Discriminative_Accuracy.svg")
+                plt.savefig(plot_path, format="svg")
+                print(f"Discriminative Accuracy Plot saved to {plot_path}")
+            else:
+                plt.show()
+            plt.close(fig)
+
+
+def spatial_t_test(maps, labels, paired=True, cluster=False, TFCE=None ,perm=10000, all_maps=True, random_seed=42):
+    # Set tfce to None use non TFCE cluster based {"start": 0, "step": 0.3}
+    # TODO Add per map cluster 
+    # Extract groups from the maps
+    maps_A = maps[labels == 1]
+    maps_B = maps[labels == 0]
+    A_samples = maps_A.shape[0]
+    B_samples = maps_B.shape[0]
+    samples = A_samples + B_samples
+    n_maps = maps_A.shape[1]
+    n_space = maps_A.shape[2]
+
+    if cluster:
+        maps_A_cortex = np.array([single_map[:,hcp.struct.cortex] for single_map in maps_A])
+        maps_B_cortex = np.array([single_map[:,hcp.struct.cortex] for single_map in maps_B])
+
+        if paired:          
+            
+            assert maps_A.shape[0] == maps_B.shape[0], (
+                "For a paired T-Test there needs to be the same number of samples in both groups"
+            )
+
+            t_vals, clusters, temp_p_vals, _ = permutation_cluster_1samp_test(
+                maps_A_cortex - maps_B_cortex,
+                threshold=TFCE,  # TFCE parameters
+                n_permutations=perm,
+                tail=0,                              # Two-tailed test
+                adjacency=hcp.cortical_adjacency,    # Adjacency for HCP grayordinates
+                # stat_fun = stat_fun_hat,
+                n_jobs=-1,
+                # buffer_size=1000, 
+                out_type='indices',
+                seed=random_seed  
+            )
+        
+        else:
+            X = [maps_A_cortex, maps_B_cortex]  # Combine groups for cluster-based permutation
+            t_vals, clusters, temp_p_vals, _ = permutation_cluster_test(
+                X,
+                threshold=TFCE,  # TFCE parameters
+                n_permutations=perm,
+                tail=0,                              # Two-tailed test
+                stat_fun=ttest_ind_no_p,
+                adjacency=hcp.cortical_adjacency,    # Adjacency for HCP grayordinates
+                n_jobs=-1,
+                # buffer_size=1000, 
+                out_type='indices',
+                seed=random_seed 
+            )
+
+        n_space_cortex = maps_A_cortex.shape[-1]
+        # Default to 1 ensures non signficant p_values
+        p_vals = np.ones((n_maps, n_space_cortex))
+        for i, ind in enumerate(clusters):
+            p_vals[ind] = temp_p_vals[i]
+        return t_vals, p_vals
+    else:
+        if paired:
+            assert maps_A.shape[0] == maps_B.shape[0], (
+                "For a paired T-Test there needs to be the same number of samples in both groups"
+            )
+
+            diff = maps_A - maps_B
+            if all_maps:
+                t_vals, p_vals, _ = permutation_t_test(
+                    diff.reshape(A_samples, -1),
+                    n_permutations=perm,
+                    tail=0,  # Two-tailed test,
+                    n_jobs=-1,
+                    seed=random_seed,
+                    verbose=False
+                )
+                
+                p_vals = p_vals.reshape(n_maps, -1)
+                t_vals = t_vals.reshape(n_maps, -1)
+                return t_vals, p_vals
+            else:
+                t_vals, p_vals = [], []
+                for i in range(n_maps):
+                    t_obs, p_obs, _ = permutation_t_test(
+                        diff[:, i, :], 
+                        n_permutations=perm, 
+                        tail=0, 
+                        n_jobs=-1,
+                        seed=random_seed,
+                        verbose=False)
+                    
+                    t_vals.append(t_obs); p_vals.append(p_obs)
+                p_vals = np.array(p_vals)
+                t_vals = np.array(t_vals)
+                return t_vals, p_vals
+        else:
+            group_labels = np.concatenate([np.ones(A_samples), np.zeros(B_samples)])
+            X = np.column_stack((np.ones(len(group_labels)), group_labels))
+            # Combine all maps: data shape becomes (n_subjects_total, n_maps, n_space)
+            data = np.concatenate([maps_A, maps_B], axis=0)
+            if all_maps:
+
+                # Reshape the data to (n_subjects_total, n_maps * n_space)
+                Y = data.reshape(samples, -1)
+                result = permuted_ols(
+                    X, Y, n_perm=perm,
+                    two_sided_test=True,
+                    n_jobs=-1,
+                    random_state=random_seed,
+                    output_type='dict'
+                )
+                neg_log_pvals = result['logp_max_t'][1, :]
+                t_scores = result['t'][1, :]
+
+                # Convert negative log p-values to standard p-values.
+                p_vals = 10 ** (-neg_log_pvals)
+                # Reshape the results to (n_maps, n_space)
+                t_vals = t_scores.reshape(n_maps, n_space)
+                p_vals = p_vals.reshape(n_maps, n_space)
+                return t_vals, p_vals
+            
+            else:
+                # Process each map individually.
+                t_scores_list = []
+                p_vals_list = []
+                for i in range(n_maps):
+                    # For map i, combine the data across subjects.
+                    data_i = np.concatenate([maps_A[:, i, :], maps_B[:, i, :]], axis=0)
+                    results_i = permuted_ols(
+                        X, data_i, n_perm=perm,
+                        two_sided_test=True,
+                        n_jobs=-1,
+                        random_state=random_seed,
+                        output_type='dict'
+                    )
+                    neg_log_pvals_i = results_i['logp_max_t'][1, :]
+                    t_scores_i = results_i['t'][1, :]             
+                    p_vals_i = 10 ** (-neg_log_pvals_i)
+                    t_scores_list.append(t_scores_i)
+                    p_vals_list.append(p_vals_i)
+
+                t_vals = np.array(t_scores_list)
+                p_vals = np.array(p_vals_list)
+                return t_vals, p_vals
+
+def spatial_analysis(maps,labels,perm=10000, alpha=0.05, paired=True, cluster=False, TFCE=None , all_maps=True, random_seed=42,output_dir=None):
+    
+    t_vals, p_vals = spatial_t_test(maps, labels, paired=paired, cluster=cluster, TFCE=TFCE ,perm=perm, all_maps=all_maps, random_seed=random_seed)
+    epsilon = 1e-10  # or some other small value
+    p_vals = np.clip(p_vals, epsilon, 1)  # ensures p-values are at least epsilon
+    p_vals_log = -np.log(p_vals)
+    t_thresh = t_vals.copy()
+    t_thresh[p_vals >= alpha] = 0
+
+    np.save(os.path.join(output_dir, "p_vals.npy"), p_vals)
+    np.save(os.path.join(output_dir, "p_vals_log.npy"), p_vals_log)
+    np.save(os.path.join(output_dir, "t_vals.npy"), t_vals)
+    np.save(os.path.join(output_dir, "t_vals_thresh.npy"), t_thresh)
+
+
+    view_surf(
+        surf_mesh=hcp.mesh.inflated,
+        surf_map=hcp.cortex_data(np.max(p_vals_log, axis=0)),
+        bg_map=hcp.mesh.sulc,
+        title=f"-log(p) max: {np.sum(np.max(p_vals_log, axis=0))}",
+        vmin=0, 
+        vmax=np.max(np.max(p_vals_log, axis=0)),
+        symmetric_cmap=False,
+        cmap='inferno',
+    ).save_as_html(os.path.join(output_dir, "logp_max.html"))
+
+    view_surf(
+        surf_mesh=hcp.mesh.inflated,
+        surf_map=hcp.cortex_data(np.max(p_vals < alpha, axis=0)),
+        bg_map=hcp.mesh.sulc,
+        title=f"Count Significant (max): {np.sum(np.max(p_vals < alpha, axis=0))}",
+    ).save_as_html(os.path.join(output_dir, "sig.html"))
+
+    view_surf(
+        surf_mesh=hcp.mesh.inflated,
+        surf_map=hcp.cortex_data(np.max(np.abs(t_thresh), axis=0)),
+        bg_map=hcp.mesh.sulc,
+        title=f"Thresholded T-values (max abs): {np.sum(np.max(np.abs(t_thresh), axis=0))}",
+        vmin=0, 
+        # vmax=np.max(np.sum(np.max(np.abs(t_thresh), axis=0))),
+        symmetric_cmap=False,
+        cmap='inferno',
+    ).save_as_html(os.path.join(output_dir, "T_val.html"))
+
+    return (t_vals, p_vals, p_vals_log, t_thresh)
+
+def spatial_t_compare(results_one, results_two, label_one="basis_one", label_two="basis_two", alpha=0.05,output_dir=None):
+    t_vals_one, p_vals_one, p_vals_log_one, t_thresh_one = results_one
+    t_vals_two, p_vals_two, p_vals_log_two, t_thresh_two = results_two
+    n_maps = p_vals_one.shape[0]
+
+    view_surf(
+        surf_mesh=hcp.mesh.inflated,
+        surf_map=hcp.cortex_data(np.max(p_vals_log_one, axis=0) - np.max(p_vals_log_two, axis=0)),
+        bg_map=hcp.mesh.sulc,
+        title=f"Difference in -log(p): {np.sum(np.max(p_vals_log_one, axis=0) - np.max(p_vals_log_two, axis=0))}",
+    ).save_as_html(os.path.join(output_dir, f"{label_one}_minus_{label_two}_logp_max.html"))
+
+    view_surf(
+        surf_mesh=hcp.mesh.inflated,
+        surf_map=hcp.cortex_data((np.sum((p_vals_one < alpha), axis=0) > 0) & ~(np.sum((p_vals_two < alpha), axis=0) > 0)),
+        bg_map=hcp.mesh.sulc,
+        title=f"{label_one} & ~{label_two}: {np.sum((np.sum((p_vals_one < alpha), axis=0) > 0) & ~(np.sum((p_vals_two < alpha), axis=0) > 0))}",
+    ).save_as_html(os.path.join(output_dir, f"{label_one}_not{label_two}.html"))
+
+    view_surf(
+        surf_mesh=hcp.mesh.inflated,
+        surf_map=hcp.cortex_data(~(np.sum((p_vals_one < alpha), axis=0) > 0) & (np.sum((p_vals_two < alpha), axis=0) > 0)),
+        bg_map=hcp.mesh.sulc,
+        title=f"~{label_one} & {label_two}: {np.sum(~(np.sum((p_vals_one < alpha), axis=0) > 0) & (np.sum((p_vals_two < alpha), axis=0) > 0))}",
+    ).save_as_html(os.path.join(output_dir, f"{label_two}_not{label_one}.html"))
+
+    plt.plot(np.arange(n_maps), np.sort(np.sum((p_vals_one < alpha), axis=1)), '--o', label=f"{label_one}", color="blue", alpha=0.5)
+    plt.plot(np.arange(n_maps), np.sort(np.sum((p_vals_two < alpha), axis=1)), '--o', label=f"{label_two}", color="orange", alpha=0.5)
+    plt.title(f"Significance Count (p < {alpha})")
+    plt.legend()
+    plt.savefig(os.path.join(output_dir, "Significance_Count.svg"), format="svg")
+    plt.close()
+
+    plt.plot(np.arange(n_maps), np.sort(np.sum((p_vals_log_one), axis=1)), '--o', label=f"{label_one}", color="blue", alpha=0.5)
+    plt.plot(np.arange(n_maps), np.sort(np.sum((p_vals_log_two), axis=1)), '--o', label=f"{label_two}", color="orange", alpha=0.5)
+    plt.title("-log(p) Value Count")
+    plt.legend()
+    plt.savefig(os.path.join(output_dir, "LogP_Value_Count.svg"), format="svg")
+    plt.close()
+
+
+    view_surf(
+        surf_mesh=hcp.mesh.inflated,
+        surf_map=hcp.cortex_data(np.max(np.abs(t_thresh_one), axis=0) - np.max(np.abs(t_thresh_two), axis=0)),
+        bg_map=hcp.mesh.sulc,
+        title=f"Difference in Thresholded T-values ({label_one} - {label_two}): {np.sum(np.max(np.abs(t_thresh_one), axis=0) - np.max(np.abs(t_thresh_two), axis=0))}",
+    ).save_as_html(os.path.join(output_dir, "T_val_diff.html"))
+
+    # Plot the number (count) of nonzero (i.e. significant) t-values per component
+    plt.plot(np.arange(n_maps), np.sort(np.sum(np.abs(t_thresh_one) > 0, axis=1)), '--o', label=f"{label_one} T count (p<{alpha})", color="blue", alpha=0.5)
+    plt.plot(np.arange(n_maps), np.sort(np.sum(np.abs(t_thresh_two) > 0, axis=1)), '--o', label=f"{label_two} T count (p<{alpha})", color="orange", alpha=0.5)
+    plt.title(f"Count of Thresholded T-values (p < {alpha}) per Component")
+    plt.savefig(os.path.join(output_dir, "T_Value_Count.svg"), format="svg")
+    plt.close()
+
+    # Plot the sum of thresholded absolute t-values per component
+    plt.plot(np.arange(n_maps), np.sort(np.sum(np.abs(t_thresh_one), axis=1)), '--o', label=f"{label_one} T sum (p<{alpha})", color="blue", alpha=0.5)
+    plt.plot(np.arange(n_maps), np.sort(np.sum(np.abs(t_thresh_two), axis=1)), '--o', label=f"{label_two} T sum (p<{alpha})", color="orange", alpha=0.5)
+    plt.title(f"Sum of Thresholded T-values (p < {alpha}) per Component")
+    plt.savefig(os.path.join(output_dir, "T_Value_sum.svg"), format="svg")
+    plt.close()
+
+
+
+def evaluate(data_set, labels, train_indx, test_indx, metric='riemann', 
+                        alpha=0.05, paired=False, permutations=10000, deconf=False, 
+                        con_confounder_train=None, cat_confounder_train=None, 
+                        con_confounder_test=None, cat_confounder_test=None, output_dir="path",
+                        random_seed=42, basis="Method"):
+
+    A, SpatialMaps, recon_error = data_set
+    A_train = A[train_indx]
+    A_test = A[test_indx]
+    SpatialMaps_train = SpatialMaps[train_indx]
+    SpatialMaps_test = SpatialMaps[test_indx]
+    train_recon_error = recon_error[train_indx]
+    test_recon_error = recon_error[test_indx]
+    train_labels = labels[train_indx]
+    test_labels = labels[test_indx]
+
+    recon = (train_recon_error, test_recon_error)
+
+    # Example: Calculate netmat from covariance estimator:
+    cov_est = Covariances(estimator='oas')
+    Netmats_train = cov_est.transform(np.transpose(A_train, (0, 2, 1)))
+    Netmats_test = cov_est.transform(np.transpose(A_test, (0, 2, 1)))
+    
+    
+    var_results = var_diff(A_train, Netmats_train, train_labels, A_test, test_labels, 
+                           metric=metric, method='log-var', basis=basis, deconf=deconf, 
+                           con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, 
+                           con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,
+                           output_dir=output_dir)
+    
+    cov_results = var_diff(A_train, Netmats_train, train_labels, A_test, test_labels, 
+                           metric=metric, method='log-cov', basis=basis, deconf=deconf, 
+                           con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, 
+                           con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,
+                           output_dir=output_dir)
+    
+    Class_Result = tangent_classification(Netmats_train, train_labels, Netmats_test, test_labels, 
+                                          clf_str='all', z_score=0, metric=metric, deconf=deconf, 
+                                          con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, 
+                                          con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
+
+    t_test = tangent_t_test(Netmats_train, Netmats_test, test_labels, 
+                                alpha=alpha, paired=paired, permutations=permutations, metric=metric, deconf=deconf, 
+                                con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, 
+                                con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test, 
+                                output_dir=output_dir, basis=basis,random_seed=random_seed)
+    
+    spatial_results = spatial_discrimination(SpatialMaps_train, train_labels, SpatialMaps_test, test_labels,
+                                             methods=[2],metric=metric,visualize=True,
+                                             outputfolder=output_dir,basis=basis)
+    
+    spatial_t_test_dir = os.path.join(output_dir,"spatial_T_test")
+    if not os.path.exists(spatial_t_test_dir):
+        os.makedirs(spatial_t_test_dir)
+
+    spatial_t_test_results = spatial_analysis(SpatialMaps_test,test_labels,
+                                              perm=permutations, alpha=alpha, 
+                                              paired=paired, cluster=False, TFCE=None , all_maps=True, 
+                                              random_seed=random_seed,output_dir=spatial_t_test_dir)
+    
+    spatial_t_test_discrim = os.path.join(output_dir,"spatial_T_test_discrim")
+    if not os.path.exists(spatial_t_test_discrim):
+        os.makedirs(spatial_t_test_discrim)
+    
+    U, _ = spatial_fda(SpatialMaps_train, train_labels,within=True)
+
+    spatial_t_test_discrim_results = spatial_analysis(U.T@SpatialMaps_test,test_labels,
+                                            perm=permutations, alpha=alpha, 
+                                            paired=paired, cluster=False, TFCE=None , all_maps=True, 
+                                            random_seed=random_seed,output_dir=spatial_t_test_discrim)
+    
+    results = {
+        "var_results": var_results,
+        "cov_results": cov_results,
+        "Class_Result": Class_Result,
+        "t_test": t_test,
+        "recon": recon,
+        "Spatial_discrim": spatial_results,
+        "Spatial_t_test": spatial_t_test_results,
+        "Spatial_t_test_discrim": spatial_t_test_discrim_results,
+
+    }
+
+    with open(os.path.join(output_dir, f"results.pkl"), "wb") as f:
+        pickle.dump(results, f)
+
+    return results
+
+def compare(results_one, results_two, label_one="basis_one", label_two="basis_two", alpha=0.05, output_dir="path"):
+    # Generate reconstruction plots
+    reconstruction_plot(results_one["recon"][0], results_two["recon"][0], label="Train",output_dir=output_dir)
+    reconstruction_plot(results_one["recon"][1], results_two["recon"][1], label="Test",output_dir=output_dir)
+
     # Scatter plots for FKT dimensions
-    scatter_with_lines(IFA_var_results[:, [0, 2]], ICA_var_results[:, [0, 2]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='SVM Accuracy', title='Accuracies_Across_FKT_Dimensions_(log-var)',output_dir=output_dir)
-    scatter_with_lines(IFA_var_results[:, [0, 1]], ICA_var_results[:, [0, 1]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='Riemannian Distance', title='Distance_of_Group_Means_Across_FKT_Dimensions_(log-var)',output_dir=output_dir)
+    scatter_with_lines(results_one["var_results"][:, [0, 2]], results_two["var_results"][:, [0, 2]], 
+                       label1=label_one, label2=label_two, 
+                       xlabel='Number of FKT Filters', ylabel='SVM Accuracy', 
+                       title='Accuracies_Across_FKT_Dimensions_(log-var)',
+                       output_dir=output_dir)
 
+    scatter_with_lines(results_one["var_results"][:, [0, 1]], results_two["var_results"][:, [0, 1]], 
+                       label1=label_one, label2=label_two, 
+                       xlabel='Number of FKT Filters', ylabel='Riemannian Distance', 
+                       title='Distance_of_Group_Means_Across_FKT_Dimensions_(log-var)',
+                       output_dir=output_dir)
+    
     # Repeat for log-cov method
-    IFA_cov_results = var_diff(IFA_A_train, IFA_Netmats_train, train_labels, IFA_A_test, test_labels, metric=metric, method='log-cov', basis="IFA", deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,output_dir=output_dir)
-    ICA_cov_results = var_diff(ICA_A_train, ICA_Netmats_train, train_labels, ICA_A_test, test_labels, metric=metric, method='log-cov', basis="ICA", deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,output_dir=output_dir)
-
-    scatter_with_lines(IFA_cov_results[:, [0, 2]], ICA_cov_results[:, [0, 2]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='SVM Accuracy', title='Accuracies_Across_FKT_Dimensions_(log-cov)',output_dir=output_dir)
-    scatter_with_lines(IFA_cov_results[:, [0, 1]], ICA_cov_results[:, [0, 1]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='Riemannian Distance', title='Distance_of_Group_Means_Across_FKT_Dimensions_(log-cov)',output_dir=output_dir)
-
-    # Classification results
-    IFA_Class_Result = tangent_classification(IFA_Netmats_train, train_labels, IFA_Netmats_test, test_labels, clf_str='all', z_score=0, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
-    ICA_Class_Result = tangent_classification(ICA_Netmats_train, train_labels, ICA_Netmats_test, test_labels, clf_str='all', z_score=0, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
+    scatter_with_lines(results_one["cov_results"][:, [0, 2]], results_two["cov_results"][:, [0, 2]], 
+                       label1=label_one, label2=label_two, 
+                       xlabel='Number of FKT Filters', ylabel='SVM Accuracy', 
+                       title='Accuracies_Across_FKT_Dimensions_(log-cov)',
+                       output_dir=output_dir)
+    
+    scatter_with_lines(results_one["cov_results"][:, [0, 1]], results_two["cov_results"][:, [0, 1]], 
+                       label1=label_one, label2=label_two, 
+                       xlabel='Number of FKT Filters', ylabel='Riemannian Distance', 
+                       title='Distance_of_Group_Means_Across_FKT_Dimensions_(log-cov)',
+                       output_dir=output_dir)
 
     # Scatter plot for classifier accuracies
-    scatter_with_lines(IFA_Class_Result, ICA_Class_Result, label1='IFA', label2='ICA', xlabel='Classifiers', ylabel='Accuracies', title='Netmat_Tangent_Classifier_Accuracies',output_dir=output_dir)
-
-    # T-test results
-    IFA_t_test = tangent_t_test(IFA_Netmats_train, IFA_Netmats_test, test_labels, alpha=alpha, permutations=permutations, correction=correction, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test, output_dir=output_dir, basis="IFA")
-    ICA_t_test = tangent_t_test(ICA_Netmats_train, ICA_Netmats_test, test_labels, alpha=alpha, permutations=permutations, correction=correction, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test, output_dir=output_dir, basis="ICA")
+    scatter_with_lines(results_one["Class_Result"], results_two["Class_Result"], 
+                       label1=label_one, label2=label_two, 
+                       xlabel='Classifiers', ylabel='Accuracies', 
+                       title='Netmat_Tangent_Classifier_Accuracies',
+                       output_dir=output_dir)
     
-    IFA_results = {
-        "IFA_var_results": IFA_var_results,
-        "IFA_cov_results": IFA_cov_results,
-        "IFA_Class_Result": IFA_Class_Result,
-        "IFA_t_test": IFA_t_test,
-        "IFA_recon": IFA_recon,
-    }
+    spatial_comparison_vis(results_one["Spatial_discrim"], results_two["Spatial_discrim"], outputfolder=output_dir, basis=f"{label_one}_vs_{label_two}")
+    
+    spatial_t_test_dir_compare = os.path.join(output_dir,"spatial_T_test_compare")
+    if not os.path.exists(spatial_t_test_dir_compare):
+        os.makedirs(spatial_t_test_dir_compare)
+    spatial_t_compare(results_one["Spatial_t_test"], results_two["Spatial_t_test"], label_one=label_one, label_two=label_two, alpha=alpha,output_dir=spatial_t_test_dir_compare)
 
-    ICA_results = {
-        "ICA_var_results": ICA_var_results,
-        "ICA_cov_results": ICA_cov_results,
-        "ICA_Class_Result": ICA_Class_Result,
-        "ICA_t_test": ICA_t_test,
-        "ICA_recon": ICA_recon
-    }
 
-    return IFA_results, ICA_results
+    spatial_t_test_discrim_dir_compare = os.path.join(output_dir,"spatial_T_test_discrim_compare")
+    if not os.path.exists(spatial_t_test_discrim_dir_compare):
+        os.makedirs(spatial_t_test_discrim_dir_compare)
+    spatial_t_compare(results_one["Spatial_t_test_discrim"], results_two["Spatial_t_test_discrim"], label_one=label_one, label_two=label_two, alpha=alpha,output_dir=spatial_t_test_discrim_dir_compare)
+
+
+# def compare_maps(ifa_maps, ica_maps, testlabels, perm=10000, alpha=0.05, paired=True, cluster=False, TFCE=None , all_maps=True, random_seed=42,output_dir=None):
+
+#     IFA_t_vals, IFA_p_vals = spatial_t_test(ifa_maps, testlabels, paired=paired, cluster=cluster, TFCE=TFCE ,perm=perm, all_maps=all_maps, random_seed=random_seed)
+#     ICA_t_vals, ICA_p_vals = spatial_t_test(ica_maps, testlabels, paired=paired, cluster=cluster, TFCE=TFCE ,perm=perm, all_maps=all_maps, random_seed=random_seed)
+#     np.save(os.path.join(output_dir, "IFA_p_vals.npy"), IFA_p_vals)
+#     np.save(os.path.join(output_dir, "ICA_p_vals.npy"), ICA_p_vals)
+#     np.save(os.path.join(output_dir, "IFA_t_vals.npy"), IFA_t_vals)
+#     np.save(os.path.join(output_dir, "ICA_t_vals.npy"), ICA_t_vals)
+
+#     # return T_obs, clusters, cluster_p_values, H0
+#     IFA_p_vals_log = -np.log(IFA_p_vals)
+#     ICA_p_vals_log = -np.log(ICA_p_vals)
+
+#     n_maps = IFA_p_vals_log.shape[0]
+
+#     view_surf(
+#         surf_mesh=hcp.mesh.inflated,
+#         surf_map=hcp.cortex_data(np.max(IFA_p_vals_log, axis=0)),
+#         bg_map=hcp.mesh.sulc,
+#         title=f"IFA -log(p) max: {np.sum(np.max(IFA_p_vals_log, axis=0))}",
+#         vmin=0, 
+#         vmax=np.max(np.max(IFA_p_vals_log, axis=0)),
+#         symmetric_cmap=False,
+#         cmap='inferno',
+#     ).save_as_html(os.path.join(output_dir, "IFA_logp_max.html"))
+
+#     view_surf(
+#         surf_mesh=hcp.mesh.inflated,
+#         surf_map=hcp.cortex_data(np.max(IFA_p_vals < alpha, axis=0)),
+#         bg_map=hcp.mesh.sulc,
+#         title=f"IFA Count Significant (max): {np.sum(np.max(IFA_p_vals < alpha, axis=0))}",
+#     ).save_as_html(os.path.join(output_dir, "IFA_sig.html"))
+
+#     view_surf(
+#         surf_mesh=hcp.mesh.inflated,
+#         surf_map=hcp.cortex_data(np.max(ICA_p_vals_log, axis=0)),
+#         bg_map=hcp.mesh.sulc,
+#         title=f"ICA -log(p) max: {np.sum(np.max(ICA_p_vals_log, axis=0))}",
+#         vmin=0, 
+#         vmax=np.max(np.max(ICA_p_vals_log, axis=0)),
+#         symmetric_cmap=False,
+#         cmap='inferno',
+#     ).save_as_html(os.path.join(output_dir, "ICA_logp_max.html"))
+
+#     view_surf(
+#         surf_mesh=hcp.mesh.inflated,
+#         surf_map=hcp.cortex_data(np.max(ICA_p_vals < alpha, axis=0)),
+#         bg_map=hcp.mesh.sulc,
+#         title=f"ICA Count Significant (max): {np.sum(np.max(ICA_p_vals < alpha, axis=0))}",
+#     ).save_as_html(os.path.join(output_dir, "ICA_sig.html"))
+
+#     view_surf(
+#         surf_mesh=hcp.mesh.inflated,
+#         surf_map=hcp.cortex_data(np.max(IFA_p_vals_log, axis=0) - np.max(ICA_p_vals_log, axis=0)),
+#         bg_map=hcp.mesh.sulc,
+#         title=f"Difference in -log(p): {np.sum(np.max(IFA_p_vals_log, axis=0) - np.max(ICA_p_vals_log, axis=0))}",
+#         # vmin=0, 
+#         # vmax=np.max(np.sum(np.max(IFA_p_vals_log, axis=0) - np.max(ICA_p_vals_log, axis=0))),
+#         # symmetric_cmap=False,
+#     ).save_as_html(os.path.join(output_dir, "IFA_minus_ICA_logp_max.html"))
+
+#     view_surf(
+#         surf_mesh=hcp.mesh.inflated,
+#         surf_map=hcp.cortex_data((np.sum((IFA_p_vals < alpha), axis=0) > 0) & ~(np.sum((ICA_p_vals < alpha), axis=0) > 0)),
+#         bg_map=hcp.mesh.sulc,
+#         title=f"IFA & ~ICA: {np.sum((np.sum((IFA_p_vals < alpha), axis=0) > 0) & ~(np.sum((ICA_p_vals < alpha), axis=0) > 0))}",
+#     ).save_as_html(os.path.join(output_dir, "IFA_notICA.html"))
+
+#     view_surf(
+#         surf_mesh=hcp.mesh.inflated,
+#         surf_map=hcp.cortex_data(~(np.sum((IFA_p_vals < alpha), axis=0) > 0) & (np.sum((ICA_p_vals < alpha), axis=0) > 0)),
+#         bg_map=hcp.mesh.sulc,
+#         title=f"~IFA & ICA: {np.sum(~(np.sum((IFA_p_vals < alpha), axis=0) > 0) & (np.sum((ICA_p_vals < alpha), axis=0) > 0))}",
+#     ).save_as_html(os.path.join(output_dir, "ICA_notIFA.html"))
+
+#     plt.plot(np.arange(n_maps), np.sort(np.sum((IFA_p_vals < alpha), axis=1)), '--o', label="IFA", color="blue", alpha=0.5)
+#     plt.plot(np.arange(n_maps), np.sort(np.sum((ICA_p_vals < alpha), axis=1)), '--o', label="ICA", color="orange", alpha=0.5)
+#     plt.title("Significance Count (p < 0.05)")
+#     plt.legend()
+#     plt.savefig(os.path.join(output_dir, "Significance_Count.svg"), format="svg")
+#     plt.close()
+
+#     plt.plot(np.arange(n_maps), np.sort(np.sum((IFA_p_vals_log), axis=1)), '--o', label="IFA", color="blue", alpha=0.5)
+#     plt.plot(np.arange(n_maps), np.sort(np.sum((ICA_p_vals_log), axis=1)), '--o', label="ICA", color="orange", alpha=0.5)
+#     plt.title("-log(p) Value Count")
+#     plt.legend()
+#     plt.savefig(os.path.join(output_dir, "LogP_Value_Count.svg"), format="svg")
+#     plt.close()
+#     # Visualizations and Plots for T-values (Thresholded by p < 0.05)
+
+#     # Reshape the t-values in the same way.
+#     IFA_t_thresh = IFA_t_vals.copy()
+#     IFA_t_thresh[IFA_p_vals >= 0.05] = 0
+    
+#     ICA_t_thresh = ICA_t_vals.copy()
+#     ICA_t_thresh[ICA_p_vals >= 0.05] = 0
+
+
+#     view_surf(
+#         surf_mesh=hcp.mesh.inflated,
+#         surf_map=hcp.cortex_data(np.max(np.abs(IFA_t_thresh), axis=0)),
+#         bg_map=hcp.mesh.sulc,
+#         title=f"Thresholded IFA T-values (max abs): {np.sum(np.max(np.abs(IFA_t_thresh), axis=0))}",
+#         vmin=0, 
+#         # vmax=np.max(np.sum(np.max(np.abs(IFA_t_thresh), axis=0))),
+#         symmetric_cmap=False,
+#         cmap='inferno',
+#     ).save_as_html(os.path.join(output_dir, "IFA_T_val.html"))
+
+#     view_surf(
+#         surf_mesh=hcp.mesh.inflated,
+#         surf_map=hcp.cortex_data(np.max(np.abs(ICA_t_thresh), axis=0)),
+#         bg_map=hcp.mesh.sulc,
+#         title=f"Thresholded ICA T-values (max abs): {np.sum(np.max(np.abs(ICA_t_thresh), axis=0))}",
+#         vmin=0, 
+#         # vmax=np.max(np.sum(np.max(np.abs(ICA_t_thresh), axis=0))),
+#         symmetric_cmap=False,
+#         cmap='inferno',
+#     ).save_as_html(os.path.join(output_dir, "ICA_T_val.html"))
+
+#     view_surf(
+#         surf_mesh=hcp.mesh.inflated,
+#         surf_map=hcp.cortex_data(np.max(np.abs(IFA_t_thresh), axis=0) - np.max(np.abs(ICA_t_thresh), axis=0)),
+#         bg_map=hcp.mesh.sulc,
+#         title=f"Difference in Thresholded T-values (IFA - ICA): {np.sum(np.max(np.abs(IFA_t_thresh), axis=0) - np.max(np.abs(ICA_t_thresh), axis=0))}",
+#         # vmin=0, 
+#         # vmax=np.max(np.max(np.abs(IFA_t_thresh), axis=0) - np.max(np.abs(ICA_t_thresh), axis=0)),
+#         # symmetric_cmap=False,
+#     ).save_as_html(os.path.join(output_dir, "T_val_diff.html"))
+
+#     # Plot the number (count) of nonzero (i.e. significant) t-values per component
+#     plt.plot(np.arange(n_maps), np.sort(np.sum(np.abs(IFA_t_thresh) > 0, axis=1)), '--o', label="IFA T count (p<0.05)", color="blue", alpha=0.5)
+#     plt.plot(np.arange(n_maps), np.sort(np.sum(np.abs(ICA_t_thresh) > 0, axis=1)), '--o', label="ICA T count (p<0.05)", color="orange", alpha=0.5)
+#     plt.title("Count of Thresholded T-values (p < 0.05) per Component")
+#     plt.savefig(os.path.join(output_dir, "T_Value_Count.svg"), format="svg")
+#     plt.close()
+
+#     # Plot the sum of thresholded absolute t-values per component
+#     plt.plot(np.arange(n_maps), np.sort(np.sum(np.abs(IFA_t_thresh), axis=1)), '--o', label="IFA T sum (p<0.05)", color="blue", alpha=0.5)
+#     plt.plot(np.arange(n_maps), np.sort(np.sum(np.abs(ICA_t_thresh), axis=1)), '--o', label="ICA T sum (p<0.05)", color="orange", alpha=0.5)
+#     plt.title("Sum of Thresholded T-values (p < 0.05) per Component")
+#     plt.savefig(os.path.join(output_dir, "T_Value_sum.svg"), format="svg")
+#     plt.close()
+
+#     return IFA_p_vals, ICA_p_vals
+
+
+# def evaluate_IFA_results(IFA, ICA, train_labels, test_labels, alpha=.05, permutations=False, paired=True, metric='riemann', deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None,output_dir="path",random_seed=42):
+#     IFA_A_train, IFA_SpatialMaps_train, IFA_train_recon_error, IFA_A_test, IFA_SpatialMaps_test, IFA_test_recon_error = IFA
+#     ICA_A_train, ICA_SpatialMaps_train, ICA_train_recon_error, ICA_A_test, ICA_SpatialMaps_test, ICA_test_recon_error = ICA
+#     IFA_recon = (IFA_train_recon_error, IFA_test_recon_error)
+#     ICA_recon = (ICA_train_recon_error, ICA_test_recon_error)
+    
+#     cov_est = Covariances(estimator='oas')
+#     IFA_Netmats_train = cov_est.transform(np.transpose(IFA_A_train, (0, 2, 1)))
+#     IFA_Netmats_test = cov_est.transform(np.transpose(IFA_A_test, (0, 2, 1)))
+#     ICA_Netmats_train = cov_est.transform(np.transpose(ICA_A_train, (0, 2, 1)))
+#     ICA_Netmats_test = cov_est.transform(np.transpose(ICA_A_test, (0, 2, 1)))
+
+#     # Generate reconstruction plots
+#     reconstruction_plot(IFA_train_recon_error, ICA_train_recon_error, label="Train",output_dir=output_dir)
+#     reconstruction_plot(IFA_test_recon_error, ICA_test_recon_error, label="Test",output_dir=output_dir)
+
+#     # Calculate var_diff and create scatter plots
+#     IFA_var_results = var_diff(IFA_A_train, IFA_Netmats_train, train_labels, IFA_A_test, test_labels, metric=metric, method='log-var', basis="IFA", deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,output_dir=output_dir)
+#     ICA_var_results = var_diff(ICA_A_train, ICA_Netmats_train, train_labels, ICA_A_test, test_labels, metric=metric, method='log-var', basis="ICA", deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,output_dir=output_dir)
+    
+#     # Scatter plots for FKT dimensions
+#     scatter_with_lines(IFA_var_results[:, [0, 2]], ICA_var_results[:, [0, 2]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='SVM Accuracy', title='Accuracies_Across_FKT_Dimensions_(log-var)',output_dir=output_dir)
+#     scatter_with_lines(IFA_var_results[:, [0, 1]], ICA_var_results[:, [0, 1]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='Riemannian Distance', title='Distance_of_Group_Means_Across_FKT_Dimensions_(log-var)',output_dir=output_dir)
+
+#     # Repeat for log-cov method
+#     IFA_cov_results = var_diff(IFA_A_train, IFA_Netmats_train, train_labels, IFA_A_test, test_labels, metric=metric, method='log-cov', basis="IFA", deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,output_dir=output_dir)
+#     ICA_cov_results = var_diff(ICA_A_train, ICA_Netmats_train, train_labels, ICA_A_test, test_labels, metric=metric, method='log-cov', basis="ICA", deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,output_dir=output_dir)
+
+#     scatter_with_lines(IFA_cov_results[:, [0, 2]], ICA_cov_results[:, [0, 2]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='SVM Accuracy', title='Accuracies_Across_FKT_Dimensions_(log-cov)',output_dir=output_dir)
+#     scatter_with_lines(IFA_cov_results[:, [0, 1]], ICA_cov_results[:, [0, 1]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='Riemannian Distance', title='Distance_of_Group_Means_Across_FKT_Dimensions_(log-cov)',output_dir=output_dir)
+
+#     # Classification results
+#     IFA_Class_Result = tangent_classification(IFA_Netmats_train, train_labels, IFA_Netmats_test, test_labels, clf_str='all', z_score=0, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
+#     ICA_Class_Result = tangent_classification(ICA_Netmats_train, train_labels, ICA_Netmats_test, test_labels, clf_str='all', z_score=0, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
+
+#     # Scatter plot for classifier accuracies
+#     scatter_with_lines(IFA_Class_Result, ICA_Class_Result, label1='IFA', label2='ICA', xlabel='Classifiers', ylabel='Accuracies', title='Netmat_Tangent_Classifier_Accuracies',output_dir=output_dir)
+
+#     # T-test results
+#     IFA_t_test = tangent_t_test(IFA_Netmats_train, IFA_Netmats_test, test_labels, alpha=alpha, paired=paired, permutations=permutations, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test, output_dir=output_dir, basis="IFA",random_seed=random_seed)
+#     ICA_t_test = tangent_t_test(ICA_Netmats_train, ICA_Netmats_test, test_labels, alpha=alpha, paired=paired, permutations=permutations, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test, output_dir=output_dir, basis="ICA",random_seed=random_seed)
+    
+#     # Spatial map visualization
+#     IFA_spatial_results = spatial_discrimination(IFA_SpatialMaps_train, train_labels, IFA_SpatialMaps_test, test_labels,methods=[2],metric=metric,visualize=True,outputfolder=output_dir,basis="IFA")
+#     ICA_spatial_results = spatial_discrimination(ICA_SpatialMaps_train, train_labels, ICA_SpatialMaps_test, test_labels,methods=[2],metric=metric,visualize=True,outputfolder=output_dir,basis="ICA")
+#     spatial_comparison_vis(IFA_spatial_results, ICA_spatial_results, outputfolder=output_dir, basis="IFA_vs_ICA")
+
+#     U_IFA, _ = spatial_fda(IFA_SpatialMaps_train, train_labels,within=True)
+#     U_ICA, _ = spatial_fda(ICA_SpatialMaps_train, train_labels,within=True)
+
+#     spatial_t_test_dir = os.path.join(output_dir,"spatial_T_test")
+#     if not os.path.exists(spatial_t_test_dir):
+#         os.makedirs(spatial_t_test_dir)
+#     _, _ = compare_maps(IFA_SpatialMaps_test,ICA_SpatialMaps_test, test_labels, perm=permutations, alpha=alpha, paired=paired, cluster=False, TFCE=None , all_maps=True, random_seed=random_seed, output_dir=spatial_t_test_dir)
+   
+#     spatial_t_test_discrim = os.path.join(output_dir,"spatial_T_test_discrim")
+#     if not os.path.exists(spatial_t_test_discrim):
+#         os.makedirs(spatial_t_test_discrim)
+
+#     _, _ = compare_maps(U_IFA.T@IFA_SpatialMaps_test,U_ICA.T@ICA_SpatialMaps_test, test_labels, perm=permutations, alpha=alpha, paired=paired, cluster=False, TFCE=None , all_maps=True, random_seed=random_seed, output_dir=spatial_t_test_discrim)
+
+#     IFA_results = {
+#         "IFA_var_results": IFA_var_results,
+#         "IFA_cov_results": IFA_cov_results,
+#         "IFA_Class_Result": IFA_Class_Result,
+#         "IFA_t_test": IFA_t_test,
+#         "IFA_recon": IFA_recon,
+#         "IFA_Spatial": IFA_spatial_results
+#     }
+
+#     ICA_results = {
+#         "ICA_var_results": ICA_var_results,
+#         "ICA_cov_results": ICA_cov_results,
+#         "ICA_Class_Result": ICA_Class_Result,
+#         "ICA_t_test": ICA_t_test,
+#         "ICA_recon": ICA_recon,
+#         "ICA_Spatial": ICA_spatial_results
+#     }
+
+#     return IFA_results, ICA_results
+

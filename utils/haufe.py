@@ -6,7 +6,7 @@ import os
 
 import sys
 sys.path.append('/utils')
-from preprocessing import load_subject
+from preprocessing import load_subject #TODO change back to non PCN
 
 def haufe_transform(data, filters, method="basic", alpha=1, beta=0, l1_ratio=0.5, lambda1=.01, lambda2=.01):
     S = (data @ filters)
@@ -77,7 +77,7 @@ def process_subject_haufe(sub,pinv_TF):
         return None
 
 
-def filter_dual_regression(F, parcellated,paths):
+def filter_dual_regression(F, parcellated,paths,workers=20):
     
     # Ensure the tensors are on the correct device
     pinv_TF = np.linalg.pinv(parcellated.reshape(-1,parcellated.shape[-1]) @ np.linalg.pinv(F.T))
@@ -86,8 +86,7 @@ def filter_dual_regression(F, parcellated,paths):
     # pinv_TF_list = pinv_TF.reshape(len(paths),F.shape[1],pinv_TF.shape[0])
     pinv_TF_list = (np.array_split(pinv_TF, len(paths), axis=1))
 
-    with ProcessPoolExecutor(max_workers=(int(os.cpu_count()*.5))) as executor:
+    with ProcessPoolExecutor(max_workers=(int(workers))) as executor:
         # Use map to process subjects in parallel
         blocks = np.array(list(executor.map(process_subject_haufe, paths,pinv_TF_list)))
-        print(blocks.shape)
         return (blocks.sum(axis=0))

@@ -14,11 +14,11 @@ def ICA(data,whitened_data, whiten=False, output_dir="plots", random_state=None)
         # Assume basis is already whitened
         ica = FastICA(whiten=False, random_state=random_state)
     # Takes in array-like of shape (n_samples, n_features) and returns ndarray of shape (n_samples, n_components)
-    IFA_components = ica.fit_transform(whitened_data.T).T
-    A = data@np.linalg.pinv(IFA_components)
+    spatial_components = ica.fit_transform(whitened_data.T).T
+    A = data@np.linalg.pinv(spatial_components)
     W = np.linalg.pinv(A)
-    print("The combined unmixing matrix correctly calculates the components: ", np.allclose(W@data, IFA_components))
-    print("The combined mixing matrix correctly reconstructs the low rank data_demean: ", np.allclose(A@IFA_components, A@(W@data)))
+    print("The combined unmixing matrix correctly calculates the components: ", np.allclose(W@data, spatial_components))
+    print("The combined mixing matrix correctly reconstructs the low rank data_demean: ", np.allclose(A@spatial_components, A@(W@data)))
 
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
@@ -28,9 +28,9 @@ def ICA(data,whitened_data, whiten=False, output_dir="plots", random_state=None)
     axes[0].set_xlabel('Components')
     axes[0].set_ylabel('Samples')
 
-    # Heat map for the IFA components
-    sns.heatmap(IFA_components, cmap='viridis', ax=axes[1])
-    axes[1].set_title('IFA Components')
+    # Heat map for the spatial components
+    sns.heatmap(spatial_components, cmap='viridis', ax=axes[1])
+    axes[1].set_title('spatial Components')
     axes[1].set_xlabel('Components')
     axes[1].set_ylabel('Samples')
 
@@ -39,7 +39,7 @@ def ICA(data,whitened_data, whiten=False, output_dir="plots", random_state=None)
     plt.savefig(os.path.join(output_dir, "ICA_reconstruction.svg"))
     plt.close(fig)
 
-    return IFA_components, A, W
+    return spatial_components, A, W
 
 def noise_projection(W,data, visualize=True, output_dir="plots"):
 

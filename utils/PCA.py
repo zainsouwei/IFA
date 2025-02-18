@@ -9,25 +9,36 @@ from sklearn.preprocessing import StandardScaler
 
 import sys
 sys.path.append('/utils')
-from preprocessing import load_subject
+from preprocessing import load_subject #TODO chaneg back to non PCN
+from preprocessing import gpu_mem, cpu_mem
 
-def migp(subs, batch_size=2, m=4800):
+def migp(subs,batch_size=1, m=4800):  #TODO chaneg back to non PCN m=4800
+
+    if batch_size > len(subs):
+        print(f"Warning: batch_size ({batch_size}) is greater than number of subjects ({len(subs)}). Setting batch_size to {len(subs)}.")
+        batch_size = len(subs)
+
     W_gpu = None
+
     for batch_start in range(0, len(subs), batch_size):
         # Select the current batch of subjects
         batch_subs = subs[batch_start:batch_start + batch_size]
-        batch_paths = [path for sublist in batch_subs for path in sublist]
         try:
-            # Treat all of the scans in the batch as one subject
-            # # Each timeseries in each individual scan is standardized before concatenated
-            # # Each timeseries in the concatenated is the standardized again
-            batch = load_subject(batch_paths)
+            concatenated_data = []  
+            for path in batch_subs:
+                concatenated_data.append(load_subject(path))
+
+            # Concatenate data along the first axis  
+            batch = np.concatenate(concatenated_data, axis=0)
+            del concatenated_data
 
             with torch.no_grad():
+
                 # Convert to torch tensor and move to GPU
                 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
                 batch_gpu = torch.tensor(batch, dtype=torch.float32, device=device)
                 del batch
+
                 if torch.isnan(batch_gpu).any():
                     print("NaNs detected in the batch data. Aborting SVD operation.")
                     del batch_gpu
@@ -39,6 +50,7 @@ def migp(subs, batch_size=2, m=4800):
                     combined_data_gpu = torch.cat([W_gpu, batch_gpu], dim=0)
                 del batch_gpu
                 torch.cuda.empty_cache()
+
 
                 # # Calculate size in GB
                 # size_in_gb = combined_data_gpu.element_size() * combined_data_gpu.nelement() / (1024**3)
@@ -55,10 +67,11 @@ def migp(subs, batch_size=2, m=4800):
                 # Compute the updated W on the GPU
                 # W_gpu = torch.diag(S_gpu[:m]) @ Vh_gpu[:m, :]
                 # Returned in Ascending order
+   
                 W_gpu = Q[:, -m:].T@combined_data_gpu
                 del Q, combined_data_gpu  # Free up GPU memory
                 torch.cuda.empty_cache()
-                print(batch_start, "done")
+                # print(batch_start, "done",flush=True)
 
         except Exception as e:
             print(f"Failed during GPU processing: {e}")
@@ -155,12 +168,20 @@ def get_n_and_some(data):
     data_gpu = data.to(device, dtype=torch.float32)
     groupN = data_gpu.shape[1] - 1
 
+    if torch.isnan(data_gpu).any():
+        raise ValueError("NaNs detected in the data after imputation.")
+
     # Subtract the mean along the specified axis
     data_centered = data_gpu - torch.mean(data_gpu, dim=1, keepdim=True)
     del data_gpu  # Free up GPU memory
     torch.cuda.empty_cache()
+
+    # Check for NaNs after mean subtraction
+    if torch.isnan(data_centered).any():
+        raise ValueError("NaNs detected in the data after mean subtraction.")
+    
     # Perform SVD decomposition
-    _, d, v = torch.svd(data_centered)
+    _, d, Vh = torch.linalg.svd(data_centered, full_matrices=False)
     del data_centered  # Free up GPU memory
     torch.cuda.empty_cache()
     
@@ -175,7 +196,7 @@ def get_n_and_some(data):
     # Determine the number of components
     n_components = torch.tensor(call_pca_dim(eigs=e_np, N=groupN),device=device,dtype=torch.int32)
 
-    return n_components, v.T
+    return n_components, Vh
 
 def PPCA(data, filters=None, threshold=1.6, niters=10, n=-1):
     n_components = -1
