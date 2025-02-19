@@ -319,11 +319,6 @@ def run_fold(outputfolder, fold):
         ICA_zmaps = PPCA_ICA(reducedsubs,basis=None, n_components=voxel_IFA_zmaps.shape[1], IFA=False, self_whiten=self_whiten,random_state=random_state,whiten_method="InvCov", output_folder=GICA_dir)
 
 
-        #Perform dual regression for all ICA maps
-        dual_dir = os.path.join(fold_output_dir, f"Dual_Regression_{nPCA}")
-        if not os.path.exists(dual_dir):
-            os.makedirs(dual_dir)
-
         spatial_maps = [ICA_zmaps, parcelvoxel_IFA_zmaps, voxel_IFA_zmaps]
         outputfolders = [GICA_dir, parcel_IFA_dir, voxel_IFA_dir]
 

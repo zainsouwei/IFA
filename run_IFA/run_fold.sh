@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --partition=batch                       
 #SBATCH --mem=200G                             # Total memory for the job
-#SBATCH --time=13:00:00                      
+#SBATCH --time=8:00:00                      
 
 # Set ulimit to change the soft limit for virtual memory and data segment size
 ulimit -v unlimited  # Remove the soft limit on virtual memory
