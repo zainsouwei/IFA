@@ -1,6 +1,6 @@
 import numpy as np
 import nibabel as nib
-import hcp_utils as hcp  # Ensure you have installed hcp-utils, or replace it with your custom method
+import hcp_utils as hcp 
 import os
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import ThreadPoolExecutor
