@@ -92,9 +92,9 @@ def get_conditions(settings):
 def check_conf(settings,phenotype,outputfolder):
     # Check for missing data
     data = pd.read_pickle(settings["data_path"])
-    data = data.dropna(subset=confounders)
+    data = data.dropna(subset=phen_confounders)
     data["motion"] = data["motion"].apply(lambda x: np.mean(np.array(x)))
-    for conf in confounders:
+    for conf in phen_confounders:
         sns.set(style="whitegrid")
         if len(set(data[conf])) < 20:
             plt.figure(figsize=(15, 8))
@@ -121,64 +121,6 @@ def extract_phenotype(file_path_restricted='/project/3022057.01/HCP/RESTRICTED_z
     # Filter out rows with NaNs in the specified phenotypes and where '3T_RS-fMRI_Count' is not equal to 4
     # data_filtered = data[data['3T_RS-fMRI_Count'] == 4]    
     return data
-
-def get_meta_data(base_directory='/project_cephfs/3022017.01/S1200'):
-    # Metadata keys and variables
-    subid = "Subject"
-
-    # Assuming extract_phenotype() is a function that returns a DataFrame with a 'Subject' column
-    data_dict_data_df = extract_phenotype()
-
-    # Set up directories and file paths for fMRI data
-    subdirectory = "MNINonLinear/Results"
-    # folders = ["tfMRI_WM_LR", "tfMRI_WM_RL"]
-    folders = ["rfMRI_REST1_LR", "rfMRI_REST1_RL", "rfMRI_REST2_LR", "rfMRI_REST2_RL"]
-    file_suffix = "_Atlas_MSMAll.dtseries.nii"
-    motion_file = "Movement_RelativeRMS_mean.txt"
-
-    # Initialize lists to store subject IDs, scan paths, and motion values
-    valid_subids = []
-    all_scan_paths = []
-    all_motion_values = []
-
-    # Get the list of subject IDs
-    subids = data_dict_data_df[subid].tolist()
-    for sub in subids:
-        subject_scans = []
-        subject_motion = []
-
-        # Collect scan paths and motion values for each session
-        for folder in folders:
-            scan_path = os.path.join(base_directory, str(sub), subdirectory, folder, folder + file_suffix)
-            motion_path = os.path.join(base_directory, str(sub), subdirectory, folder, motion_file)
-
-            if os.path.exists(scan_path) and os.path.exists(motion_path):
-                subject_scans.append(scan_path)
-                # Read only the first line of motion values (single value)
-                with open(motion_path, 'r') as f:
-                    motion_value = float(f.readline().strip())
-                subject_motion.append(motion_value)
-            else:
-                # If either the scan or motion file doesn't exist, skip to the next subject
-                break
-
-        # Only add subjects with all required scan and motion files
-        if len(subject_scans) == len(folders):
-            valid_subids.append(sub)
-            all_scan_paths.append(subject_scans)
-            all_motion_values.append(subject_motion)
-
-    # Create a new DataFrame from the collected scan paths and motion values
-    motion_data_df = pd.DataFrame({
-        'Subject': valid_subids,
-        'paths': all_scan_paths,
-        'motion': all_motion_values
-    })
-
-    # Perform an intersection merge to keep only subjects present in both DataFrames
-    combined_df = data_dict_data_df.merge(motion_data_df, on='Subject', how='inner')
-
-    return combined_df
     
 def load_subject(subject_info):
     """
@@ -282,90 +224,65 @@ def process_subject(sub):
         return None
 
            
-def parcellate(output_dir,base_directory = "/project_cephfs/3022017.01/S1200", target_shape=(4800, 379),n_workers=.4):
-    meta_data_df = get_meta_data(base_directory=base_directory)
-    subids = meta_data_df["Subject"].tolist()
-    paths = meta_data_df["paths"].tolist()
-
-    try:
-        with ProcessPoolExecutor(max_workers=(int(os.cpu_count()*n_workers))) as executor:
-            # Use map to process subjects in parallel
-            group_parcellated = list(executor.map(process_subject, paths))
-        
-        # Filter out any None results and ensure correct shape
-        valid_index = [index for index, result in enumerate(group_parcellated) if result is not None and result.shape == target_shape]
-
-        # Filter subids and parcellated data using list comprehensions
-        valid_subids = [subids[index] for index in valid_index]
-        valid_parcellated = [group_parcellated[index] for index in valid_index]
-
-        # Create a new DataFrame with valid subids and parcellated data
-        parcellated_data_df = pd.DataFrame({
-            'Subject': valid_subids,
-            'parcellated_data': valid_parcellated
-        })
-
-        # Perform an inner join with the metadata DataFrame
-        full_df = meta_data_df.merge(parcellated_data_df, on='Subject', how='inner')
-
-        # Save the combined DataFrame as a pickle file
-        pickle_path = os.path.join(output_dir, "combined_data.pkl")
-        full_df.to_pickle(pickle_path)
-        print(f"Data successfully saved to {pickle_path}")
-
-        return full_df
-
-    except Exception as e:
-        print(f"Error in parcellation process: {e}")
-        traceback.print_exc()
-        return []
-    
-def get_groups(phenotypes, quantile=0.33, data_path='/project/3022057.01/HCP/combined_data.pkl', regression=False, visualize=True, output_dir="plots",bins=30,min_frequency_factor=0.05):
+def get_groups(phenotypes, quantile, data_path, apply_deconfounding=True, regression=False, visualize=True, output_dir="plots",bins=30,min_frequency_factor=0.05):
     # Load the phenotype data
-    unique_confounders = list(dict.fromkeys(confounders + phen_confounders))
-    columns = ["Subject", "parcellated_data", "paths", "Family_ID"] + phenotypes + unique_confounders
+    # unique_confounders = list(dict.fromkeys(confounders + phen_confounders))
+    # columns = ["Subject", "parcellated_data", "paths", "Family_ID"] + phenotypes + unique_confounders
 
-    # Load additional data from the provided data path
+    # # Load additional data from the provided data path
+    # loaded_data = pd.read_pickle(data_path)
+
+    # # Perform the merge using all common columns
+    # # Drop rows with NaN values in the specified columns
+    # loaded_data["motion"] = loaded_data["motion"].apply(lambda x: np.mean(np.array(x)))
+    # # loaded_data = loaded_data[(loaded_data["motion"] < 0.15 ) & (loaded_data["MMSE_Score"] > 26 )]
+    # phenotype_data = loaded_data[columns].dropna()
+    
+    # # Iterate over each categorical confounder
+    # unique_cat_confounders = list(dict.fromkeys(categorical_confounders + phen_categorical_confounders))
+    # for cat_conf in unique_cat_confounders:
+    #     if cat_conf in phenotype_data.columns:  # Ensure the column exists
+    #         # Calculate category proportions
+    #         category_proportions = phenotype_data[cat_conf].value_counts(normalize=True)
+
+    #         # Identify frequent categories based on the proportion threshold
+    #         frequent_categories = category_proportions[category_proportions >= min_frequency_factor].index
+
+    #         # Filter rows with infrequent categories
+    #         phenotype_data = phenotype_data[phenotype_data[cat_conf].isin(frequent_categories)]
+
+
+    # if regression:
+    #     # Ensure all phenotypes are continuous for regression
+    #     if any(phenotype_data[phenotype].nunique() <= 2 for phenotype in phenotypes):
+    #         raise ValueError("All phenotypes must be continuous for regression.")
+
+    #     # Compute summed phenotype values
+    #     phenotype_data["SummedValues"] = phenotype_data[phenotypes].sum(axis=1)
+        
+    #     if visualize:
+    #         # Plot histogram for the summed values
+    #         plt.figure(figsize=(10, 6))
+    #         plt.hist(phenotype_data["SummedValues"], bins=bins, alpha=0.7, color='green')
+    #         plt.xlabel('Summed Phenotype Values')
+    #         plt.ylabel('Frequency')
+    #         plt.title('Histogram of Summed Phenotype Values for Regression Case')
+    #         plt.savefig(os.path.join(output_dir, "phenotype_values_histogram.svg"))
+    #     return phenotype_data
+
     loaded_data = pd.read_pickle(data_path)
 
-    # Perform the merge using all common columns
-    # Drop rows with NaN values in the specified columns
-    loaded_data["motion"] = loaded_data["motion"].apply(lambda x: np.mean(np.array(x)))
-    loaded_data = loaded_data[(loaded_data["motion"] < 0.15 ) & (loaded_data["MMSE_Score"] > 26 )]
-    phenotype_data = loaded_data[columns].dropna()
-    # Iterate over each categorical confounder
-    unique_cat_confounders = list(dict.fromkeys(categorical_confounders + phen_categorical_confounders))
-    for cat_conf in unique_cat_confounders:
-        if cat_conf in phenotype_data.columns:  # Ensure the column exists
-            # Calculate category proportions
-            category_proportions = phenotype_data[cat_conf].value_counts(normalize=True)
-
-            # Identify frequent categories based on the proportion threshold
-            frequent_categories = category_proportions[category_proportions >= min_frequency_factor].index
-
-            # Filter rows with infrequent categories
-            phenotype_data = phenotype_data[phenotype_data[cat_conf].isin(frequent_categories)]
-
-
-    if regression:
-        # Ensure all phenotypes are continuous for regression
-        if any(phenotype_data[phenotype].nunique() <= 2 for phenotype in phenotypes):
-            raise ValueError("All phenotypes must be continuous for regression.")
-
-        # Compute summed phenotype values
-        phenotype_data["SummedValues"] = phenotype_data[phenotypes].sum(axis=1)
+    if apply_deconfounding:
+        unique_confounders = list(dict.fromkeys(confounders + phen_confounders))
+        # Drop rows with NaN values in the specified columns
+        loaded_data["motion"] = loaded_data["motion"].apply(lambda x: np.mean(np.array(x)))
+        columns = ["Subject", "parcellated_data", "paths", "Family_ID"] + phenotypes + unique_confounders
+        # loaded_data = loaded_data[(loaded_data["motion"] < 0.15 ) & (loaded_data["MMSE_Score"] > 26 )]
+    else:
+        columns = ["Subject", "parcellated_data", "paths", "Family_ID"] + phenotypes
         
-        if visualize:
-            # Plot histogram for the summed values
-            plt.figure(figsize=(10, 6))
-            plt.hist(phenotype_data["SummedValues"], bins=bins, alpha=0.7, color='green')
-            plt.xlabel('Summed Phenotype Values')
-            plt.ylabel('Frequency')
-            plt.title('Histogram of Summed Phenotype Values for Regression Case')
-            plt.savefig(os.path.join(output_dir, "phenotype_values_histogram.svg"))
-        return phenotype_data
+    phenotype_data = loaded_data[columns].dropna()
 
-    # Initialize subject sets for intersection
     group_a_subjects = set(phenotype_data["Subject"])
     group_b_subjects = set(phenotype_data["Subject"])
 
@@ -374,37 +291,34 @@ def get_groups(phenotypes, quantile=0.33, data_path='/project/3022057.01/HCP/com
         unique_values = phenotype_data[phenotype].nunique()
 
         if unique_values > 2:  # Continuous phenotype
-            conconf = phenotype_data[phen_continuous_confounders]
-            # conconf = conconf.copy()
-            # conconf["motion"] = conconf["motion"].apply(lambda x: np.mean(np.array(x)))
-            phenotype_deconfounded = deconfound(
-                X_train=phenotype_data[phenotype],
-                con_confounder_train=conconf,
-                cat_confounder_train=phenotype_data[phen_categorical_confounders],
-                phenotype_labels=phenotype,output_path=output_dir)
+            if apply_deconfounding:
+                phenotype_var = deconfound(
+                    X_train=phenotype_data[phenotype],
+                    con_confounder_train=phenotype_data[phen_continuous_confounders],
+                    cat_confounder_train=phenotype_data[phen_categorical_confounders],
+                    phenotype_labels=phenotype,output_path=output_dir)
+            else:
+                phenotype_var = phenotype_data[phenotype]
 
-            # Calculate quantiles on the deconfounded target
-            lower_quantile = np.quantile(phenotype_deconfounded, quantile)
-            upper_quantile = np.quantile(phenotype_deconfounded, 1 - quantile)
+            # Calculate quantiles on the target
+            lower_quantile = np.quantile(phenotype_var, quantile)
+            upper_quantile = np.quantile(phenotype_var, 1 - quantile)
 
             # Identify subjects in the top and bottom quantiles
-            top_quantile_subjects = phenotype_data[phenotype_deconfounded >= upper_quantile]["Subject"]
-            bottom_quantile_subjects = phenotype_data[phenotype_deconfounded <= lower_quantile]["Subject"]
+            top_quantile_subjects = phenotype_data[phenotype_var >= upper_quantile]["Subject"]
+            bottom_quantile_subjects = phenotype_data[phenotype_var <= lower_quantile]["Subject"]
 
-            if visualize:
+            if visualize and apply_deconfounding:
                 plt.figure(figsize=(10, 6))
-                plt.hist(phenotype_deconfounded, bins=bins, alpha=0.5, label='Phenotype Deconfounded', color='green')
-                plt.hist(phenotype_deconfounded[phenotype_deconfounded >= upper_quantile], bins=bins, alpha=0.5, label='Group A (Top Quantiles)', color='blue')
-                plt.hist(phenotype_deconfounded[phenotype_deconfounded <= lower_quantile], bins=bins, alpha=0.5, label='Group B (Bottom Quantiles)', color='red')
+                plt.hist(phenotype_var, bins=bins, alpha=0.5, label='Phenotype Deconfounded', color='green')
+                plt.hist(phenotype_var[phenotype_var >= upper_quantile], bins=bins, alpha=0.5, label='Group A (Top Quantiles)', color='blue')
+                plt.hist(phenotype_var[phenotype_var <= lower_quantile], bins=bins, alpha=0.5, label='Group B (Bottom Quantiles)', color='red')
                 plt.xlabel('Phenotype Values')
                 plt.ylabel('Frequency')
                 plt.title('Histogram of Phenotype Deconfounded Values for Group A and Group B')
                 plt.legend()
                 plt.savefig(os.path.join(output_dir, "group_a_b_phenotype_deconf_values_histogram.svg"))
-            # lower_quantile = phenotype_data[phenotype].quantile(quantile)
-            # upper_quantile = phenotype_data[phenotype].quantile(1 - quantile)
-            # top_quantile_subjects = phenotype_data[phenotype_data[phenotype] >= upper_quantile]["Subject"]
-            # bottom_quantile_subjects = phenotype_data[phenotype_data[phenotype] <= lower_quantile]["Subject"]
+
         elif unique_values == 2:  # Binary discrete phenotype
             classes = np.sort(phenotype_data[phenotype].unique())
             top_class, bottom_class = classes[1], classes[0]
@@ -425,7 +339,7 @@ def get_groups(phenotypes, quantile=0.33, data_path='/project/3022057.01/HCP/com
 
     # Check for overlapping subjects and raise a warning if found
     if np.sum(group_a["Subject"].isin(group_b["Subject"])) > 0:
-        raise ValueError("Overlap between subejcts in each class")
+        raise ValueError("Overlap between subjects in each class")
 
 
     if visualize:
@@ -463,26 +377,35 @@ def prepare_data(settings):
     if settings["paired"]:  # Within-subject case
        a,b = get_conditions(settings)
     else:  # Between-subjects case
-        for phenotype in settings["phenotype"]:
-            check_conf(settings,phenotype,outputfolder_visualization)
+        if settings["deconfound"]:
+            for phenotype in settings["phenotype"]:
+                check_conf(settings,phenotype,outputfolder_visualization)
         a, b = get_groups(
             settings["phenotype"],
             quantile=settings["percentile"],
             data_path=settings["data_path"],
+            apply_deconfounding=settings["deconfound"],
             regression=False,
             visualize=True,
             output_dir=outputfolder_visualization,
             bins=20
         )
-    # min_size = min(len(a), len(b))
-    # a, b = a.sample(n=min_size, random_state=settings["random_state"]), b.sample(n=min_size, random_state=settings["random_state"])
+        # Downsample both groups to have an equal number of samples
+        min_size = min(len(a), len(b))
+        a = a.sample(n=min_size, random_state=settings["random_state"])
+        b = b.sample(n=min_size, random_state=settings["random_state"])
         
-    a["motion"] = a["motion"].apply(lambda x: np.mean(np.array(x)))
-    b["motion"] = b["motion"].apply(lambda x: np.mean(np.array(x)))
 
     all_data = pd.concat([a, b], ignore_index=True)
-    con_confounders = all_data[continuous_confounders].to_numpy()
-    cat_confounders = all_data[categorical_confounders].to_numpy()
+    
+    if settings["deconfound"]:
+        con_confounders = all_data[continuous_confounders].to_numpy()
+        cat_confounders = all_data[categorical_confounders].to_numpy()
+        
+        with open(os.path.join(outputfolder, "cat_confounders.pkl"), "wb") as f:
+            pickle.dump(cat_confounders, f)
+        np.save(os.path.join(outputfolder,"con_confounders.npy"),con_confounders)
+
     sub_ID = all_data["Subject"].to_numpy()
     family_ID = all_data["Family_ID"].to_numpy()
     labels = np.concatenate([settings["a_label"] * np.ones(len(a), dtype=int), settings["b_label"] * np.ones(len(b), dtype=int)])
@@ -510,8 +433,6 @@ def prepare_data(settings):
     
     with open(os.path.join(outputfolder, "paths.pkl"), "wb") as f:
         pickle.dump(paths, f)
-    with open(os.path.join(outputfolder, "cat_confounders.pkl"), "wb") as f:
-        pickle.dump(cat_confounders, f)
     with open(os.path.join(outputfolder, "family_ID.pkl"), "wb") as f:
         pickle.dump(family_ID, f)
     
@@ -519,56 +440,181 @@ def prepare_data(settings):
     np.save(os.path.join(outputfolder,"labels.npy"),labels)
     np.save(os.path.join(outputfolder,"data.npy"),data)
     np.save(os.path.join(outputfolder,"covs.npy"),covs)
-    np.save(os.path.join(outputfolder,"con_confounders.npy"),con_confounders)
 
     print(f"Data saved in {outputfolder}")
 
-# def WM_times():
-#     # Constants
-#     TR = 0.72  # Repetition Time in seconds
-#     FRAMES_PER_RUN = 405  # Frames per run (for RL shift)
 
-#     # Function to map EV times to sample indices
-#     def ev_to_indices(ev_file, TR, shift=0):
-#         events = pd.read_csv(ev_file, sep='\t', header=None, names=['Onset', 'Duration', 'Amplitude'])
-#         indices = [
-#             (int((row['Onset'] / TR) + shift), int(((row['Onset'] + row['Duration']) / TR) + shift))
-#             for _, row in events.iterrows()
-#         ]
-#         return indices
+def get_meta_data(condition,base_directory='/project_cephfs/3022017.01/S1200'):
+    # Metadata keys and variables
+    subid = "Subject"
 
-#     # Add index ranges for all conditions for each subject
-#     def process_subject(row):
-#         # https://www.humanconnectome.org/hcp-protocols-ya-3t-imaging <--- TR from
-#         subject_id = row['Subject']
-#         print(subject_id)
-#         # Initialize a dictionary to hold condition indices
-#         condition_indices = {}
+    # Assuming extract_phenotype() is a function that returns a DataFrame with a 'Subject' column
+    data_dict_data_df = extract_phenotype()
 
-#         # Iterate over task folders (LR and RL)
-#         for task_folder, shift in zip(["tfMRI_WM_LR", "tfMRI_WM_RL"], [0, FRAMES_PER_RUN]):
-#             # Define the base EV path
-#             base_path = f"/project_cephfs/3022017.01/S1200/{subject_id}/MNINonLinear/Results/{task_folder}/EVs"
-#             conditions = ["0bk_faces", "0bk_places", "0bk_tools", "0bk_body",
-#                         "2bk_faces", "2bk_places", "2bk_tools", "2bk_body"]
+    # Set up directories and file paths for fMRI data
+    subdirectory = "MNINonLinear/Results"
+    if condition == "REST":
+        folders = ["rfMRI_REST1_LR", "rfMRI_REST1_RL", "rfMRI_REST2_LR", "rfMRI_REST2_RL"]
+    elif condition == "WM":
+        folders = ["tfMRI_WM_LR", "tfMRI_WM_RL"]
+    elif condition == "GAMBLING":
+        folders = ["tfMRI_GAMBLING_LR","tfMRI_GAMBLING_RL"]
+    elif condition == "RELATIONAL":
+        folders = ["tfMRI_RELATIONAL_LR", "tfMRI_RELATIONAL_RL"]
+    else:
+        raise ValueError("Unrecognized condition")
 
-#             # Extract indices for each condition
-#             for condition in conditions:
-#                 ev_file = f"{base_path}/{condition}.txt"
-#                 try:
-#                     condition_indices[f"{task_folder}_{condition}"] = ev_to_indices(ev_file, TR, shift)
-#                 except FileNotFoundError:
-#                     print(f"EV file not found: {ev_file}")
-#                     condition_indices[f"{task_folder}_{condition}"] = []
+    file_suffix = "_Atlas_MSMAll.dtseries.nii"
+    motion_file = "Movement_RelativeRMS_mean.txt"
 
-#         return condition_indices
+    # Initialize lists to store subject IDs, scan paths, and motion values
+    valid_subids = []
+    all_scan_paths = []
+    all_motion_values = []
 
-#     # Process all subjects
-#     all_indices = []
-#     for idx, row in full_data.iterrows():
-#         print(idx)
-#         subject_indices = process_subject(row)
-#         all_indices.append(subject_indices)
+    # Get the list of subject IDs
+    subids = data_dict_data_df[subid].tolist()
+    for sub in subids:
+        subject_scans = []
+        subject_motion = []
 
-#     # Add the indices as a new column in the DataFrame
-#     full_data["Condition_Indices"] = all_indices
+        # Collect scan paths and motion values for each session
+        for folder in folders:
+            scan_path = os.path.join(base_directory, str(sub), subdirectory, folder, folder + file_suffix)
+            motion_path = os.path.join(base_directory, str(sub), subdirectory, folder, motion_file)
+
+            if os.path.exists(scan_path) and os.path.exists(motion_path):
+                subject_scans.append(scan_path)
+                # Read only the first line of motion values (single value)
+                with open(motion_path, 'r') as f:
+                    motion_value = float(f.readline().strip())
+                subject_motion.append(motion_value)
+            else:
+                # If either the scan or motion file doesn't exist, skip to the next subject
+                break
+
+        # Only add subjects with all required scan and motion files
+        if len(subject_scans) == len(folders):
+            valid_subids.append(sub)
+            all_scan_paths.append(subject_scans)
+            all_motion_values.append(subject_motion)
+
+    # Create a new DataFrame from the collected scan paths and motion values
+    motion_data_df = pd.DataFrame({
+        'Subject': valid_subids,
+        'paths': all_scan_paths,
+        'motion': all_motion_values
+    })
+
+    # Perform an intersection merge to keep only subjects present in both DataFrames
+    combined_df = data_dict_data_df.merge(motion_data_df, on='Subject', how='inner')
+
+    return combined_df
+
+def parcellate(condition, output_dir,base_directory = "/project_cephfs/3022017.01/S1200",n_workers=20):
+    meta_data_df = get_meta_data(condition, base_directory=base_directory)
+    subids = meta_data_df["Subject"].tolist()
+    paths = meta_data_df["paths"].tolist()
+
+    try:
+        with ProcessPoolExecutor(max_workers=(n_workers)) as executor:
+            # Use map to process subjects in parallel
+            group_parcellated = list(executor.map(process_subject, paths))
+        
+        # Filter out any None results and ensure correct shape
+        valid_index = [index for index, result in enumerate(group_parcellated) if result is not None]
+
+        # Filter subids and parcellated data using list comprehensions
+        valid_subids = [subids[index] for index in valid_index]
+        valid_parcellated = [group_parcellated[index] for index in valid_index]
+
+        # Create a new DataFrame with valid subids and parcellated data
+        parcellated_data_df = pd.DataFrame({
+            'Subject': valid_subids,
+            'parcellated_data': valid_parcellated
+        })
+
+        # Perform an inner join with the metadata DataFrame
+        full_df = meta_data_df.merge(parcellated_data_df, on='Subject', how='inner')
+
+        # Save the combined DataFrame as a pickle file
+        pickle_path = os.path.join(output_dir, "combined_data.pkl")
+        full_df.to_pickle(pickle_path)
+        print(f"Data successfully saved to {pickle_path}")
+
+        return full_df
+
+    except Exception as e:
+        print(f"Error in parcellation process: {e}")
+        traceback.print_exc()
+        return []
+
+def times(full_data,output_dir,task):
+    # Resources
+    # Task setups https://www.humanconnectome.org/hcp-protocols-ya-task-fmri#_ENREF_7
+    # Task Protocals https://www.humanconnectome.org/hcp-protocols-ya-3t-imaging <--- TR from
+
+    # Constants
+    TR = 0.72  # Repetition Time in seconds
+    if task == "WM":
+        FRAMES_PER_RUN = 405  # Frames per run (for RL shift)
+        conditions = ["0bk_faces", "0bk_places", "0bk_tools", "0bk_body",
+                            "2bk_faces", "2bk_places", "2bk_tools", "2bk_body"]
+        task_dir = ["tfMRI_WM_LR", "tfMRI_WM_RL"]
+    elif task == "GAMBLING":
+        FRAMES_PER_RUN = 253  # Frames per run (for RL shift)
+        conditions = ["loss", "win"]
+        task_dir = ["tfMRI_GAMBLING_LR", "tfMRI_GAMBLING_RL"]
+    elif task == "RELATIONAL":
+        FRAMES_PER_RUN = 232  # Frames per run (for RL shift)
+        conditions = ["match", "relation"]
+        task_dir = ["tfMRI_RELATIONAL_LR", "tfMRI_RELATIONAL_RL"]
+    else:
+        raise ValueError("Unrecognized condition")
+        
+    # Function to map EV times to sample indices
+    def ev_to_indices(ev_file, TR, shift=0):
+        events = pd.read_csv(ev_file, sep='\t', header=None, names=['Onset', 'Duration', 'Amplitude'])
+        indices = [
+            (int((row['Onset'] / TR) + shift), int(((row['Onset'] + row['Duration']) / TR) + shift))
+            for _, row in events.iterrows()
+        ]
+        return indices
+
+    # Add index ranges for all conditions for each subject
+    def process_subject_condition(row):
+        subject_id = row['Subject']
+        print(subject_id)
+        # Initialize a dictionary to hold condition indices
+        condition_indices = {}
+
+        # Iterate over task folders (LR and RL)
+        for task_folder, shift in zip(task_dir, [0, FRAMES_PER_RUN]):
+            # Define the base EV path
+            base_path = f"/project_cephfs/3022017.01/S1200/{subject_id}/MNINonLinear/Results/{task_folder}/EVs"
+
+            # Extract indices for each condition
+            for condition in conditions:
+                ev_file = f"{base_path}/{condition}.txt"
+                try:
+                    condition_indices[f"{task_folder}_{condition}"] = ev_to_indices(ev_file, TR, shift)
+                except FileNotFoundError:
+                    print(f"EV file not found: {ev_file}")
+                    condition_indices[f"{task_folder}_{condition}"] = []
+
+        return condition_indices
+
+    # Process all subjects
+    all_indices = []
+    for idx, row in full_data.iterrows():
+        print(idx)
+        subject_indices = process_subject_condition(row)
+        all_indices.append(subject_indices)
+
+    # Add the indices as a new column in the DataFrame
+    full_data["Condition_Indices"] = all_indices
+
+    # Save the combined DataFrame as a pickle file
+    pickle_path = os.path.join(output_dir, "combined_data_times.pkl")
+    full_data.to_pickle(pickle_path)
+    print(f"Data successfully saved to {pickle_path}")

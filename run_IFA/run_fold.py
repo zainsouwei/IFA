@@ -135,9 +135,6 @@ def run_fold(outputfolder, fold):
     with open(os.path.join(outputfolder, "paths.pkl"), "rb") as f:
         paths = pickle.load(f)
 
-    with open(os.path.join(outputfolder, "cat_confounders.pkl"), "rb") as f:
-        cat_confounders = pickle.load(f)
-
     with open(os.path.join(outputfolder, "family_ID.pkl"), "rb") as f:
         family_ID = pickle.load(f)
 
@@ -146,7 +143,6 @@ def run_fold(outputfolder, fold):
     labels = np.load(os.path.join(outputfolder, "labels.npy"))
     data = np.load(os.path.join(outputfolder, "data.npy"))
     covs = np.load(os.path.join(outputfolder, "covs.npy"))
-    con_confounders = np.load(os.path.join(outputfolder, "con_confounders.npy"))
 
     # Load Fold Specific Vairables
     fold_output_dir = os.path.join(outputfolder, f"fold_{fold}")
@@ -163,15 +159,25 @@ def run_fold(outputfolder, fold):
     train_data = data[train_idx]
     train_covs = covs[train_idx]
     train_paths = paths[train_idx]
-    train_con_confounders = con_confounders[train_idx]
-    train_cat_confounders = cat_confounders[train_idx]
 
     test_labels = labels[test_idx]
     test_data = data[test_idx]
     test_covs = covs[test_idx]
-    test_con_confounders = con_confounders[test_idx]
-    test_cat_confounders = cat_confounders[test_idx]
-    
+  
+    if deconfound:
+        with open(os.path.join(outputfolder, "cat_confounders.pkl"), "rb") as f:
+            cat_confounders = pickle.load(f)
+        con_confounders = np.load(os.path.join(outputfolder, "con_confounders.npy"))
+        train_con_confounders = con_confounders[train_idx]
+        train_cat_confounders = cat_confounders[train_idx]
+        test_con_confounders = con_confounders[test_idx]
+        test_cat_confounders = cat_confounders[test_idx]
+    else:
+        train_con_confounders = None
+        train_cat_confounders = None
+        test_con_confounders = None
+        test_cat_confounders = None
+
     # Save summary of data split
     train_groups = set(np.unique(family_ID[train_idx]))
     test_groups = set(np.unique(family_ID[test_idx]))

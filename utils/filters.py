@@ -98,6 +98,8 @@ def test_visualize_variance(data, labels, filters,output_dir="plots"):
         # Adjust layout
         plt.tight_layout()
         plt.savefig(os.path.join(output_dir, f"Filter_{i}_{filters.shape[1]-(i+1)}_var.svg"))
+        plt.close('all')
+
 
 
 def evaluate_filters(train, train_labels, test, test_labels, filters, metric="riemann", deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None,output_dir="plots"):
@@ -146,6 +148,7 @@ def FKT(cov_matrices, labels, metric="riemann", deconf=True, con_confounder_trai
         plt.xlabel("Max Eigenvector for Group B to Max Eigenvector for Group A")
         plt.ylabel(r"$|\log\left(\frac{\lambda}{1 - \lambda}\right)|^2$")
         plt.savefig(os.path.join(output_dir, "fkt_scree.svg"))
+        plt.close('all')
 
 
     return fkt_riem_eigs, filters
@@ -197,6 +200,7 @@ def TSSF(covs, labels, clf_str="L2 SVM (C=1)", metric="riemann", deconf=True, co
         # plt.ylabel(r"$|log(\lambda)|$")
         plt.ylabel(r"$\log(\lambda)^2$")
         plt.savefig(os.path.join(output_dir, "fkt_scree.svg"))
+        plt.close('all')
 
     return riem_eig, filters, boundary_matrix, Frechet_Mean
 

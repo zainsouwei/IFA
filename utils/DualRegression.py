@@ -56,7 +56,7 @@ class DualRegressionOptimizer:
             raise ValueError("mode must be either 'normalize' or 'demean'")
        
         if search_space is None:
-            self.search_space_dict = {'alpha': (1e-3, 100), 'l1_ratio': (1e-3, 0.5)}
+            self.search_space_dict = {'alpha': (1e-3, 10), 'l1_ratio': (1e-3, 1-1e-3)}
         elif isinstance(search_space, dict):
             self.search_space_dict = search_space
         else:
