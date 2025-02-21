@@ -268,8 +268,8 @@ def run_fold(outputfolder, fold):
     print(f"PCA job submitted successfully with job ID: {job_id}")
     
     # While PCA Job Runs, run dual regression on parcellated filters
-    filtersA_transform = filter_dual_regression(filtersA, train_data[train_labels == a_label], train_paths[train_labels == a_label],workers=20)
-    filtersB_transform = filter_dual_regression(filtersB, train_data[train_labels == b_label], train_paths[train_labels == b_label],workers=20)
+    filtersA_transform = filter_dual_regression(filtersA, train_data[train_labels == a_label], train_paths[train_labels == a_label],workers=15)
+    filtersB_transform = filter_dual_regression(filtersB, train_data[train_labels == b_label], train_paths[train_labels == b_label],workers=15)
     np.save(os.path.join(parcellated_filters_dir, "A_filters_haufe.npy"), filtersA_transform)
     np.save(os.path.join(parcellated_filters_dir, "B_filters_haufe.npy"), filtersB_transform)
     parcelvoxel_filters = orthonormalize_filters(filtersA_transform, filtersB_transform)
@@ -328,16 +328,16 @@ def run_fold(outputfolder, fold):
         spatial_maps = [ICA_zmaps, parcelvoxel_IFA_zmaps, voxel_IFA_zmaps]
         outputfolders = [GICA_dir, parcel_IFA_dir, voxel_IFA_dir]
 
-        sample = np.min((20,train_idx.shape[0]))
+        sample = np.min((30,train_idx.shape[0]))
         dual_regressor = DualRegress(
             subs=paths,
             spatial_maps=spatial_maps,
             train_index=train_idx,
             outputfolders=outputfolders,
-            workers=20,
+            workers=15,
             sample=sample,
             method="bayesian",
-            parallel_points=10,
+            parallel_points=7,
             parallel_subs=2,
             n_calls=15,
             random_state=random_state

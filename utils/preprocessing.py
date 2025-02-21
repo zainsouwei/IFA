@@ -13,6 +13,7 @@ import pickle
 import seaborn as sns
 import sys
 import json
+import re
 from pyriemann.estimation import Covariances
 sys.path.append('/utils')
 
@@ -50,10 +51,12 @@ def update_df_for_condition(df, condition_keyword):
     new_parcellated = []
     new_paths = []
     
+    pattern = re.compile(r'(?:LR|RL)_(.+)$', re.IGNORECASE)
+
     for _, row in df_group.iterrows():
         cond_indices = row["Condition_Indices"]
         # Find keys that contain the condition keyword (case-insensitive)
-        matching_keys = [key for key in cond_indices if condition_keyword.lower() in key.lower()]
+        matching_keys = [key for key in cond_indices if condition_keyword in pattern.search(key).group(1)]
         
         slices = []
         # Initialize used_indices for LR and RL as empty lists.
@@ -149,7 +152,7 @@ def load_subject(subject_info):
     try:
         # --- Determine the input structure ---
         # Case 1: subject_info is a list of file paths (all elements are strings)
-        if isinstance(subject_info, np.ndarray) and all(isinstance(task, str) for task in subject_info):
+        if isinstance(subject_info, list) and all(isinstance(task, str) for task in subject_info):
             paths = subject_info
             condition_indices = None
             truncate_to = None
@@ -360,7 +363,43 @@ def get_groups(phenotypes, quantile, data_path, apply_deconfounding=True, regres
     plt.close('all')
     return group_a, group_b
 
-def prepare_data(settings):
+
+def filter_and_truncate_data(all_data, threshold_percentile=0.10,outputfile="path"):
+    # Compute the length of each subject's time series
+    all_data = all_data.copy()  
+    all_data['length'] = all_data['parcellated_data'].apply(lambda x: x.shape[0])
+    
+    # Determine the threshold for dropping subjects
+    threshold = all_data['length'].quantile(threshold_percentile)
+    
+    
+    kept_data = all_data[all_data['length'] >= threshold].copy()
+    dropped_data = all_data[all_data['length'] < threshold].copy()
+    
+    # Determine the new truncation length from the kept subjects
+    truncated_length = int(kept_data['length'].min())
+    
+    # Truncate the 'parcellated_data' for each kept subject
+    kept_data['parcellated_data'] = kept_data['parcellated_data'].apply(lambda sub: sub[:truncated_length, :])
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    ax.scatter(kept_data.index, kept_data['length'], color='green', label='Kept Subjects')
+    ax.scatter(dropped_data.index, dropped_data['length'], color='red', label='Dropped Subjects')
+    ax.axhline(y=truncated_length, color='blue', linestyle='--', label=f'Truncation Point: {truncated_length}')
+    num_dropped = dropped_data.shape[0]
+    num_kept = kept_data.shape[0]
+    ax.set_title(f'Time Series Lengths: {num_kept} Kept, {num_dropped} Dropped (Truncated at {truncated_length})')
+    ax.set_xlabel('Subject Index')
+    ax.set_ylabel('Time Series Length')
+    ax.legend()
+    ax.grid(True)
+    plt.savefig(outputfile, format="svg")
+    plt.close(fig)
+
+    return kept_data, truncated_length
+
+def prepare_data(settings,threshold_percentile=0.10):
     """ Unified function to prepare data for either between-subjects (`get_groups`) or within-subject (`get_conditions`). """
     outputfolder = settings["outputfolder"]
     if not os.path.exists(outputfolder):
@@ -395,42 +434,36 @@ def prepare_data(settings):
         a = a.sample(n=min_size, random_state=settings["random_state"])
         b = b.sample(n=min_size, random_state=settings["random_state"])
         
-
+    a['label'] = settings["a_label"]
+    b['label'] = settings["b_label"]
     all_data = pd.concat([a, b], ignore_index=True)
     
+    fig_path = os.path.join(outputfolder_visualization, "time_length.svg")
+    filtered_data, truncate = filter_and_truncate_data(all_data, threshold_percentile=threshold_percentile, outputfile=fig_path)
+ 
     if settings["deconfound"]:
-        con_confounders = all_data[continuous_confounders].to_numpy()
-        cat_confounders = all_data[categorical_confounders].to_numpy()
+        con_confounders = filtered_data[continuous_confounders].to_numpy()
+        cat_confounders = filtered_data[categorical_confounders].to_numpy()
         
         with open(os.path.join(outputfolder, "cat_confounders.pkl"), "wb") as f:
             pickle.dump(cat_confounders, f)
         np.save(os.path.join(outputfolder,"con_confounders.npy"),con_confounders)
 
-    sub_ID = all_data["Subject"].to_numpy()
-    family_ID = all_data["Family_ID"].to_numpy()
-    labels = np.concatenate([settings["a_label"] * np.ones(len(a), dtype=int), settings["b_label"] * np.ones(len(b), dtype=int)])
+    sub_ID = filtered_data["Subject"].to_numpy()
+    family_ID = filtered_data["Family_ID"].to_numpy()
+    labels = filtered_data["label"].to_numpy()
     
-    data = [normalize_data(sub) for sub in all_data["parcellated_data"]]
-    lengths =  [sub.shape[0] for sub in data]
-    truncate = min(lengths)
+    data = np.array([normalize_data(sub) for sub in filtered_data["parcellated_data"]])
+    cov_est = Covariances(estimator='oas')
+    covs = cov_est.transform(data.transpose(0, 2, 1))
 
-    plt.figure()
-    plt.hist(lengths)
-    plt.title(f"Truncated all data to {truncate}")
-    plt.xlabel("Distribution of Length of Subject Time")
-    plt.savefig(os.path.join(outputfolder_visualization,f"time_length.svg"), format="svg")
-    plt.close()
-
-    paths = list(a["paths"]) + list(b["paths"])
+    paths = list(filtered_data["paths"])
     if isinstance(paths, list) and all(isinstance(task, str) for task in paths[0]):
         paths = [[path] + [truncate] for path in paths]
     else:
         paths = [path + [truncate] for path in paths]
     paths = np.array(paths,dtype=object)
-    data = np.array([sub[:truncate,:] for sub in data])
-    cov_est = Covariances(estimator='oas')
-    covs = cov_est.transform(data.transpose(0, 2, 1))
-    
+
     with open(os.path.join(outputfolder, "paths.pkl"), "wb") as f:
         pickle.dump(paths, f)
     with open(os.path.join(outputfolder, "family_ID.pkl"), "wb") as f:

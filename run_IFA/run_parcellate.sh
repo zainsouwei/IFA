@@ -1,11 +1,12 @@
 #!/bin/bash
 #SBATCH --partition=batch                       
 #SBATCH --mem=150G                             
-#SBATCH --time=15:00:00
+#SBATCH --time=2:00:00
 #SBATCH --ntasks 1     
-#SBATCH --cpus-per-task=15                 
+#SBATCH --cpus-per-task=15
+#SBATCH --output=/project/3022057.01/slurm-%j.out  
+#SBATCH --error=/project/3022057.01/slurm-%j.err   
 
-# Set ulimit to change the soft limit for virtual memory and data segment size
 ulimit -v unlimited  # Remove the soft limit on virtual memory
 ulimit -d unlimited  # Remove the soft limit on data segment size
 ulimit -s unlimited  # Remove the limit on stack size
@@ -17,8 +18,10 @@ source /etc/profile.d/modules.sh || { echo "Failed to source environment modules
 module load anaconda3 || { echo "Failed to load Anaconda module"; exit 1; }
 eval "$(conda shell.bash hook)"
 conda activate IFAslurmv2 || { echo "Failed to activate Conda environment"; exit 1; }
+export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
 
-# Run the Python script with arguments
-# $1 represents the first argument (outputfolder) passed to the script
-# $2 represents the second argument (fold) passed to the script
-python /project/3022057.01/IFA/run_IFA/run_fold.py "$1" "$2"
+cd /project/3022057.01/ || { echo "Failed to change directory"; exit 1; }
+which python
+python --version
+# Pass the task argument to the Python script
+python /project/3022057.01/IFA/run_IFA/run_parcellate.py "$1"
