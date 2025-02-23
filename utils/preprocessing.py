@@ -364,7 +364,7 @@ def get_groups(phenotypes, quantile, data_path, apply_deconfounding=True, regres
     return group_a, group_b
 
 
-def filter_and_truncate_data(all_data, threshold_percentile=0.10,outputfile="path"):
+def filter_and_truncate_data(all_data, threshold_percentile=0.10,paired=False,outputfile="path"):
     # Compute the length of each subject's time series
     all_data = all_data.copy()  
     all_data['length'] = all_data['parcellated_data'].apply(lambda x: x.shape[0])
@@ -376,6 +376,13 @@ def filter_and_truncate_data(all_data, threshold_percentile=0.10,outputfile="pat
     kept_data = all_data[all_data['length'] >= threshold].copy()
     dropped_data = all_data[all_data['length'] < threshold].copy()
     
+    # For the paired case have to drop teh subjects everywhere
+    if paired:
+        dropped_subjects = set(dropped_data["Subject"])
+        kept_data = kept_data[~kept_data["Subject"].isin(dropped_subjects)]
+        # Update dropped_data to include all subjects not in kept_data.
+        dropped_data = all_data[~all_data["Subject"].isin(kept_data["Subject"])]
+
     # Determine the new truncation length from the kept subjects
     truncated_length = int(kept_data['length'].min())
     
@@ -439,7 +446,7 @@ def prepare_data(settings,threshold_percentile=0.10):
     all_data = pd.concat([a, b], ignore_index=True)
     
     fig_path = os.path.join(outputfolder_visualization, "time_length.svg")
-    filtered_data, truncate = filter_and_truncate_data(all_data, threshold_percentile=threshold_percentile, outputfile=fig_path)
+    filtered_data, truncate = filter_and_truncate_data(all_data, threshold_percentile=threshold_percentile, paired=settings["paired"], outputfile=fig_path)
  
     if settings["deconfound"]:
         con_confounders = filtered_data[continuous_confounders].to_numpy()

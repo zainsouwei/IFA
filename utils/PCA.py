@@ -6,13 +6,16 @@ import matlab.engine
 import matplotlib.pyplot as plt
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
+import concurrent.futures
 
 import sys
 sys.path.append('/utils')
-from preprocessing import load_subject #TODO chaneg back to non PCN
+from preprocessing import load_subject 
 from preprocessing import gpu_mem, cpu_mem
-
-def migp(subs,batch_size=1, m=4800):  #TODO chaneg back to non PCN m=4800
+####################################################################################################################### GPU Implementation; Currently Not Used ################################################################################################################################################
+###################################################################################################################################################################################################################################################################################
+# https://git.fmrib.ox.ac.uk/seanf/pymigp/-/blob/master/pymigp/migp.py?ref_type=heads
+def old_migp(subs,batch_size=1, m=4800): 
 
     if batch_size > len(subs):
         print(f"Warning: batch_size ({batch_size}) is greater than number of subjects ({len(subs)}). Setting batch_size to {len(subs)}.")
@@ -49,7 +52,7 @@ def migp(subs,batch_size=1, m=4800):  #TODO chaneg back to non PCN m=4800
                 else:
                     combined_data_gpu = torch.cat([W_gpu, batch_gpu], dim=0)
                 del batch_gpu
-                torch.cuda.empty_cache()
+                # torch.cuda.empty_cache()
 
 
                 # # Calculate size in GB
@@ -70,7 +73,7 @@ def migp(subs,batch_size=1, m=4800):  #TODO chaneg back to non PCN m=4800
    
                 W_gpu = Q[:, -m:].T@combined_data_gpu
                 del Q, combined_data_gpu  # Free up GPU memory
-                torch.cuda.empty_cache()
+                # torch.cuda.empty_cache()
                 # print(batch_start, "done",flush=True)
 
         except Exception as e:
@@ -89,6 +92,123 @@ def migp(subs,batch_size=1, m=4800):  #TODO chaneg back to non PCN m=4800
     del W_gpu  # Free up GPU memory
 
     return W
+###################################################################################################################################################################################################################################################################################
+###################################################################################################################################################################################################################################################################################
+
+def update_W(current_W, new_data, m):
+    if current_W is None:
+        combined = new_data
+    else:
+        combined = torch.cat([current_W, new_data], dim=0)
+    # Perform eigen-decomposition on the covariance matrix.
+    _, Q = torch.linalg.eigh(combined @ combined.T)
+    # Update W: select top m eigenvectors and project combined data.
+    updated_W = Q[:, -m:].T @ combined
+    return updated_W
+
+
+def migp_worker(subs,batch_size=1, m=4800):  #TODO chaneg back to non PCN m=4800
+
+    if batch_size > len(subs):
+        print(f"Warning: batch_size ({batch_size}) is greater than number of subjects ({len(subs)}). Setting batch_size to {len(subs)}.")
+        batch_size = len(subs)
+
+    W_gpu = None
+
+    for batch_start in range(0, len(subs), batch_size):
+        # Select the current batch of subjects
+        batch_subs = subs[batch_start:batch_start + batch_size]
+        try:
+            concatenated_data = []  
+            for path in batch_subs:
+                concatenated_data.append(load_subject(path))
+
+            # Concatenate data along the first axis  
+            batch = np.concatenate(concatenated_data, axis=0)
+            del concatenated_data
+
+            with torch.no_grad():
+
+                # Convert to torch tensor and move to GPU
+                device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+                batch_gpu = torch.tensor(batch, dtype=torch.float32, device=device)
+                del batch
+
+                if torch.isnan(batch_gpu).any():
+                    print("NaNs detected in the batch data. Aborting SVD operation.")
+                    del batch_gpu
+                    torch.cuda.empty_cache()
+                    return None
+        
+                W_gpu = update_W(W_gpu, batch_gpu, m)
+                del batch_gpu
+
+        except Exception as e:
+            print(f"Failed during GPU processing: {e}")
+            if "combined_data_gpu" in locals():
+                del combined_data_gpu
+            if "Q" in locals():
+                del Q
+            if "W_gpu" in locals():
+                del W_gpu
+            torch.cuda.empty_cache()
+            return None
+
+    # Transfer W back to CPU only at the end
+    W = W_gpu.cpu().numpy()
+    del W_gpu  # Free up GPU memory
+
+    return W
+
+
+def merge_W_in_batches(W_list, batch_size=1, m=4800):
+
+    # Convert each intermediate W to a tensor once, for consistency
+    W_tensors = [torch.tensor(W, dtype=torch.float32) for W in W_list]
+    
+    W_gpu = None
+    # Process in batches similar to migp
+    for batch_start in range(0, len(W_tensors), batch_size):
+        current_batch =  torch.cat(W_tensors[batch_start:batch_start + batch_size], dim=0)
+        
+        with torch.no_grad():
+            W_gpu = update_W(W_gpu, current_batch, m)
+            del current_batch  # Free up memory
+    
+    # Transfer the final W back to CPU
+    final_W = W_gpu.cpu().numpy()
+    del W_gpu
+    return final_W
+
+
+def migp(subs, m=4800, n_jobs=4,batch_size=3):
+    """
+    Splits subjects into n_jobs groups, runs migp_worker on each in parallel,
+    and merges the results.
+    """
+    # Split subjects evenly among jobs
+    # Assume subs is your full list of subject paths
+    sublists = np.array_split(subs, n_jobs)
+
+    W_list = []
+    with concurrent.futures.ProcessPoolExecutor(max_workers=n_jobs) as executor:
+        # Submit one job per sublist, making sure each sublist is converted to a regular list
+        futures = [executor.submit(migp_worker, list(sublist), batch_size, m) for sublist in sublists]
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()
+            if result is not None:
+                W_list.append(result)
+            else:
+                print("One of the workers failed.")
+                W_list = None
+                break
+    print("Finished processing all sub-jobs; now merging in batches.")
+    if W_list:
+        final_W = merge_W_in_batches(W_list, batch_size=batch_size, m=m)
+    else:
+        final_W = None
+    
+    return final_W
 
 def call_pca_dim(Data=None,eigs=None,N=None):
    # Start MATLAB engine

@@ -56,7 +56,7 @@ class DualRegressionOptimizer:
             raise ValueError("mode must be either 'normalize' or 'demean'")
        
         if search_space is None:
-            self.search_space_dict = {'alpha': (1e-3, 10), 'l1_ratio': (1e-3, 1-1e-3)}
+            self.search_space_dict = {'alpha': (1e-3, 10), 'l1_ratio': ((1e-4), 1-(1e-4))}
         elif isinstance(search_space, dict):
             self.search_space_dict = search_space
         else:
@@ -69,7 +69,8 @@ class DualRegressionOptimizer:
                  prior='log-uniform', 
                  name='alpha'),
             Real(self.search_space_dict['l1_ratio'][0], 
-                 self.search_space_dict['l1_ratio'][1], 
+                 self.search_space_dict['l1_ratio'][1],
+                #  prior='log-uniform',
                  name='l1_ratio')
         ]
 
@@ -113,18 +114,27 @@ class DualRegressionOptimizer:
         """
         # Prepare the arguments for each subject evaluation.
         args = [(self, sub, hyperparams) for sub in self.subject_paths]
-        with ThreadPoolExecutor(max_workers=self.parallel_subs) as executor:
+        with ProcessPoolExecutor(max_workers=self.parallel_subs) as executor:
             scores = list(executor.map(evaluate_subject_helper, args))
         avg_score = np.mean(scores)
         return -avg_score  # Negative because we minimize
+    
+    def objective_pso(self, hyperparams):
+        # Evaluate each subject sequentially.
+        scores = [evaluate_subject_helper((self, sub, hyperparams)) for sub in self.subject_paths]
+        avg_score = np.mean(scores)
+        return -avg_score  # Negative because we minimize
+
 
     def optimize_bayesian(self, n_calls=15, random_state=42):
         res = gp_minimize(
             func=self.objective,
             dimensions=self.search_space_dims,
             n_calls=n_calls,
+            n_initial_points = int(n_calls/2),
             random_state=random_state,
-            n_jobs=self.parallel_points  # Remove if unsupported by your skopt version
+            n_jobs=self.parallel_points,
+            acq_optimizer="lbfgs" 
         )
         best_params = res.x
         best_cv_score = -res.fun
@@ -166,15 +176,15 @@ class DualRegressionOptimizer:
 
         def _evaluate(self, x, out):
             alpha_original = 10 ** x[0]
-            out["F"] = self.outer.objective([alpha_original, x[1]])
+            out["F"] = self.outer.objective_pso([alpha_original, x[1]])
 
-    def optimize_pso(self, random_state=42, particles=15,ftol=1e-2, period=1, n_max_gen=5):
+    def optimize_pso(self, random_state=42, particles=15,ftol=1e-2, period=1, n_calls=75):
         # Use a multiprocessing pool for parallel evaluations.
-        pool = multiprocessing.Pool(processes=particles)
+        pool = multiprocessing.Pool(processes=self.parallel_points)
         runner = StarmapParallelization(pool.starmap)
         problem_instance = self.AggregatedElasticNetCVProblem(outer=self,elementwise_runner=runner)
         algorithm = PSO(pop_size=particles)
-        termination = DefaultSingleObjectiveTermination(ftol=ftol, period=period, n_max_gen=n_max_gen)
+        termination = DefaultSingleObjectiveTermination(ftol=ftol, period=period, n_max_gen=int(n_calls/particles))
         res = minimize(problem_instance, algorithm, termination=termination,
                        seed=random_state, verbose=True, output=self.MyOutput())
 
@@ -234,9 +244,8 @@ class DualRegress:
         self.dual_regression_results = []
         for i in range(len(self.spatial_maps)):
             self.dual_regression_results.append({
-                'normalized': {'An': [], 'spatial_map': []},
-                'demean': {'Adm': [], 'spatial_mapdm': []},
-                'reconstruction_error': []
+                'normalized': {'An': [], 'spatial_map': [], 'reconstruction_error': []},
+                'demean': {'Adm': [], 'spatial_mapdm': [], 'reconstruction_error': []}
             })
 
 
@@ -247,8 +256,9 @@ class DualRegress:
         spatial_map = Elastic.coef_.T  # Coefficients are Components x Grayordinates (C x V)
         return spatial_map
     
-    def recon(self,A,map_plus,Xn):
-        reconstructed = A@map_plus.T
+    def recon(self, A, spatial_map, Xn):
+        # Reconstruct the data using the spatial map
+        reconstructed = A @ spatial_map.T
         # Compute residuals
         residuals = Xn - reconstructed
         # Compute variances
@@ -274,9 +284,6 @@ class DualRegress:
         # Time x Components
         A = (Xn-Xn.mean(axis=1,keepdims=True)) @ map_plus  # A is Time x Components (T x C)
         
-        # Calculate variance explained
-        variance_explained = self.recon(A, map_plus, Xn)
-
         # Normalized Time x Components matrix
         An = hcp.normalize(A)  # An is Time x Components (T x C)
         # An = Adm/np.percentile(np.abs(Adm),95,axis=0)
@@ -284,10 +291,13 @@ class DualRegress:
         Adm = A - A.mean(axis=0,keepdims=True)
         del A
         
-        spatial_map = self.stage_two_elastic(An,Xn,map_index=map_index,norm_index=0)
-        spatial_mapdm = self.stage_two_elastic(Adm,Xn,map_index=map_index,norm_index=1)
+        spatial_map_norm = self.stage_two_elastic(An,Xn,map_index=map_index,norm_index=0)
+        spatial_map_dm = self.stage_two_elastic(Adm,Xn,map_index=map_index,norm_index=1)
         
-        return [An, spatial_map, variance_explained, Adm, spatial_mapdm]
+        rec_error_norm = self.recon(An, spatial_map_norm.T, Xn)
+        rec_error_dm   = self.recon(Adm, spatial_map_dm.T, Xn)
+    
+        return [An, spatial_map_norm, rec_error_norm, Adm, spatial_map_dm, rec_error_dm]
 
         # Components x Grayordinates spatial map
         # spatial_map = np.linalg.pinv(An) @ hcp.normalize(Xn)  # Spatial map is Components x Grayordinates (C x V)
@@ -347,6 +357,8 @@ class DualRegress:
             map_hyperparams = []
             for mode in ["normalize","demean"]:
                 optimizer_instance = DualRegressionOptimizer(sampled_subjects, s_map, mode=mode,parallel_points=self.parallel_points, parallel_subs=self.parallel_subs)
+                # optimizer_instance = DualRegressionOptimizer(sampled_subjects, s_map, mode=mode,parallel_points=self.parallel_points)
+
                 best_params, best_cv_score = optimizer_instance.optimize(optimizer=self.method, n_calls=self.n_calls, random_state=self.random_state)
                 map_hyperparams.append(best_params)
                 np.save(os.path.join(self.outputfolders[i],f"{mode}_best_params"),np.array(best_params))
@@ -385,19 +397,19 @@ class DualRegress:
             for i, map_result in enumerate(subject_result):
                 self.dual_regression_results[i]['normalized']['An'].append(map_result[0])
                 self.dual_regression_results[i]['normalized']['spatial_map'].append(map_result[1])
+                self.dual_regression_results[i]['normalized']['reconstruction_error'].append(map_result[2])
                 self.dual_regression_results[i]['demean']['Adm'].append(map_result[3])
                 self.dual_regression_results[i]['demean']['spatial_mapdm'].append(map_result[4])
-                self.dual_regression_results[i]['reconstruction_error'].append(map_result[2])
+                self.dual_regression_results[i]['demean']['reconstruction_error'].append(map_result[5])
         
-        # Convert lists to numpy arrays.
         for i in range(num_maps):
             self.dual_regression_results[i]['normalized']['An'] = np.array(self.dual_regression_results[i]['normalized']['An'])
             self.dual_regression_results[i]['normalized']['spatial_map'] = np.array(self.dual_regression_results[i]['normalized']['spatial_map'])
+            self.dual_regression_results[i]['normalized']['reconstruction_error'] = np.array(self.dual_regression_results[i]['normalized']['reconstruction_error'])
             self.dual_regression_results[i]['demean']['Adm'] = np.array(self.dual_regression_results[i]['demean']['Adm'])
             self.dual_regression_results[i]['demean']['spatial_mapdm'] = np.array(self.dual_regression_results[i]['demean']['spatial_mapdm'])
-            self.dual_regression_results[i]['reconstruction_error'] = np.array(self.dual_regression_results[i]['reconstruction_error'])
+            self.dual_regression_results[i]['demean']['reconstruction_error'] = np.array(self.dual_regression_results[i]['demean']['reconstruction_error'])
         
-        # Save the aggregated results for each map to its corresponding output folder.
         for i in range(num_maps):
             out_folder = self.outputfolders[i]
             if not os.path.exists(out_folder):
@@ -405,10 +417,10 @@ class DualRegress:
             
             np.save(os.path.join(out_folder, "An.npy"), self.dual_regression_results[i]['normalized']['An'])
             np.save(os.path.join(out_folder, "spatial_map.npy"), self.dual_regression_results[i]['normalized']['spatial_map'])
+            np.save(os.path.join(out_folder, "reconstruction_error_norm.npy"), self.dual_regression_results[i]['normalized']['reconstruction_error'])
             np.save(os.path.join(out_folder, "Adm.npy"), self.dual_regression_results[i]['demean']['Adm'])
             np.save(os.path.join(out_folder, "spatial_mapdm.npy"), self.dual_regression_results[i]['demean']['spatial_mapdm'])
-            np.save(os.path.join(out_folder, "reconstruction_error.npy"), self.dual_regression_results[i]['reconstruction_error'])
-            
+            np.save(os.path.join(out_folder, "reconstruction_error_dm.npy"), self.dual_regression_results[i]['demean']['reconstruction_error'])
 
 
 # import numpy as np

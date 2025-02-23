@@ -1078,6 +1078,7 @@ def spatial_t_compare(results_one, results_two, label_one="basis_one", label_two
     plt.plot(np.arange(n_maps), np.sort(np.sum(np.abs(t_thresh_one) > 0, axis=1)), '--o', label=f"{label_one} T count (p<{alpha})", color="blue", alpha=0.5)
     plt.plot(np.arange(n_maps), np.sort(np.sum(np.abs(t_thresh_two) > 0, axis=1)), '--o', label=f"{label_two} T count (p<{alpha})", color="orange", alpha=0.5)
     plt.title(f"Count of Thresholded T-values (p < {alpha}) per Component")
+    plt.legend()    
     plt.savefig(os.path.join(output_dir, "T_Value_Count.svg"), format="svg")
     plt.close()
 
@@ -1085,6 +1086,7 @@ def spatial_t_compare(results_one, results_two, label_one="basis_one", label_two
     plt.plot(np.arange(n_maps), np.sort(np.sum(np.abs(t_thresh_one), axis=1)), '--o', label=f"{label_one} T sum (p<{alpha})", color="blue", alpha=0.5)
     plt.plot(np.arange(n_maps), np.sort(np.sum(np.abs(t_thresh_two), axis=1)), '--o', label=f"{label_two} T sum (p<{alpha})", color="orange", alpha=0.5)
     plt.title(f"Sum of Thresholded T-values (p < {alpha}) per Component")
+    plt.legend() 
     plt.savefig(os.path.join(output_dir, "T_Value_sum.svg"), format="svg")
     plt.close()
 
@@ -1105,6 +1107,26 @@ def evaluate(data_set, labels, train_indx, test_indx, metric='riemann',
     test_recon_error = recon_error[test_indx]
     train_labels = labels[train_indx]
     test_labels = labels[test_indx]
+
+    if deconf:
+        n_maps = SpatialMaps_train.shape[1]
+        # Loop over each spatial map (assumed along axis 1)
+        for i in range(n_maps):
+            # Extract the i-th spatial map for training and testing
+            sm_train = SpatialMaps_train[:, i, :]  # shape: (n_subjects_train, spatial_dim)
+            sm_test = SpatialMaps_test[:, i, :]    # shape: (n_subjects_test, spatial_dim)
+            # Apply deconfounding on this map
+            sm_train_dc, sm_test_dc = deconfound(
+                sm_train,
+                con_confounder_train,
+                cat_confounder_train,
+                X_test=sm_test,
+                con_confounder_test=con_confounder_test,
+                cat_confounder_test=cat_confounder_test
+            )
+            # Replace with deconfounded maps
+            SpatialMaps_train[:, i, :] = sm_train_dc
+            SpatialMaps_test[:, i, :] = sm_test_dc
 
     recon = (train_recon_error, test_recon_error)
 

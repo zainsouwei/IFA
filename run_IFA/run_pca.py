@@ -18,37 +18,40 @@ def run_pca(outputfolder, fold_output_dir, voxel_filters_dir, batch_size=5):
             settings = json.load(f)
         
 
-        random_state = settings["random_state"]
         n_filters_per_group = settings["n_filters_per_group"]
-        a_label = settings["a_label"]
-        b_label = settings["b_label"]
+        # a_label = settings["a_label"]
+        # b_label = settings["b_label"]
 
-        labels = np.load(os.path.join(outputfolder, "labels.npy"))
-        with open(os.path.join(outputfolder, "paths.pkl"), "rb") as f:
-            paths = pickle.load(f)
+        # labels = np.load(os.path.join(outputfolder, "labels.npy"))
+        # with open(os.path.join(outputfolder, "paths.pkl"), "rb") as f:
+        #     paths = pickle.load(f)
 
-        indices_dir = os.path.join(fold_output_dir, "Indices")
-        train_idx = np.load(os.path.join(indices_dir, "train_idx.npy"))
-        train_labels = labels[train_idx]
-        train_paths = paths[train_idx]
+        # indices_dir = os.path.join(fold_output_dir, "Indices")
+        # train_idx = np.load(os.path.join(indices_dir, "train_idx.npy"))
+        # train_labels = labels[train_idx]
+        # train_paths = paths[train_idx]
 
 
         migp_dir = os.path.join(fold_output_dir, "MIGP")
-        if not os.path.exists(migp_dir):
-            os.makedirs(migp_dir)
+        # if not os.path.exists(migp_dir):
+        #     os.makedirs(migp_dir)
         
-        # last element in path list is number of timepoints, see load_subject in preprocessing
-        m = train_paths[0][-1]
-        print("Keep this many pseudotime points",m, flush=True)
-        reducedsubsA = migp(train_paths[train_labels == a_label],batch_size=batch_size,m=m)
-        reducedsubsB = migp(train_paths[train_labels == b_label],batch_size=batch_size,m=m)
-        np.save(os.path.join(migp_dir, "reducedsubsA.npy"), reducedsubsA)
-        np.save(os.path.join(migp_dir, "reducedsubsB.npy"), reducedsubsB)
-        reducedsubs = np.concatenate((reducedsubsA, reducedsubsB), axis=0)
-        np.save(os.path.join(migp_dir, "reducedsubs.npy"), reducedsubs)
-
+        ## last element in path list is number of timepoints, see load_subject in preprocessing
+        # m = train_paths[0][-1]
+        # print("Keep this many pseudotime points",m, flush=True)
+        # reducedsubsA = migp(train_paths[train_labels == a_label],batch_size=batch_size,m=m)
+        # reducedsubsB = migp(train_paths[train_labels == b_label],batch_size=batch_size,m=m)
+        # np.save(os.path.join(migp_dir, "reducedsubsA.npy"), reducedsubsA)
+        # np.save(os.path.join(migp_dir, "reducedsubsB.npy"), reducedsubsB)
+        # reducedsubs = np.concatenate((reducedsubsA, reducedsubsB), axis=0)
+        # np.save(os.path.join(migp_dir, "reducedsubs.npy"), reducedsubs)
+        
+        reducedsubsA = np.load(os.path.join(migp_dir, "reducedsubsA.npy"))
+        reducedsubsB = np.load(os.path.join(migp_dir, "reducedsubsB.npy"))
         # Now get voxel level filters using MIGP
-        voxelwise_FKT(groupA=reducedsubsA, groupB=reducedsubsB, groupA_paths=None, groupB_paths=None, 
+        voxelwise_FKT(groupA=reducedsubsA, groupB=reducedsubsB, 
+                    n_filters_per_group=n_filters_per_group, 
+                    groupA_paths=None, groupB_paths=None, 
                     paths=False,log=False,shrinkage=0.01,
                     cov_method='svd',outputfolder=voxel_filters_dir, save=False)
 

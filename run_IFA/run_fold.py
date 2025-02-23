@@ -13,7 +13,7 @@ sys.path.append('/project/3022057.01/IFA/utils')
 
 # Import necessary modules
 from analysis import evaluate, compare
-from PCA import PPCA
+from PCA import PPCA, migp
 from filters import whiten, orthonormalize_filters, save_brain
 from ICA import ICA, threshold_and_visualize
 from DualRegression import DualRegress
@@ -188,6 +188,60 @@ def run_fold(outputfolder, fold):
     save_text_results(f"  Train labels distribution: {np.bincount(labels[train_idx].astype(int))}", summary_file_path)
     save_text_results(f"  Test labels distribution: {np.bincount(labels[test_idx].astype(int))}", summary_file_path)
     save_text_results(f"  Intersection of groups: {len(intersection)} (Groups: {intersection})", summary_file_path)
+    if paired:
+        paired_train = np.array_equal(
+            sub_ID[train_idx][train_labels == a_label],
+            sub_ID[train_idx][train_labels == b_label]
+        )
+        paired_test = np.array_equal(
+            sub_ID[test_idx][test_labels == a_label],
+            sub_ID[test_idx][test_labels == b_label]
+        )
+        save_text_results(f"  Paired Across Train: {paired_train}", summary_file_path)
+        save_text_results(f"  Paired Across Test: {paired_test}", summary_file_path)
+        
+    # Run MIGP
+    migp_dir = os.path.join(fold_output_dir, "MIGP")
+    if not os.path.exists(migp_dir):
+        os.makedirs(migp_dir)
+
+    # Get Parcellated Filters
+    filters_dir = os.path.join(fold_output_dir, "Filters")
+    if not os.path.exists(filters_dir):
+        os.makedirs(filters_dir)
+    
+    # last element in path list is number of timepoints, see load_subject in preprocessing
+    m = train_paths[0][-1]
+    print("Keep this many pseudotime points", m, flush=True)
+    reducedsubsA = migp(train_paths[train_labels == a_label], m=m, n_jobs=15,batch_size=3)
+    reducedsubsB = migp(train_paths[train_labels == b_label], m=m, n_jobs=15,batch_size=3)
+    np.save(os.path.join(migp_dir, "reducedsubsA.npy"), reducedsubsA)
+    np.save(os.path.join(migp_dir, "reducedsubsB.npy"), reducedsubsB)
+    reducedsubs = np.concatenate((reducedsubsA, reducedsubsB), axis=0)
+    np.save(os.path.join(migp_dir, "reducedsubs.npy"), reducedsubs)
+
+
+    # Run the PCA job, now just to get the voxel level filters using GPU
+    voxel_filters_dir = os.path.join(filters_dir, "Voxel")
+    if not os.path.exists(voxel_filters_dir):
+        os.makedirs(voxel_filters_dir)
+
+    pca_script = "/project/3022057.01/IFA/run_IFA/run_pca.sh"
+    pca_command = [
+        "sbatch",
+        "--output", os.path.join(fold_output_dir, "pca-%j.out"),
+        "--error", os.path.join(fold_output_dir, "pca-%j.err"),
+        pca_script,
+        outputfolder, fold_output_dir, voxel_filters_dir
+    ]
+
+    pca_process = subprocess.run(pca_command, capture_output=True, text=True)
+    if pca_process.returncode != 0:
+        print(f"Error submitting PCA job: {pca_process.stderr}")
+        return
+    job_id = pca_process.stdout.strip().split()[-1]
+    print(f"PCA job submitted successfully with job ID: {job_id}")
+
 
     # Run tangent classification for measuring separability in parcellated space
     tangent_class_metrics = tangent_classification(train_covs, train_labels, test_covs, test_labels, 
@@ -200,10 +254,6 @@ def run_fold(outputfolder, fold):
         pickle.dump(tangent_class_metrics, f)   
     save_text_results("Parcellated Tangent Classification " + str(tangent_class_metrics), summary_file_path)
 
-    # Get Parcellated Filters
-    filters_dir = os.path.join(fold_output_dir, "Filters")
-    if not os.path.exists(filters_dir):
-        os.makedirs(filters_dir)
     
     # Directory for all things related to the parecllated filters
     parcellated_filters_dir = os.path.join(filters_dir, "Parcellated")
@@ -243,30 +293,7 @@ def run_fold(outputfolder, fold):
             pickle.dump(logcov_stats, f)      
     save_text_results("Log Var Filter Feature Classification " + str(logvar_stats), summary_file_path)
     save_text_results("Log Cov Filter Feature Classification " + str(logcov_stats), summary_file_path)
-  
-
-    # Run the PCA job, calculates MIGP to reduce subjects*time and uses MIGP to calculate voxel level filters
-    # Directory for all things related to the parecllated filters
-    voxel_filters_dir = os.path.join(filters_dir, "Voxel")
-    if not os.path.exists(voxel_filters_dir):
-        os.makedirs(voxel_filters_dir)
-
-    pca_script = "/project/3022057.01/IFA/run_IFA/run_pca.sh"
-    pca_command = [
-        "sbatch",
-        "--output", os.path.join(fold_output_dir, "pca-%j.out"),
-        "--error", os.path.join(fold_output_dir, "pca-%j.err"),
-        pca_script,
-        outputfolder, fold_output_dir, voxel_filters_dir
-    ]
-
-    pca_process = subprocess.run(pca_command, capture_output=True, text=True)
-    if pca_process.returncode != 0:
-        print(f"Error submitting PCA job: {pca_process.stderr}")
-        return
-    job_id = pca_process.stdout.strip().split()[-1]
-    print(f"PCA job submitted successfully with job ID: {job_id}")
-    
+      
     # While PCA Job Runs, run dual regression on parcellated filters
     filtersA_transform = filter_dual_regression(filtersA, train_data[train_labels == a_label], train_paths[train_labels == a_label],workers=15)
     filtersB_transform = filter_dual_regression(filtersB, train_data[train_labels == b_label], train_paths[train_labels == b_label],workers=15)
@@ -278,7 +305,7 @@ def run_fold(outputfolder, fold):
         save_brain(parcelvoxel_filters[:,i], f"parcelvoxel_filters{i}", parcellated_filters_dir)
 
 
-    # Wait for PCA job completion
+    # Wait for PCA job completion so can read in voxel level filters
     if not check_job_completion(job_id):
         print(f"PCA job {job_id} did not complete successfully.")
         return
@@ -287,8 +314,7 @@ def run_fold(outputfolder, fold):
     
     # after the job completes, load the relevant data
     voxel_filters = np.load(os.path.join(voxel_filters_dir, "filters.npy"))
-    migp_dir = os.path.join(fold_output_dir, "MIGP")
-    reducedsubs  = np.load(os.path.join(migp_dir, "reducedsubs.npy"))
+
 
     for nPCA in nPCA_levels:
         # Directory for resulst for basis spanned by nPCA components + fixed number of filters
@@ -322,13 +348,13 @@ def run_fold(outputfolder, fold):
         GICA_dir = os.path.join(ICA_dir, "GICA")
         if not os.path.exists(GICA_dir):
             os.makedirs(GICA_dir)
-        ICA_zmaps = PPCA_ICA(reducedsubs,basis=None, n_components=voxel_IFA_zmaps.shape[1], IFA=False, self_whiten=self_whiten,random_state=random_state,whiten_method="InvCov", output_folder=GICA_dir)
+        ICA_zmaps = PPCA_ICA(reducedsubs,basis=None, n_components=int(nPCA+2*n_filters_per_group), IFA=False, self_whiten=self_whiten,random_state=random_state,whiten_method="InvCov", output_folder=GICA_dir)
 
 
         spatial_maps = [ICA_zmaps, parcelvoxel_IFA_zmaps, voxel_IFA_zmaps]
         outputfolders = [GICA_dir, parcel_IFA_dir, voxel_IFA_dir]
 
-        sample = np.min((30,train_idx.shape[0]))
+        sample = np.min((50,train_idx.shape[0]))
         dual_regressor = DualRegress(
             subs=paths,
             spatial_maps=spatial_maps,
@@ -337,8 +363,8 @@ def run_fold(outputfolder, fold):
             workers=15,
             sample=sample,
             method="bayesian",
-            parallel_points=7,
-            parallel_subs=2,
+            parallel_points=15,
+            parallel_subs=15,
             n_calls=15,
             random_state=random_state
         )
@@ -366,7 +392,7 @@ def run_fold(outputfolder, fold):
             if not os.path.exists(nPCA_results_maps_norm):
                 os.makedirs(nPCA_results_maps_norm)
 
-            normalized_result_i = evaluate((result['normalized']['An'], result['normalized']['spatial_map'], result['reconstruction_error']), 
+            normalized_result_i = evaluate((result['normalized']['An'], result['normalized']['spatial_map'], result['normalized']['reconstruction_error']), 
                                 labels, train_idx, test_idx, 
                                 metric=metric, alpha=0.05, paired=paired, 
                                 permutations=10000, deconf=deconfound, 
@@ -381,7 +407,7 @@ def run_fold(outputfolder, fold):
             if not os.path.exists(nPCA_results_maps_unnorm):
                 os.makedirs(nPCA_results_maps_unnorm)
 
-            unnormalized_result_i = evaluate((result['demean']['Adm'], result['demean']['spatial_mapdm'], result['reconstruction_error']), 
+            unnormalized_result_i = evaluate((result['demean']['Adm'], result['demean']['spatial_mapdm'], result['demean']['reconstruction_error']), 
                     labels, train_idx, test_idx, 
                     metric=metric, alpha=0.05, paired=paired, 
                     permutations=10000, deconf=deconfound, 

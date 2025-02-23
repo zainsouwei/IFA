@@ -792,7 +792,7 @@ def save_brain(map, title, output_dir):
     ).save_as_html(os.path.join(output_dir, f"{title}.html"))
 
 
-def voxelwise_FKT(groupA=None, groupB=None, groupA_paths=None, groupB_paths=None, paths=False,log=False,shrinkage=0.01,cov_method='svd',outputfolder='Path', save=False):
+def voxelwise_FKT(groupA=None, groupB=None, n_filters_per_group=1, groupA_paths=None, groupB_paths=None, paths=False,log=False,shrinkage=0.01,cov_method='svd',outputfolder='Path', save=False):
     try:
         assert (not log) or (cov_method == 'svd'), "If log is True, then method must be 'svd'."
         if paths:
@@ -811,8 +811,8 @@ def voxelwise_FKT(groupA=None, groupB=None, groupA_paths=None, groupB_paths=None
         A_dense_adj = oas_estimator(A_dense,n_samples=A_samples,shrink=shrinkage)
         B_dense_adj = oas_estimator(B_dense,n_samples=B_samples,shrink=shrinkage)
 
-        A_eigs, A_filters = Large_FKT(A_dense_adj, B_dense_adj, n=1, LOBPCG=True,num_simulations=1000,log=log,largest=True)
-        B_eigs, B_filters = Large_FKT(B_dense_adj, A_dense_adj, n=1, LOBPCG=True,num_simulations=1000,log=log,largest=True)
+        A_eigs, A_filters = Large_FKT(A_dense_adj, B_dense_adj, n=n_filters_per_group, LOBPCG=True,num_simulations=1000,log=log,largest=True)
+        B_eigs, B_filters = Large_FKT(B_dense_adj, A_dense_adj, n=n_filters_per_group, LOBPCG=True,num_simulations=1000,log=log,largest=True)
 
         for i in range(A_filters.shape[1]):
             save_brain(A_filters[:,i].cpu().numpy(),f"A_filter{i}",outputfolder)
