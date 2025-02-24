@@ -21,4 +21,4 @@ conda activate IFAslurmv2 || { echo "Failed to activate Conda environment"; exit
 # Run the Python script with arguments
 # $1 represents the first argument (outputfolder) passed to the script
 # $2 represents the second argument (fold) passed to the script
-python /project/3022057.01/IFA/run_IFA/run_fold.py "$1" "$2"
+python /project/3022057.01/IFA/run_IFA/run_fold_partial.py "$1" "$2"

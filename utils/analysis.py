@@ -613,7 +613,6 @@ def reduce_dimensionality_torch(train_spatial_maps, test_spatial_maps, device=No
     elif device == "cuda" and not torch.cuda.is_available():
         device = "cpu"
         
-    # Convert inputs to torch tensors (if they aren’t already) and move them to the specified device.
     if not isinstance(train_spatial_maps, torch.Tensor):
         train_spatial_maps = torch.tensor(train_spatial_maps, dtype=torch.float32, device=device)
     else:
@@ -626,7 +625,6 @@ def reduce_dimensionality_torch(train_spatial_maps, test_spatial_maps, device=No
     
     n_comp = int(train_spatial_maps.shape[-1] / n)
     
-    # Optionally demean the data using the training mean.
     if demean:
         train_mean = torch.mean(train_spatial_maps, dim=0)
         train_data = train_spatial_maps - train_mean
@@ -636,8 +634,6 @@ def reduce_dimensionality_torch(train_spatial_maps, test_spatial_maps, device=No
         test_data = test_spatial_maps
 
     if svd:
-        # SVD branch: Use SVD on the (optionally demeaned) training data.
-        # Note: torch.linalg.svd returns singular values in descending order.
         _, S, Vh = torch.linalg.svd(train_data, full_matrices=False)
         # Take the top n_comp components.
         reduced_train = train_data @ Vh[:n_comp, :].T
@@ -647,13 +643,10 @@ def reduce_dimensionality_torch(train_spatial_maps, test_spatial_maps, device=No
         # EVD branch: Compute the dual covariance matrix and perform eigen-decomposition.
         cov_train = train_data @ train_data.T / train_spatial_maps.size(1)
         
-        # Perform eigenvalue decomposition. torch.linalg.eigh returns eigenvalues in ascending order.
         e, U = torch.linalg.eigh(cov_train)
         # Compute principal components in the original space using the dual formulation.
-        # We select the n_comp components with the largest eigenvalues (which are at the end).
         V = ((train_data.T @ U) / torch.sqrt(e.unsqueeze(0) + 1e-10))[:, -n_comp:]
         
-        # Project the (optionally demeaned) training and test data.
         X_train_reduced = train_data @ V
         X_test_reduced = test_data @ V
         return X_train_reduced.cpu().numpy(), X_test_reduced.cpu().numpy()
@@ -661,12 +654,13 @@ def reduce_dimensionality_torch(train_spatial_maps, test_spatial_maps, device=No
 def spatial_discrimination(train_maps, train_labels, test_maps, test_labels,methods=[1,2,4,5],metric="riemann",visualize=True,outputfolder=None,basis="IFA"):
     # Note for method 1, 2, & 4 Vt == U.T, This is just done so the same code can be used for the grassmann dist
     #           which operates on two different subspaces where U != V
-    
+    classifier_model = "SVM (C=0.1)"
     # First look at accuracy of individual maps that span the subspace
     map_accs = []
     for i in range(train_maps.shape[1]):
-        train_map_reduced, test_map_reduced = reduce_dimensionality_torch(train_maps[:, i, :], test_maps[:, i, :], device=None, n=100, svd=True, demean=True)
-        results = linear_classifier(train_map_reduced, train_labels, test_map_reduced, test_labels, clf_str='Logistic Regression', z_score=1)
+        # train_map_reduced, test_map_reduced = reduce_dimensionality_torch(train_maps[:, i, :], test_maps[:, i, :], device=None, n=100, svd=True, demean=True)
+        # results = linear_classifier(train_map_reduced, train_labels, test_map_reduced, test_labels, clf_str='Logistic Regression', z_score=1)
+        results = linear_classifier(train_maps[:, i, :], train_labels, test_maps[:, i, :], test_labels, clf_str=classifier_model, z_score=1)
         map_accs.append(results)
 
     # Compute the maximum separating directions within that subspace based on different heurstics
@@ -704,8 +698,9 @@ def spatial_discrimination(train_maps, train_labels, test_maps, test_labels,meth
             proj_train_labels = np.hstack((np.ones(groupA_train.shape[0]),np.zeros(groupB_train.shape[0])))
             test_proj = np.vstack((U[:,i].T@groupA_test, Vt[i,:]@groupB_test))
             proj_test_labels = np.hstack((np.ones(groupA_test.shape[0]),np.zeros(groupB_test.shape[0])))
-            train_reduced,test_reduced = reduce_dimensionality_torch(train_proj, test_proj, device=None, n=100, svd=True, demean=True)
-            direction_results = linear_classifier(train_reduced, proj_train_labels, test_reduced, proj_test_labels, clf_str='Logistic Regression', z_score=1)
+            # train_reduced,test_reduced = reduce_dimensionality_torch(train_proj, test_proj, device=None, n=100, svd=True, demean=True)
+            # direction_results = linear_classifier(train_reduced, proj_train_labels, test_reduced, proj_test_labels, clf_str='Logistic Regression', z_score=1)
+            direction_results = linear_classifier(train_proj, proj_train_labels, test_proj, proj_test_labels, clf_str=classifier_model, z_score=1)            
             accs.append(direction_results)
 
         discrim_dir_acc[method] = accs

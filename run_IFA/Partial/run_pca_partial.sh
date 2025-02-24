@@ -1,9 +1,8 @@
 #!/bin/bash
-#SBATCH --partition=batch                       
-#SBATCH --mem=250G                             
-#SBATCH --time=15:00:00
-#SBATCH --ntasks 1     
-#SBATCH --cpus-per-task=15                 
+#SBATCH --partition=gpu                       # Use the GPU partition
+#SBATCH --gpus=nvidia_a100_80gb_pcie:1        # Request 1 NVIDIA A100 GPU 80GB
+#SBATCH --mem=150G                             # Total memory for the job
+#SBATCH --time=10:00:00                       
 
 # Set ulimit to change the soft limit for virtual memory and data segment size
 ulimit -v unlimited  # Remove the soft limit on virtual memory
@@ -18,7 +17,7 @@ module load anaconda3 || { echo "Failed to load Anaconda module"; exit 1; }
 eval "$(conda shell.bash hook)"
 conda activate IFAslurmv2 || { echo "Failed to activate Conda environment"; exit 1; }
 
-# Run the Python script with arguments
-# $1 represents the first argument (outputfolder) passed to the script
-# $2 represents the second argument (fold) passed to the script
-python /project/3022057.01/IFA/run_IFA/run_fold.py "$1" "$2"
+# Run the PCA Python script with the arguments passed from sbatch
+python /project/3022057.01/IFA/run_IFA/run_pca_partial.py "$1" "$2" "$3"|| { echo "Failed to run PCA script"; exit 1; }
+
+echo "PCA job completed successfully."
