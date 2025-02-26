@@ -242,17 +242,16 @@ def var_diff(train_data, train_covs, train_labels, test_data, test_labels, metri
             plt.close('all')
     return np.array(results)
 
-def reconstruction_plot(IFA_recon, ICA_recon,label="Train",output_dir="path"):
+def reconstruction_plot(label1_recon, label2_recon, label1="Label 1", label2="Label 2", output_dir="path"):
     plt.figure(figsize=(10, 6))
-    sns.kdeplot(IFA_recon, label=f'IFA {label} Reconstruction Error', color='blue', fill=True, alpha=0.3)
-    sns.kdeplot(ICA_recon, label=f'ICA {label} Reconstruction Error', color='orange', fill=True, alpha=0.3)
+    sns.kdeplot(label1_recon, label=f'{label1} Reconstruction Error', color='blue', fill=True, alpha=0.3)
+    sns.kdeplot(label2_recon, label=f'{label2} Reconstruction Error', color='orange', fill=True, alpha=0.3)
     plt.xlabel('% of Original Data Variance Explained by Reconstructing Subject Data from Group Spatial Maps')
     plt.ylabel('Frequency')
-    plt.title(f'Distribution of IFA and ICA {label} Reconstruction Errors')
+    plt.title(f'Distribution of {label1} and {label2} Reconstruction Errors')
     plt.legend()
-    plt.savefig(os.path.join(output_dir, f'{label}_reconstruction.svg'))
+    plt.savefig(os.path.join(output_dir, f'{label1}_{label2}_reconstruction.svg'))
     plt.close('all')
-
 
 
 
@@ -712,50 +711,45 @@ def spatial_discrimination(train_maps, train_labels, test_maps, test_labels,meth
     
     return (map_accs,discrim_dir_acc,discrim_dir)
 
-def spatial_comparison_vis(IFA_results, ICA_results, outputfolder=None, basis="IFA_vs_ICA"):
-    """
-    Compares classification results for IFA (blue) and ICA (gold) across different classifiers and dimensionality reduction methods.
-    Generates separate histograms and scatter plots for:
-      - Map accuracy (IFA vs. ICA)
-      - Discriminative accuracy (IFA vs. ICA)
 
-    Parameters:
-        IFA_results: tuple of (map_accs, discrim_dir_acc, discrim_dir) for IFA
-        ICA_results: tuple of (map_accs, discrim_dir_acc, discrim_dir) for ICA
-        outputfolder: str, optional, folder to save plots (default: None)
-        basis: str, optional, name prefix for saved plots (default: "IFA_vs_ICA")
+def spatial_comparison_vis(results_one, results_two, label_one="Label 1", label_two="Label 2", outputfolder=None, basis="comparison"):
     """
+    Compare spatial discrimination results from two methods using the provided labels.
     
-    # Unpack results
-    IFA_map_accs, IFA_discrim_dir_acc, _ = IFA_results
-    ICA_map_accs, ICA_discrim_dir_acc, _ = ICA_results
+    Parameters:
+      - results_one: Tuple containing map accuracies and discriminative accuracies for the first method.
+      - results_two: Tuple containing map accuracies and discriminative accuracies for the second method.
+      - label_one, label_two: Descriptive names for the two methods.
+      - outputfolder: Directory to save the SVG plots.
+      - basis: Basis string used in file names.
+    """
+    map_accs_one, discrim_dir_acc_one, _ = results_one
+    map_accs_two, discrim_dir_acc_two, _ = results_two
     
     # Extract classifier names and methods
-    clf_names = list(IFA_map_accs[0].keys())  
-    methods = list(IFA_discrim_dir_acc.keys())  
-
+    clf_names = list(map_accs_one[0].keys())  
+    methods = list(discrim_dir_acc_one.keys())  
+    
     # Define colors
-    IFA_color = "blue"
-    ICA_color = "orange"
+    color1 = "blue"
+    color2 = "orange"
 
     for clf in clf_names:
         for method in methods:
 
-            ### ======= MAP ACCURACY PLOTS (IFA vs. ICA) ======= ###
+            ### ======= MAP ACCURACY PLOTS (Comparison) ======= ###
             fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-
             # Prepare data
-            IFA_data_map = [res[clf]['accuracy'] for res in IFA_map_accs]
-            ICA_data_map = [res[clf]['accuracy'] for res in ICA_map_accs]
+            data_one_map = [res[clf]['accuracy'] for res in map_accs_one]
+            data_two_map = [res[clf]['accuracy'] for res in map_accs_two]
 
             # Histogram (Map Accuracy)
             ax = axes[0]
-            sns.histplot(IFA_data_map, bins=20, color=IFA_color, alpha=0.5, label="IFA", ax=ax)
-            sns.histplot(ICA_data_map, bins=20, color=ICA_color, alpha=0.5, label="ICA", ax=ax)
+            sns.histplot(data_one_map, bins=20, color=color1, alpha=0.5, label=label_one, ax=ax)
+            sns.histplot(data_two_map, bins=20, color=color2, alpha=0.5, label=label_two, ax=ax)
             
-            ax.axvline(np.mean(IFA_data_map), color=IFA_color, linestyle="--", linewidth=2, label=f"IFA Mean: {np.mean(IFA_data_map):.2f}")
-            ax.axvline(np.mean(ICA_data_map), color=ICA_color, linestyle="--", linewidth=2, label=f"ICA Mean: {np.mean(ICA_data_map):.2f}")
-            
+            ax.axvline(np.mean(data_one_map), color=color1, linestyle="--", linewidth=2, label=f"{label_one} Mean: {np.mean(data_one_map):.2f}")
+            ax.axvline(np.mean(data_two_map), color=color2, linestyle="--", linewidth=2, label=f"{label_two} Mean: {np.mean(data_two_map):.2f}")
             ax.set_title(f"Histogram - {clf} (Method {method}) - Map Accuracy")
             ax.set_xlabel("Accuracy")
             ax.set_ylabel("Frequency")
@@ -763,21 +757,18 @@ def spatial_comparison_vis(IFA_results, ICA_results, outputfolder=None, basis="I
 
             # Scatter Plot (Sorted map accuracy values)
             ax = axes[1]
-            sorted_ifa_map = np.sort(IFA_data_map)
-            sorted_ica_map = np.sort(ICA_data_map)
-
-            ax.plot(range(len(sorted_ifa_map)), sorted_ifa_map, 'o--', alpha=0.6, color=IFA_color, label="IFA")
-            ax.plot(range(len(sorted_ica_map)), sorted_ica_map, 'o--', alpha=0.6, color=ICA_color, label="ICA")
-
-            ax.set_xticks(range(len(sorted_ifa_map)))
-            ax.set_xlabel("Sorted Instances")
+            sorted_one = np.sort(data_one_map)
+            sorted_two = np.sort(data_two_map)
+            ax.plot(range(len(sorted_one)), sorted_one, 'o--', alpha=0.6, color=color1, label=label_one)
+            ax.plot(range(len(sorted_two)), sorted_two, 'o--', alpha=0.6, color=color2, label=label_two)
+            ax.set_xticks(range(len(sorted_one)))
+            ax.set_xlabel("Maps Ordered by Classifcation Accuracy")
             ax.set_title(f"Scatter Plot - {clf} (Method {method}) - Map Accuracy")
             ax.set_ylabel("Accuracy")
             ax.legend()
+            ax.grid(True)  # Add grid lines to the scatter plot
 
             plt.tight_layout()
-
-            # Save Map Accuracy Plots
             if outputfolder:
                 if not os.path.exists(outputfolder):
                     os.makedirs(outputfolder)
@@ -788,43 +779,34 @@ def spatial_comparison_vis(IFA_results, ICA_results, outputfolder=None, basis="I
                 plt.show()
             plt.close(fig)
 
-            ### ======= DISCRIMINATIVE ACCURACY PLOTS (IFA vs. ICA) ======= ###
+            ### ======= DISCRIMINATIVE ACCURACY PLOTS (Comparison) ======= ###
             fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-
-            # Prepare data
-            IFA_data_disc = [res[clf]['accuracy'] for res in IFA_discrim_dir_acc[method]]
-            ICA_data_disc = [res[clf]['accuracy'] for res in ICA_discrim_dir_acc[method]]
-
-            # Histogram (Discriminative Accuracy)
+            data_one_disc = [res[clf]['accuracy'] for res in discrim_dir_acc_one[method]]
+            data_two_disc = [res[clf]['accuracy'] for res in discrim_dir_acc_two[method]]
+            
             ax = axes[0]
-            sns.histplot(IFA_data_disc, bins=20, color=IFA_color, alpha=0.6, label="IFA", ax=ax)
-            sns.histplot(ICA_data_disc, bins=20, color=ICA_color, alpha=0.6, label="ICA", ax=ax)
-            
-            ax.axvline(np.mean(IFA_data_disc), color=IFA_color, linestyle="--", alpha=0.6, linewidth=2, label=f"IFA Mean: {np.mean(IFA_data_disc):.2f}")
-            ax.axvline(np.mean(ICA_data_disc), color=ICA_color, linestyle="--", alpha=0.6, linewidth=2, label=f"ICA Mean: {np.mean(ICA_data_disc):.2f}")
-            
+            sns.histplot(data_one_disc, bins=20, color=color1, alpha=0.6, label=label_one, ax=ax)
+            sns.histplot(data_two_disc, bins=20, color=color2, alpha=0.6, label=label_two, ax=ax)
+            ax.axvline(np.mean(data_one_disc), color=color1, linestyle="--", alpha=0.6, linewidth=2, label=f"{label_one} Mean: {np.mean(data_one_disc):.2f}")
+            ax.axvline(np.mean(data_two_disc), color=color2, linestyle="--", alpha=0.6, linewidth=2, label=f"{label_two} Mean: {np.mean(data_two_disc):.2f}")
             ax.set_title(f"Histogram - {clf} (Method {method}) - Discriminative Accuracy")
             ax.set_xlabel("Accuracy")
             ax.set_ylabel("Frequency")
             ax.legend()
 
-            # Scatter Plot (Sorted discriminative accuracy values)
             ax = axes[1]
-            sorted_ifa_disc = np.sort(IFA_data_disc)
-            sorted_ica_disc = np.sort(ICA_data_disc)
-
-            ax.plot(range(len(sorted_ifa_disc)), sorted_ifa_disc, 'o--', alpha=0.6, color=IFA_color, label="IFA")
-            ax.plot(range(len(sorted_ica_disc)), sorted_ica_disc, 'o--', alpha=0.6, color=ICA_color, label="ICA")
-
-            ax.set_xticks(range(len(sorted_ifa_disc)))
-            ax.set_xlabel("Sorted Instances")
+            sorted_one_disc = np.sort(data_one_disc)
+            sorted_two_disc = np.sort(data_two_disc)
+            ax.plot(range(len(sorted_one_disc)), sorted_one_disc, 'o--', alpha=0.6, color=color1, label=label_one)
+            ax.plot(range(len(sorted_two_disc)), sorted_two_disc, 'o--', alpha=0.6, color=color2, label=label_two)
+            ax.set_xticks(range(len(sorted_one_disc)))
+            ax.set_xlabel("Maps Ordered by Classifcation Accuracy")
             ax.set_title(f"Scatter Plot - {clf} (Method {method}) - Discriminative Accuracy")
             ax.set_ylabel("Accuracy")
             ax.legend()
+            ax.grid(True)  # Add grid lines to the scatter plot
 
             plt.tight_layout()
-
-            # Save Discriminative Accuracy Plots
             if outputfolder:
                 plot_path = os.path.join(outputfolder, f"{basis}_{clf}_Method_{method}_Discriminative_Accuracy.svg")
                 plt.savefig(plot_path, format="svg")
@@ -1197,8 +1179,8 @@ def evaluate(data_set, labels, train_indx, test_indx, metric='riemann',
 
 def compare(results_one, results_two, label_one="basis_one", label_two="basis_two", alpha=0.05, output_dir="path"):
     # Generate reconstruction plots
-    reconstruction_plot(results_one["recon"][0], results_two["recon"][0], label="Train",output_dir=output_dir)
-    reconstruction_plot(results_one["recon"][1], results_two["recon"][1], label="Test",output_dir=output_dir)
+    reconstruction_plot(results_one["recon"][0], results_two["recon"][0], label1=f"Train {label_one}", label2=f"Train {label_two}", output_dir=output_dir)
+    reconstruction_plot(results_one["recon"][1], results_two["recon"][1], label1=f"Test {label_one}", label2=f"Test {label_two}", output_dir=output_dir)
 
     # Scatter plots for FKT dimensions
     scatter_with_lines(results_one["var_results"][:, [0, 2]], results_two["var_results"][:, [0, 2]], 
@@ -1233,7 +1215,7 @@ def compare(results_one, results_two, label_one="basis_one", label_two="basis_tw
                        title='Netmat_Tangent_Classifier_Accuracies',
                        output_dir=output_dir)
     
-    spatial_comparison_vis(results_one["Spatial_discrim"], results_two["Spatial_discrim"], outputfolder=output_dir, basis=f"{label_one}_vs_{label_two}")
+    spatial_comparison_vis(results_one["Spatial_discrim"], results_two["Spatial_discrim"], label_one=label_one, label_two=label_two, outputfolder=output_dir, basis=f"{label_one}_vs_{label_two}")
     
     spatial_t_test_dir_compare = os.path.join(output_dir,"spatial_T_test_compare")
     if not os.path.exists(spatial_t_test_dir_compare):
@@ -1245,233 +1227,3 @@ def compare(results_one, results_two, label_one="basis_one", label_two="basis_tw
     if not os.path.exists(spatial_t_test_discrim_dir_compare):
         os.makedirs(spatial_t_test_discrim_dir_compare)
     spatial_t_compare(results_one["Spatial_t_test_discrim"], results_two["Spatial_t_test_discrim"], label_one=label_one, label_two=label_two, alpha=alpha,output_dir=spatial_t_test_discrim_dir_compare)
-
-
-# def compare_maps(ifa_maps, ica_maps, testlabels, perm=10000, alpha=0.05, paired=True, cluster=False, TFCE=None , all_maps=True, random_seed=42,output_dir=None):
-
-#     IFA_t_vals, IFA_p_vals = spatial_t_test(ifa_maps, testlabels, paired=paired, cluster=cluster, TFCE=TFCE ,perm=perm, all_maps=all_maps, random_seed=random_seed)
-#     ICA_t_vals, ICA_p_vals = spatial_t_test(ica_maps, testlabels, paired=paired, cluster=cluster, TFCE=TFCE ,perm=perm, all_maps=all_maps, random_seed=random_seed)
-#     np.save(os.path.join(output_dir, "IFA_p_vals.npy"), IFA_p_vals)
-#     np.save(os.path.join(output_dir, "ICA_p_vals.npy"), ICA_p_vals)
-#     np.save(os.path.join(output_dir, "IFA_t_vals.npy"), IFA_t_vals)
-#     np.save(os.path.join(output_dir, "ICA_t_vals.npy"), ICA_t_vals)
-
-#     # return T_obs, clusters, cluster_p_values, H0
-#     IFA_p_vals_log = -np.log(IFA_p_vals)
-#     ICA_p_vals_log = -np.log(ICA_p_vals)
-
-#     n_maps = IFA_p_vals_log.shape[0]
-
-#     view_surf(
-#         surf_mesh=hcp.mesh.inflated,
-#         surf_map=hcp.cortex_data(np.max(IFA_p_vals_log, axis=0)),
-#         bg_map=hcp.mesh.sulc,
-#         title=f"IFA -log(p) max: {np.sum(np.max(IFA_p_vals_log, axis=0))}",
-#         vmin=0, 
-#         vmax=np.max(np.max(IFA_p_vals_log, axis=0)),
-#         symmetric_cmap=False,
-#         cmap='inferno',
-#     ).save_as_html(os.path.join(output_dir, "IFA_logp_max.html"))
-
-#     view_surf(
-#         surf_mesh=hcp.mesh.inflated,
-#         surf_map=hcp.cortex_data(np.max(IFA_p_vals < alpha, axis=0)),
-#         bg_map=hcp.mesh.sulc,
-#         title=f"IFA Count Significant (max): {np.sum(np.max(IFA_p_vals < alpha, axis=0))}",
-#     ).save_as_html(os.path.join(output_dir, "IFA_sig.html"))
-
-#     view_surf(
-#         surf_mesh=hcp.mesh.inflated,
-#         surf_map=hcp.cortex_data(np.max(ICA_p_vals_log, axis=0)),
-#         bg_map=hcp.mesh.sulc,
-#         title=f"ICA -log(p) max: {np.sum(np.max(ICA_p_vals_log, axis=0))}",
-#         vmin=0, 
-#         vmax=np.max(np.max(ICA_p_vals_log, axis=0)),
-#         symmetric_cmap=False,
-#         cmap='inferno',
-#     ).save_as_html(os.path.join(output_dir, "ICA_logp_max.html"))
-
-#     view_surf(
-#         surf_mesh=hcp.mesh.inflated,
-#         surf_map=hcp.cortex_data(np.max(ICA_p_vals < alpha, axis=0)),
-#         bg_map=hcp.mesh.sulc,
-#         title=f"ICA Count Significant (max): {np.sum(np.max(ICA_p_vals < alpha, axis=0))}",
-#     ).save_as_html(os.path.join(output_dir, "ICA_sig.html"))
-
-#     view_surf(
-#         surf_mesh=hcp.mesh.inflated,
-#         surf_map=hcp.cortex_data(np.max(IFA_p_vals_log, axis=0) - np.max(ICA_p_vals_log, axis=0)),
-#         bg_map=hcp.mesh.sulc,
-#         title=f"Difference in -log(p): {np.sum(np.max(IFA_p_vals_log, axis=0) - np.max(ICA_p_vals_log, axis=0))}",
-#         # vmin=0, 
-#         # vmax=np.max(np.sum(np.max(IFA_p_vals_log, axis=0) - np.max(ICA_p_vals_log, axis=0))),
-#         # symmetric_cmap=False,
-#     ).save_as_html(os.path.join(output_dir, "IFA_minus_ICA_logp_max.html"))
-
-#     view_surf(
-#         surf_mesh=hcp.mesh.inflated,
-#         surf_map=hcp.cortex_data((np.sum((IFA_p_vals < alpha), axis=0) > 0) & ~(np.sum((ICA_p_vals < alpha), axis=0) > 0)),
-#         bg_map=hcp.mesh.sulc,
-#         title=f"IFA & ~ICA: {np.sum((np.sum((IFA_p_vals < alpha), axis=0) > 0) & ~(np.sum((ICA_p_vals < alpha), axis=0) > 0))}",
-#     ).save_as_html(os.path.join(output_dir, "IFA_notICA.html"))
-
-#     view_surf(
-#         surf_mesh=hcp.mesh.inflated,
-#         surf_map=hcp.cortex_data(~(np.sum((IFA_p_vals < alpha), axis=0) > 0) & (np.sum((ICA_p_vals < alpha), axis=0) > 0)),
-#         bg_map=hcp.mesh.sulc,
-#         title=f"~IFA & ICA: {np.sum(~(np.sum((IFA_p_vals < alpha), axis=0) > 0) & (np.sum((ICA_p_vals < alpha), axis=0) > 0))}",
-#     ).save_as_html(os.path.join(output_dir, "ICA_notIFA.html"))
-
-#     plt.plot(np.arange(n_maps), np.sort(np.sum((IFA_p_vals < alpha), axis=1)), '--o', label="IFA", color="blue", alpha=0.5)
-#     plt.plot(np.arange(n_maps), np.sort(np.sum((ICA_p_vals < alpha), axis=1)), '--o', label="ICA", color="orange", alpha=0.5)
-#     plt.title("Significance Count (p < 0.05)")
-#     plt.legend()
-#     plt.savefig(os.path.join(output_dir, "Significance_Count.svg"), format="svg")
-#     plt.close()
-
-#     plt.plot(np.arange(n_maps), np.sort(np.sum((IFA_p_vals_log), axis=1)), '--o', label="IFA", color="blue", alpha=0.5)
-#     plt.plot(np.arange(n_maps), np.sort(np.sum((ICA_p_vals_log), axis=1)), '--o', label="ICA", color="orange", alpha=0.5)
-#     plt.title("-log(p) Value Count")
-#     plt.legend()
-#     plt.savefig(os.path.join(output_dir, "LogP_Value_Count.svg"), format="svg")
-#     plt.close()
-#     # Visualizations and Plots for T-values (Thresholded by p < 0.05)
-
-#     # Reshape the t-values in the same way.
-#     IFA_t_thresh = IFA_t_vals.copy()
-#     IFA_t_thresh[IFA_p_vals >= 0.05] = 0
-    
-#     ICA_t_thresh = ICA_t_vals.copy()
-#     ICA_t_thresh[ICA_p_vals >= 0.05] = 0
-
-
-#     view_surf(
-#         surf_mesh=hcp.mesh.inflated,
-#         surf_map=hcp.cortex_data(np.max(np.abs(IFA_t_thresh), axis=0)),
-#         bg_map=hcp.mesh.sulc,
-#         title=f"Thresholded IFA T-values (max abs): {np.sum(np.max(np.abs(IFA_t_thresh), axis=0))}",
-#         vmin=0, 
-#         # vmax=np.max(np.sum(np.max(np.abs(IFA_t_thresh), axis=0))),
-#         symmetric_cmap=False,
-#         cmap='inferno',
-#     ).save_as_html(os.path.join(output_dir, "IFA_T_val.html"))
-
-#     view_surf(
-#         surf_mesh=hcp.mesh.inflated,
-#         surf_map=hcp.cortex_data(np.max(np.abs(ICA_t_thresh), axis=0)),
-#         bg_map=hcp.mesh.sulc,
-#         title=f"Thresholded ICA T-values (max abs): {np.sum(np.max(np.abs(ICA_t_thresh), axis=0))}",
-#         vmin=0, 
-#         # vmax=np.max(np.sum(np.max(np.abs(ICA_t_thresh), axis=0))),
-#         symmetric_cmap=False,
-#         cmap='inferno',
-#     ).save_as_html(os.path.join(output_dir, "ICA_T_val.html"))
-
-#     view_surf(
-#         surf_mesh=hcp.mesh.inflated,
-#         surf_map=hcp.cortex_data(np.max(np.abs(IFA_t_thresh), axis=0) - np.max(np.abs(ICA_t_thresh), axis=0)),
-#         bg_map=hcp.mesh.sulc,
-#         title=f"Difference in Thresholded T-values (IFA - ICA): {np.sum(np.max(np.abs(IFA_t_thresh), axis=0) - np.max(np.abs(ICA_t_thresh), axis=0))}",
-#         # vmin=0, 
-#         # vmax=np.max(np.max(np.abs(IFA_t_thresh), axis=0) - np.max(np.abs(ICA_t_thresh), axis=0)),
-#         # symmetric_cmap=False,
-#     ).save_as_html(os.path.join(output_dir, "T_val_diff.html"))
-
-#     # Plot the number (count) of nonzero (i.e. significant) t-values per component
-#     plt.plot(np.arange(n_maps), np.sort(np.sum(np.abs(IFA_t_thresh) > 0, axis=1)), '--o', label="IFA T count (p<0.05)", color="blue", alpha=0.5)
-#     plt.plot(np.arange(n_maps), np.sort(np.sum(np.abs(ICA_t_thresh) > 0, axis=1)), '--o', label="ICA T count (p<0.05)", color="orange", alpha=0.5)
-#     plt.title("Count of Thresholded T-values (p < 0.05) per Component")
-#     plt.savefig(os.path.join(output_dir, "T_Value_Count.svg"), format="svg")
-#     plt.close()
-
-#     # Plot the sum of thresholded absolute t-values per component
-#     plt.plot(np.arange(n_maps), np.sort(np.sum(np.abs(IFA_t_thresh), axis=1)), '--o', label="IFA T sum (p<0.05)", color="blue", alpha=0.5)
-#     plt.plot(np.arange(n_maps), np.sort(np.sum(np.abs(ICA_t_thresh), axis=1)), '--o', label="ICA T sum (p<0.05)", color="orange", alpha=0.5)
-#     plt.title("Sum of Thresholded T-values (p < 0.05) per Component")
-#     plt.savefig(os.path.join(output_dir, "T_Value_sum.svg"), format="svg")
-#     plt.close()
-
-#     return IFA_p_vals, ICA_p_vals
-
-
-# def evaluate_IFA_results(IFA, ICA, train_labels, test_labels, alpha=.05, permutations=False, paired=True, metric='riemann', deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None,output_dir="path",random_seed=42):
-#     IFA_A_train, IFA_SpatialMaps_train, IFA_train_recon_error, IFA_A_test, IFA_SpatialMaps_test, IFA_test_recon_error = IFA
-#     ICA_A_train, ICA_SpatialMaps_train, ICA_train_recon_error, ICA_A_test, ICA_SpatialMaps_test, ICA_test_recon_error = ICA
-#     IFA_recon = (IFA_train_recon_error, IFA_test_recon_error)
-#     ICA_recon = (ICA_train_recon_error, ICA_test_recon_error)
-    
-#     cov_est = Covariances(estimator='oas')
-#     IFA_Netmats_train = cov_est.transform(np.transpose(IFA_A_train, (0, 2, 1)))
-#     IFA_Netmats_test = cov_est.transform(np.transpose(IFA_A_test, (0, 2, 1)))
-#     ICA_Netmats_train = cov_est.transform(np.transpose(ICA_A_train, (0, 2, 1)))
-#     ICA_Netmats_test = cov_est.transform(np.transpose(ICA_A_test, (0, 2, 1)))
-
-#     # Generate reconstruction plots
-#     reconstruction_plot(IFA_train_recon_error, ICA_train_recon_error, label="Train",output_dir=output_dir)
-#     reconstruction_plot(IFA_test_recon_error, ICA_test_recon_error, label="Test",output_dir=output_dir)
-
-#     # Calculate var_diff and create scatter plots
-#     IFA_var_results = var_diff(IFA_A_train, IFA_Netmats_train, train_labels, IFA_A_test, test_labels, metric=metric, method='log-var', basis="IFA", deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,output_dir=output_dir)
-#     ICA_var_results = var_diff(ICA_A_train, ICA_Netmats_train, train_labels, ICA_A_test, test_labels, metric=metric, method='log-var', basis="ICA", deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,output_dir=output_dir)
-    
-#     # Scatter plots for FKT dimensions
-#     scatter_with_lines(IFA_var_results[:, [0, 2]], ICA_var_results[:, [0, 2]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='SVM Accuracy', title='Accuracies_Across_FKT_Dimensions_(log-var)',output_dir=output_dir)
-#     scatter_with_lines(IFA_var_results[:, [0, 1]], ICA_var_results[:, [0, 1]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='Riemannian Distance', title='Distance_of_Group_Means_Across_FKT_Dimensions_(log-var)',output_dir=output_dir)
-
-#     # Repeat for log-cov method
-#     IFA_cov_results = var_diff(IFA_A_train, IFA_Netmats_train, train_labels, IFA_A_test, test_labels, metric=metric, method='log-cov', basis="IFA", deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,output_dir=output_dir)
-#     ICA_cov_results = var_diff(ICA_A_train, ICA_Netmats_train, train_labels, ICA_A_test, test_labels, metric=metric, method='log-cov', basis="ICA", deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,output_dir=output_dir)
-
-#     scatter_with_lines(IFA_cov_results[:, [0, 2]], ICA_cov_results[:, [0, 2]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='SVM Accuracy', title='Accuracies_Across_FKT_Dimensions_(log-cov)',output_dir=output_dir)
-#     scatter_with_lines(IFA_cov_results[:, [0, 1]], ICA_cov_results[:, [0, 1]], label1='IFA', label2='ICA', xlabel='Number of FKT Filters', ylabel='Riemannian Distance', title='Distance_of_Group_Means_Across_FKT_Dimensions_(log-cov)',output_dir=output_dir)
-
-#     # Classification results
-#     IFA_Class_Result = tangent_classification(IFA_Netmats_train, train_labels, IFA_Netmats_test, test_labels, clf_str='all', z_score=0, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
-#     ICA_Class_Result = tangent_classification(ICA_Netmats_train, train_labels, ICA_Netmats_test, test_labels, clf_str='all', z_score=0, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
-
-#     # Scatter plot for classifier accuracies
-#     scatter_with_lines(IFA_Class_Result, ICA_Class_Result, label1='IFA', label2='ICA', xlabel='Classifiers', ylabel='Accuracies', title='Netmat_Tangent_Classifier_Accuracies',output_dir=output_dir)
-
-#     # T-test results
-#     IFA_t_test = tangent_t_test(IFA_Netmats_train, IFA_Netmats_test, test_labels, alpha=alpha, paired=paired, permutations=permutations, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test, output_dir=output_dir, basis="IFA",random_seed=random_seed)
-#     ICA_t_test = tangent_t_test(ICA_Netmats_train, ICA_Netmats_test, test_labels, alpha=alpha, paired=paired, permutations=permutations, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test, output_dir=output_dir, basis="ICA",random_seed=random_seed)
-    
-#     # Spatial map visualization
-#     IFA_spatial_results = spatial_discrimination(IFA_SpatialMaps_train, train_labels, IFA_SpatialMaps_test, test_labels,methods=[2],metric=metric,visualize=True,outputfolder=output_dir,basis="IFA")
-#     ICA_spatial_results = spatial_discrimination(ICA_SpatialMaps_train, train_labels, ICA_SpatialMaps_test, test_labels,methods=[2],metric=metric,visualize=True,outputfolder=output_dir,basis="ICA")
-#     spatial_comparison_vis(IFA_spatial_results, ICA_spatial_results, outputfolder=output_dir, basis="IFA_vs_ICA")
-
-#     U_IFA, _ = spatial_fda(IFA_SpatialMaps_train, train_labels,within=True)
-#     U_ICA, _ = spatial_fda(ICA_SpatialMaps_train, train_labels,within=True)
-
-#     spatial_t_test_dir = os.path.join(output_dir,"spatial_T_test")
-#     if not os.path.exists(spatial_t_test_dir):
-#         os.makedirs(spatial_t_test_dir)
-#     _, _ = compare_maps(IFA_SpatialMaps_test,ICA_SpatialMaps_test, test_labels, perm=permutations, alpha=alpha, paired=paired, cluster=False, TFCE=None , all_maps=True, random_seed=random_seed, output_dir=spatial_t_test_dir)
-   
-#     spatial_t_test_discrim = os.path.join(output_dir,"spatial_T_test_discrim")
-#     if not os.path.exists(spatial_t_test_discrim):
-#         os.makedirs(spatial_t_test_discrim)
-
-#     _, _ = compare_maps(U_IFA.T@IFA_SpatialMaps_test,U_ICA.T@ICA_SpatialMaps_test, test_labels, perm=permutations, alpha=alpha, paired=paired, cluster=False, TFCE=None , all_maps=True, random_seed=random_seed, output_dir=spatial_t_test_discrim)
-
-#     IFA_results = {
-#         "IFA_var_results": IFA_var_results,
-#         "IFA_cov_results": IFA_cov_results,
-#         "IFA_Class_Result": IFA_Class_Result,
-#         "IFA_t_test": IFA_t_test,
-#         "IFA_recon": IFA_recon,
-#         "IFA_Spatial": IFA_spatial_results
-#     }
-
-#     ICA_results = {
-#         "ICA_var_results": ICA_var_results,
-#         "ICA_cov_results": ICA_cov_results,
-#         "ICA_Class_Result": ICA_Class_Result,
-#         "ICA_t_test": ICA_t_test,
-#         "ICA_recon": ICA_recon,
-#         "ICA_Spatial": ICA_spatial_results
-#     }
-
-#     return IFA_results, ICA_results
-

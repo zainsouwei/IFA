@@ -233,7 +233,7 @@ def run_fold(outputfolder, fold):
     if not os.path.exists(voxel_filters_dir):
         os.makedirs(voxel_filters_dir)
 
-    pca_script = "/project/3022057.01/IFA/run_IFA/run_pca_partial.sh"
+    pca_script = "/project/3022057.01/IFA/run_IFA/Partial/run_pca_partial.sh"
     pca_command = [
         "sbatch",
         "--output", os.path.join(fold_output_dir, "pca-%j.out"),
