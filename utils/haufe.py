@@ -90,3 +90,50 @@ def filter_dual_regression(F, parcellated,paths,workers=20):
         # Use map to process subjects in parallel
         blocks = np.array(list(executor.map(process_subject_haufe, paths,pinv_TF_list)))
         return (blocks.sum(axis=0))
+    
+
+####################### For Partialing Out #######################
+def process_subject_haufe_partial(sub, pinv_TF, vt):
+    try:
+        # Load raw subject data.
+        Xn = load_subject(sub)
+        # Partial out vt from the raw data.
+        Xn_partial = Xn - (Xn @ np.linalg.pinv(vt)) @ vt
+        # Apply the dual regression mapping.
+        Xpf = pinv_TF @ Xn_partial
+        return Xpf
+    except Exception as e:
+        print(f"Error processing subject {sub}: {e}")
+        raise
+
+def partial_filter_dual_regression(F, parcellated, paths, vt, workers=20):
+    """
+    Map the filters F from parcel space to vertex (CIFTI) space.
+    
+    Parameters:
+      - F: Filters in parcel space.
+      - parcellated: The parcellated data used to compute the transformation.
+      - paths: List of subject file paths.
+      - vt: The major eigenspace basis to partial out.
+      - workers: Number of parallel workers.
+    
+    Returns:
+      - The aggregated transformation across subjects.
+    """
+    # Compute the transformation matrix using the parcellated data and F.
+    pinv_TF = np.linalg.pinv(parcellated.reshape(-1, parcellated.shape[-1]) @ np.linalg.pinv(F.T))
+    
+    # Split pinv_TF along the column dimension into as many blocks as there are subjects.
+    pinv_TF_list = np.array_split(pinv_TF, len(paths), axis=1)
+    
+    # Create a partial function so that vt is fixed for every subject.
+    import functools
+    func = functools.partial(process_subject_haufe_partial, vt=vt)
+    
+    with ProcessPoolExecutor(max_workers=workers) as executor:
+        # Map over subject paths and corresponding pinv_TF blocks.
+        results = list(executor.map(func, paths, pinv_TF_list))
+    
+    # Aggregate the results (here, summing along the subject axis; adjust if needed)
+    aggregated = np.array(results).sum(axis=0)
+    return aggregated

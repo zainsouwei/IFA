@@ -651,64 +651,6 @@ def reduce_dimensionality_torch(train_spatial_maps, test_spatial_maps, device=No
         return X_train_reduced.cpu().numpy(), X_test_reduced.cpu().numpy()
 
 def spatial_discrimination(train_maps, train_labels, test_maps, test_labels,methods=[1,2,4,5],metric="riemann",visualize=True,outputfolder=None,basis="IFA"):
-    # Note for method 1, 2, & 4 Vt == U.T, This is just done so the same code can be used for the grassmann dist
-    #           which operates on two different subspaces where U != V
-    classifier_model = "SVM (C=0.1)"
-    # First look at accuracy of individual maps that span the subspace
-    map_accs = []
-    for i in range(train_maps.shape[1]):
-        # train_map_reduced, test_map_reduced = reduce_dimensionality_torch(train_maps[:, i, :], test_maps[:, i, :], device=None, n=100, svd=True, demean=True)
-        # results = linear_classifier(train_map_reduced, train_labels, test_map_reduced, test_labels, clf_str='Logistic Regression', z_score=1)
-        results = linear_classifier(train_maps[:, i, :], train_labels, test_maps[:, i, :], test_labels, clf_str=classifier_model, z_score=1)
-        map_accs.append(results)
-
-    # Compute the maximum separating directions within that subspace based on different heurstics
-    discrim_dir_acc = {}   # key: method code, value: list of accuracy result dicts (one per projection direction)
-    discrim_dir = {}       # key: method code, value: (U, Vt)
-    for method in methods:
-        # Maximize Between Class Distance Measured via Euclidean Distance
-        if method == 1:
-            U, Vt = spatial_fda(train_maps, train_labels,within=False)
-         # Maximize Between Class Distance and Minimize Within Class Spread Measured via Euclidean Distance
-        elif method == 2:
-            U, Vt = spatial_fda(train_maps, train_labels,within=True)
-        # Sparse Maximization of Between Class Distance Measured via Euclidean Distance
-        elif method == 3:
-            U, Vt = sparse_spatial_dist(train_maps, train_labels,n_components=None,alpha=.01,batch_size=100)
-        # Maximizition of Between Class Distance Measure via Cosine Similarity (i.e., Maximize Subspace Angles)
-        elif method == 4:
-            U, Vt = grassmann_dist(train_maps,train_labels)
-        # CSP (Maximize Distance Between Class Average Covariances)
-        elif method == 5:
-            cov_est = Covariances(estimator='oas')
-            train_covs = cov_est.transform(train_maps)
-            eigs, U, _, _ = TSSF(train_covs, train_labels, clf_str='Logistic Regression', metric=metric, deconf=False, con_confounder_train=None, cat_confounder_train=None, z_score=0, haufe=False, visualize=False, output_dir=None)
-            U = U[:,np.argsort(eigs)]
-            Vt = U.T
-
-        groupA_train = train_maps[train_labels==1]
-        groupB_train = train_maps[train_labels==0]
-
-        groupA_test = test_maps[test_labels==1]
-        groupB_test = test_maps[test_labels==0]
-        accs = []
-        for i in range(train_maps.shape[1]):
-            train_proj = np.vstack((U[:,i].T@groupA_train, Vt[i,:]@groupB_train))
-            proj_train_labels = np.hstack((np.ones(groupA_train.shape[0]),np.zeros(groupB_train.shape[0])))
-            test_proj = np.vstack((U[:,i].T@groupA_test, Vt[i,:]@groupB_test))
-            proj_test_labels = np.hstack((np.ones(groupA_test.shape[0]),np.zeros(groupB_test.shape[0])))
-            # train_reduced,test_reduced = reduce_dimensionality_torch(train_proj, test_proj, device=None, n=100, svd=True, demean=True)
-            # direction_results = linear_classifier(train_reduced, proj_train_labels, test_reduced, proj_test_labels, clf_str='Logistic Regression', z_score=1)
-            direction_results = linear_classifier(train_proj, proj_train_labels, test_proj, proj_test_labels, clf_str=classifier_model, z_score=1)            
-            accs.append(direction_results)
-
-        discrim_dir_acc[method] = accs
-        discrim_dir[method] = (U, Vt)
-
-    if visualize:
-        spatial_vis(map_accs, discrim_dir_acc,outputfolder=outputfolder,basis=basis)
-    
-    
     return (map_accs,discrim_dir_acc,discrim_dir)
 
 
@@ -1003,11 +945,16 @@ def spatial_analysis(maps,labels,perm=10000, alpha=0.05, paired=True, cluster=Fa
 
     return (t_vals, p_vals, p_vals_log, t_thresh)
 
-def spatial_t_compare(results_one, results_two, label_one="basis_one", label_two="basis_two", alpha=0.05,output_dir=None):
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+
+def spatial_t_compare(results_one, results_two, label_one="basis_one", label_two="basis_two", alpha=0.05, output_dir=None):
     t_vals_one, p_vals_one, p_vals_log_one, t_thresh_one = results_one
     t_vals_two, p_vals_two, p_vals_log_two, t_thresh_two = results_two
     n_maps = p_vals_one.shape[0]
 
+    # --- Existing Surface Visualizations ---
     view_surf(
         surf_mesh=hcp.mesh.inflated,
         surf_map=hcp.cortex_data(np.max(p_vals_log_one, axis=0) - np.max(p_vals_log_two, axis=0)),
@@ -1029,21 +976,62 @@ def spatial_t_compare(results_one, results_two, label_one="basis_one", label_two
         title=f"~{label_one} & {label_two}: {np.sum(~(np.sum((p_vals_one < alpha), axis=0) > 0) & (np.sum((p_vals_two < alpha), axis=0) > 0))}",
     ).save_as_html(os.path.join(output_dir, f"{label_two}_not{label_one}.html"))
 
-    plt.plot(np.arange(n_maps), np.sort(np.sum((p_vals_one < alpha), axis=1)), '--o', label=f"{label_one}", color="blue", alpha=0.5)
-    plt.plot(np.arange(n_maps), np.sort(np.sum((p_vals_two < alpha), axis=1)), '--o', label=f"{label_two}", color="orange", alpha=0.5)
-    plt.title(f"Significance Count (p < {alpha})")
+    # --- Cumulative and Per-Map Scatter Plots with Shaded Regions and Grid Lines ---
+    x = np.arange(n_maps)
+
+    # Plot: Significance Count (p < alpha)
+    sig_counts_one = np.sum((p_vals_one < alpha), axis=1)
+    sig_counts_two = np.sum((p_vals_two < alpha), axis=1)
+    sorted_sig_counts_one = np.sort(sig_counts_one)
+    sorted_sig_counts_two = np.sort(sig_counts_two)
+    cum_sig_counts_one = np.cumsum(sorted_sig_counts_one)
+    cum_sig_counts_two = np.cumsum(sorted_sig_counts_two)
+
+    plt.figure(figsize=(8, 6))
+    plt.plot(x, sorted_sig_counts_one, '--o', label=f"{label_one} (per map)", color="blue", alpha=0.5)
+    plt.plot(x, sorted_sig_counts_two, '--o', label=f"{label_two} (per map)", color="orange", alpha=0.5)
+    plt.plot(x, cum_sig_counts_one, '-s', label=f"{label_one} (cumulative)", color="blue", alpha=1)
+    plt.plot(x, cum_sig_counts_two, '-s', label=f"{label_two} (cumulative)", color="orange", alpha=1)
+    plt.title(f"Significance Count (p < {alpha}) per Map & Cumulative")
+    plt.xlabel("Map Index")
+    plt.ylabel("Count of Significant Vertices")
+    plt.grid(True)
+    # Annotate final cumulative sum values in the upper right of the axes
+    plt.text(0.95, 0.95, f"{label_one} total: {cum_sig_counts_one[-1]}", transform=plt.gca().transAxes,
+             fontsize=10, color="blue", ha="right", va="top")
+    plt.text(0.95, 0.90, f"{label_two} total: {cum_sig_counts_two[-1]}", transform=plt.gca().transAxes,
+             fontsize=10, color="orange", ha="right", va="top")
     plt.legend()
     plt.savefig(os.path.join(output_dir, "Significance_Count.svg"), format="svg")
     plt.close()
 
-    plt.plot(np.arange(n_maps), np.sort(np.sum((p_vals_log_one), axis=1)), '--o', label=f"{label_one}", color="blue", alpha=0.5)
-    plt.plot(np.arange(n_maps), np.sort(np.sum((p_vals_log_two), axis=1)), '--o', label=f"{label_two}", color="orange", alpha=0.5)
-    plt.title("-log(p) Value Count")
+    # Plot: -log(p) Value Sum
+    logp_sum_one = np.sum(p_vals_log_one, axis=1)
+    logp_sum_two = np.sum(p_vals_log_two, axis=1)
+    sorted_logp_sum_one = np.sort(logp_sum_one)
+    sorted_logp_sum_two = np.sort(logp_sum_two)
+    cum_logp_sum_one = np.cumsum(sorted_logp_sum_one)
+    cum_logp_sum_two = np.cumsum(sorted_logp_sum_two)
+
+    plt.figure(figsize=(8, 6))
+    plt.plot(x, sorted_logp_sum_one, '--o', label=f"{label_one} (per map)", color="blue", alpha=0.5)
+    plt.plot(x, sorted_logp_sum_two, '--o', label=f"{label_two} (per map)", color="orange", alpha=0.5)
+    plt.plot(x, cum_logp_sum_one, '-s', label=f"{label_one} (cumulative)", color="blue", alpha=1)
+    plt.plot(x, cum_logp_sum_two, '-s', label=f"{label_two} (cumulative)", color="orange", alpha=1)
+    plt.title("-log(p) Value Sum per Map & Cumulative")
+    plt.xlabel("Map Index")
+    plt.ylabel("-log(p) Sum")
+    plt.grid(True)
+    # Annotate final cumulative sum values
+    plt.text(0.95, 0.95, f"{label_one} total: {cum_logp_sum_one[-1]:.2f}", transform=plt.gca().transAxes,
+             fontsize=10, color="blue", ha="right", va="top")
+    plt.text(0.95, 0.90, f"{label_two} total: {cum_logp_sum_two[-1]:.2f}", transform=plt.gca().transAxes,
+             fontsize=10, color="orange", ha="right", va="top")
     plt.legend()
-    plt.savefig(os.path.join(output_dir, "LogP_Value_Count.svg"), format="svg")
+    plt.savefig(os.path.join(output_dir, "LogP_Value_Sum.svg"), format="svg")
     plt.close()
 
-
+    # Surface view for difference in thresholded T-values remains unchanged
     view_surf(
         surf_mesh=hcp.mesh.inflated,
         surf_map=hcp.cortex_data(np.max(np.abs(t_thresh_one), axis=0) - np.max(np.abs(t_thresh_two), axis=0)),
@@ -1051,21 +1039,58 @@ def spatial_t_compare(results_one, results_two, label_one="basis_one", label_two
         title=f"Difference in Thresholded T-values ({label_one} - {label_two}): {np.sum(np.max(np.abs(t_thresh_one), axis=0) - np.max(np.abs(t_thresh_two), axis=0))}",
     ).save_as_html(os.path.join(output_dir, "T_val_diff.html"))
 
-    # Plot the number (count) of nonzero (i.e. significant) t-values per component
-    plt.plot(np.arange(n_maps), np.sort(np.sum(np.abs(t_thresh_one) > 0, axis=1)), '--o', label=f"{label_one} T count (p<{alpha})", color="blue", alpha=0.5)
-    plt.plot(np.arange(n_maps), np.sort(np.sum(np.abs(t_thresh_two) > 0, axis=1)), '--o', label=f"{label_two} T count (p<{alpha})", color="orange", alpha=0.5)
-    plt.title(f"Count of Thresholded T-values (p < {alpha}) per Component")
+    # Plot: Count of Thresholded T-values (nonzero values)
+    t_count_one = np.sum(np.abs(t_thresh_one) > 0, axis=1)
+    t_count_two = np.sum(np.abs(t_thresh_two) > 0, axis=1)
+    sorted_t_count_one = np.sort(t_count_one)
+    sorted_t_count_two = np.sort(t_count_two)
+    cum_t_count_one = np.cumsum(sorted_t_count_one)
+    cum_t_count_two = np.cumsum(sorted_t_count_two)
+
+    plt.figure(figsize=(8, 6))
+    plt.plot(x, sorted_t_count_one, '--o', label=f"{label_one} T count (p<{alpha})", color="blue", alpha=0.5)
+    plt.plot(x, sorted_t_count_two, '--o', label=f"{label_two} T count (p<{alpha})", color="orange", alpha=0.5)
+    plt.plot(x, cum_t_count_one, '-s', label=f"{label_one} T count (cumulative)", color="blue", alpha=1)
+    plt.plot(x, cum_t_count_two, '-s', label=f"{label_two} T count (cumulative)", color="orange", alpha=1)
+    plt.title(f"Count of Thresholded T-values (p < {alpha}) per Component & Cumulative")
+    plt.xlabel("Map Index")
+    plt.ylabel("Count of Nonzero T-values")
+    plt.grid(True)
+    # Annotate final cumulative sum values
+    plt.text(0.95, 0.95, f"{label_one} total: {cum_t_count_one[-1]}", transform=plt.gca().transAxes,
+             fontsize=10, color="blue", ha="right", va="top")
+    plt.text(0.95, 0.90, f"{label_two} total: {cum_t_count_two[-1]}", transform=plt.gca().transAxes,
+             fontsize=10, color="orange", ha="right", va="top")
     plt.legend()    
     plt.savefig(os.path.join(output_dir, "T_Value_Count.svg"), format="svg")
     plt.close()
 
-    # Plot the sum of thresholded absolute t-values per component
-    plt.plot(np.arange(n_maps), np.sort(np.sum(np.abs(t_thresh_one), axis=1)), '--o', label=f"{label_one} T sum (p<{alpha})", color="blue", alpha=0.5)
-    plt.plot(np.arange(n_maps), np.sort(np.sum(np.abs(t_thresh_two), axis=1)), '--o', label=f"{label_two} T sum (p<{alpha})", color="orange", alpha=0.5)
-    plt.title(f"Sum of Thresholded T-values (p < {alpha}) per Component")
+    # Plot: Sum of Thresholded T-values
+    t_sum_one = np.sum(np.abs(t_thresh_one), axis=1)
+    t_sum_two = np.sum(np.abs(t_thresh_two), axis=1)
+    sorted_t_sum_one = np.sort(t_sum_one)
+    sorted_t_sum_two = np.sort(t_sum_two)
+    cum_t_sum_one = np.cumsum(sorted_t_sum_one)
+    cum_t_sum_two = np.cumsum(sorted_t_sum_two)
+
+    plt.figure(figsize=(8, 6))
+    plt.plot(x, sorted_t_sum_one, '--o', label=f"{label_one} T sum (p<{alpha})", color="blue", alpha=0.5)
+    plt.plot(x, sorted_t_sum_two, '--o', label=f"{label_two} T sum (p<{alpha})", color="orange", alpha=0.5)
+    plt.plot(x, cum_t_sum_one, '-s', label=f"{label_one} T sum (cumulative)", color="blue", alpha=1)
+    plt.plot(x, cum_t_sum_two, '-s', label=f"{label_two} T sum (cumulative)", color="orange", alpha=1)
+    plt.title(f"Sum of Thresholded T-values (p < {alpha}) per Component & Cumulative")
+    plt.xlabel("Map Index")
+    plt.ylabel("Sum of |T| values")
+    plt.grid(True)
+    # Annotate final cumulative sum values
+    plt.text(0.95, 0.95, f"{label_one} total: {cum_t_sum_one[-1]:.2f}", transform=plt.gca().transAxes,
+             fontsize=10, color="blue", ha="right", va="top")
+    plt.text(0.95, 0.90, f"{label_two} total: {cum_t_sum_two[-1]:.2f}", transform=plt.gca().transAxes,
+             fontsize=10, color="orange", ha="right", va="top")
     plt.legend() 
     plt.savefig(os.path.join(output_dir, "T_Value_sum.svg"), format="svg")
     plt.close()
+
 
 
 

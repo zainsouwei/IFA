@@ -8,6 +8,9 @@ import time
 import pickle
 import hcp_utils as hcp
 from pyriemann.estimation import Covariances
+import traceback
+from concurrent.futures import ProcessPoolExecutor, TimeoutError
+import functools
 
 # Add the path to custom modules
 sys.path.append('/project/3022057.01/IFA/utils')
@@ -20,7 +23,8 @@ from ICA import ICA, threshold_and_visualize
 from DualRegression import DualRegress
 from filters import TSSF, FKT, evaluate_filters
 from tangent import tangent_classification
-from haufe import filter_dual_regression
+from haufe import partial_filter_dual_regression
+from preprocessing import load_subject
 
 def save_text_results(text, filepath):
     """Save text results to a file."""
@@ -44,6 +48,52 @@ def check_job_completion(job_id):
         
         # Sleep for a bit before checking again
         time.sleep(120)  # Poll every 120 seconds
+
+def partiallate_subject(sub, vt):
+    try:
+        # Load and normalize the subject data.
+        normalized_subject = load_subject(sub)
+        # Remove the projection onto vt.
+        partialled_subject = normalized_subject - (normalized_subject @ np.linalg.pinv(vt)) @ vt
+        del normalized_subject  # free memory
+        # Parcellate the residual data.
+        Xp = hcp.parcellate(partialled_subject, hcp.mmp)
+        del partialled_subject
+        # Demean and normalize (if desired)
+        Xp = hcp.normalize(Xp - Xp.mean(axis=1, keepdims=True))
+        return Xp
+    except Exception as e:
+        print(f"Error processing subject {sub}: {e}")
+        traceback.print_exc()
+        # Crash the entire pipeline if any subject fails.
+        raise
+
+def partiallate_subjects(paths, vt, output_dir, n_workers=20):
+    try:
+        # Create a function that always uses the same vt.
+        func = functools.partial(partiallate_subject, vt=vt)
+        with ProcessPoolExecutor(max_workers=n_workers) as executor:
+            # Map over the list of subject paths. Results will be in the same order.
+            partiallated_data_list = list(executor.map(func, paths))
+        
+        # Convert the list to a NumPy array.
+        partial_data = np.array(partiallated_data_list)
+        data_save_path = os.path.join(output_dir, "partiallated_data.npy")
+        np.save(data_save_path, partial_data)
+        print(f"Partiallated data saved to {data_save_path}")
+        
+        # Compute covariances.
+        cov_est = Covariances(estimator='oas')
+        partial_covs = cov_est.transform(partial_data.transpose(0, 2, 1))
+        covs_save_path = os.path.join(output_dir, "partiallated_covs.npy")
+        np.save(covs_save_path, partial_covs)
+        print(f"Covariances saved to {covs_save_path}")
+        
+        return partial_data, partial_covs
+    except Exception as e:
+        print(f"Error in parcellation process: {e}")
+        traceback.print_exc()
+        raise  # Re-raise the error so the process crashes.
 
 def major_recon_discrim(discrim_basis, major_space,output_folder):
     try:
@@ -142,8 +192,6 @@ def run_fold(outputfolder, fold):
     # Load numpy files
     sub_ID = np.load(os.path.join(outputfolder, "Sub_ID.npy"))
     labels = np.load(os.path.join(outputfolder, "labels.npy"))
-    data = np.load(os.path.join(outputfolder, "data.npy"))
-    covs = np.load(os.path.join(outputfolder, "covs.npy"))
 
     # Load Fold Specific Vairables
     fold_output_dir = os.path.join(outputfolder, f"fold_{fold}")
@@ -157,13 +205,9 @@ def run_fold(outputfolder, fold):
 
     # Prepare data for train and test sets
     train_labels = labels[train_idx]
-    train_data = data[train_idx]
-    train_covs = covs[train_idx]
     train_paths = paths[train_idx]
 
     test_labels = labels[test_idx]
-    test_data = data[test_idx]
-    test_covs = covs[test_idx]
   
     if deconfound:
         with open(os.path.join(outputfolder, "cat_confounders.pkl"), "rb") as f:
@@ -205,11 +249,6 @@ def run_fold(outputfolder, fold):
     migp_dir = os.path.join(fold_output_dir, "MIGP")
     if not os.path.exists(migp_dir):
         os.makedirs(migp_dir)
-
-    # Get Parcellated Filters
-    filters_dir = os.path.join(fold_output_dir, "Filters")
-    if not os.path.exists(filters_dir):
-        os.makedirs(filters_dir)
     
     # last element in path list is number of timepoints, see load_subject in preprocessing
     m = train_paths[0][-1]
@@ -221,118 +260,124 @@ def run_fold(outputfolder, fold):
     reducedsubs = np.concatenate((reducedsubsA, reducedsubsB), axis=0)
     np.save(os.path.join(migp_dir, "reducedsubs.npy"), reducedsubs)
     
-    # TODO make compatible for more levels
-    # Calculate the major eigenspace for the ICA basis
-    _, vt = PPCA(reducedsubs.copy(), threshold=0.0, niters=1, n=nPCA_levels[0])
-    np.save(os.path.join(filters_dir, f"vt_{nPCA_levels[0]}.npy"), vt)
-    # TODO make compatible for more levels
-       
-
-    # Run the PCA job, now just to get the voxel level filters using GPU
-    voxel_filters_dir = os.path.join(filters_dir, "Voxel")
-    if not os.path.exists(voxel_filters_dir):
-        os.makedirs(voxel_filters_dir)
-
-    pca_script = "/project/3022057.01/IFA/run_IFA/Partial/run_pca_partial.sh"
-    pca_command = [
-        "sbatch",
-        "--output", os.path.join(fold_output_dir, "pca-%j.out"),
-        "--error", os.path.join(fold_output_dir, "pca-%j.err"),
-        pca_script,
-        outputfolder, fold_output_dir, voxel_filters_dir
-    ]
-
-    pca_process = subprocess.run(pca_command, capture_output=True, text=True)
-    if pca_process.returncode != 0:
-        print(f"Error submitting PCA job: {pca_process.stderr}")
-        return
-    job_id = pca_process.stdout.strip().split()[-1]
-    print(f"PCA job submitted successfully with job ID: {job_id}")
-
-
-    # Run tangent classification for measuring separability in parcellated space
-    tangent_class_metrics = tangent_classification(train_covs, train_labels, test_covs, test_labels, 
-                           clf_str='all', z_score=0, metric=metric, deconf=deconfound, 
-                           con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
-                           con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders)
-    
-    # Save those tangent classification results to overall fold results directory
-    with open(os.path.join(fold_results, "tangent_class_metrics.pkl"), "wb") as f:
-        pickle.dump(tangent_class_metrics, f)   
-    save_text_results("Parcellated Tangent Classification " + str(tangent_class_metrics), summary_file_path)
-
-    
-    # Directory for all things related to the parecllated filters
-    parcellated_filters_dir = os.path.join(filters_dir, "Parcellated")
-    if not os.path.exists(parcellated_filters_dir):
-        os.makedirs(parcellated_filters_dir)
-    # Partial Data 
-    parc_vt = hcp.parcellate(vt,hcp.mmp)
-    data_partial = data - (data@np.linalg.pinv(parc_vt))@parc_vt
-    cov_est = Covariances(estimator='oas')
-    covs_partial_train = cov_est.transform(data_partial.transpose(0, 2, 1))[train_idx]
-    if tangent_class:
-        eigs, filters_all, W, C = TSSF(covs_partial_train, train_labels, 
-                                       clf_str=tan_class_model, metric=metric, deconf=deconfound, 
-                                       con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
-                                       z_score=0, haufe=False, visualize=True, output_dir=parcellated_filters_dir)
-    else:
-        eigs, filters_all = FKT(covs_partial_train, train_labels, 
-                                metric=metric, deconf=deconfound, 
-                                con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
-                                visualize=True, output_dir=parcellated_filters_dir)
-    
-    filtersA = filters_all[:, -n_filters_per_group:]
-    filtersB = filters_all[:, :n_filters_per_group]
-    filters_parcellated = np.concatenate((filtersB, filtersA), axis=1)
-
-    np.save(os.path.join(parcellated_filters_dir, "filtersA.npy"), filtersA)
-    np.save(os.path.join(parcellated_filters_dir, "filtersB.npy"), filtersB)
-    np.save(os.path.join(parcellated_filters_dir, "filters_parcellated.npy"), filters_parcellated)
-    for i in range(filters_parcellated.shape[1]):
-        save_brain(hcp.unparcellate(filters_parcellated[:,i],hcp.mmp), f"parcellated_filter_{i}", parcellated_filters_dir)
-
-    # Evaluate filters and save those results to overall fold results directory
-    logvar_stats, logcov_stats = evaluate_filters(train_data, train_labels, test_data, test_labels, 
-                                                    filters_parcellated, metric=metric, deconf=deconfound, 
-                                                    con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
-                                                    con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,output_dir=parcellated_filters_dir)
-
-    with open(os.path.join(fold_results, "logvar_stats.pkl"), "wb") as f:
-            pickle.dump(logvar_stats, f)     
-    with open(os.path.join(fold_results, "logcov_stats.pkl"), "wb") as f:
-            pickle.dump(logcov_stats, f)      
-    save_text_results("Log Var Filter Feature Classification " + str(logvar_stats), summary_file_path)
-    save_text_results("Log Cov Filter Feature Classification " + str(logcov_stats), summary_file_path)
-      
-    # While PCA Job Runs, run dual regression on parcellated filters
-    filtersA_transform = filter_dual_regression(filtersA, train_data[train_labels == a_label], train_paths[train_labels == a_label],workers=15)
-    filtersB_transform = filter_dual_regression(filtersB, train_data[train_labels == b_label], train_paths[train_labels == b_label],workers=15)
-    np.save(os.path.join(parcellated_filters_dir, "A_filters_haufe.npy"), filtersA_transform)
-    np.save(os.path.join(parcellated_filters_dir, "B_filters_haufe.npy"), filtersB_transform)
-    parcelvoxel_filters = orthonormalize_filters(filtersA_transform, filtersB_transform)
-    np.save(os.path.join(parcellated_filters_dir, "filters.npy"), parcelvoxel_filters)
-    for i in range(parcelvoxel_filters.shape[1]):
-        save_brain(parcelvoxel_filters[:,i], f"parcelvoxel_filters{i}", parcellated_filters_dir)
-
-
-    # Wait for PCA job completion so can read in voxel level filters
-    if not check_job_completion(job_id):
-        print(f"PCA job {job_id} did not complete successfully.")
-        return
-    print(f"PCA job {job_id} completed successfully.")
-
-    
-    # after the job completes, load the relevant data
-    voxel_filters = np.load(os.path.join(voxel_filters_dir, "filters.npy"))
-
-
     for nPCA in nPCA_levels:
         # Directory for resulst for basis spanned by nPCA components + fixed number of filters
         nPCA_dir = os.path.join(fold_output_dir, f"nPCA_{nPCA}")
         if not os.path.exists(nPCA_dir):
             os.makedirs(nPCA_dir)
         
+        # Get Parcellated Filters
+        filters_dir = os.path.join(nPCA_dir, "Filters")
+        if not os.path.exists(filters_dir):
+            os.makedirs(filters_dir)
+
+        _, vt = PPCA(reducedsubs.copy(), threshold=0.0, niters=1, n=nPCA)
+        np.save(os.path.join(filters_dir, f"vt.npy"), vt)
+        
+        # Run the PCA job, now just to get the voxel level filters using GPU
+        voxel_filters_dir = os.path.join(filters_dir, "Voxel")
+        if not os.path.exists(voxel_filters_dir):
+            os.makedirs(voxel_filters_dir)
+
+        pca_script = "/project/3022057.01/IFA/run_IFA/Partial/run_pca_partial.sh"
+        pca_command = [
+            "sbatch",
+            "--output", os.path.join(fold_output_dir, "pca-%j.out"),
+            "--error", os.path.join(fold_output_dir, "pca-%j.err"),
+            pca_script,
+            outputfolder, fold_output_dir, voxel_filters_dir
+        ]
+
+        pca_process = subprocess.run(pca_command, capture_output=True, text=True)
+        if pca_process.returncode != 0:
+            print(f"Error submitting PCA job: {pca_process.stderr}")
+            return
+        job_id = pca_process.stdout.strip().split()[-1]
+        print(f"PCA job submitted successfully with job ID: {job_id}")
+
+        # Need to partial the data before parcellating; partial then parcellate each subject
+        partial_data, partial_covs = partiallate_subjects(paths, vt, output_dir=filters_dir, n_workers=15)
+
+        # Then split into train and test using your indices:
+        partial_train_data = partial_data[train_idx]
+        partial_test_data  = partial_data[test_idx]
+
+        partial_train_covs = partial_covs[train_idx]
+        partial_test_covs  = partial_covs[test_idx]
+
+
+        # Run tangent classification for measuring separability in parcellated space
+        tangent_class_metrics = tangent_classification(partial_train_covs, train_labels, partial_test_covs, test_labels, 
+                            clf_str='all', z_score=0, metric=metric, deconf=deconfound, 
+                            con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
+                            con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders)
+        
+        # Save those tangent classification results to overall fold results directory
+        with open(os.path.join(filters_dir, "tangent_class_metrics.pkl"), "wb") as f:
+            pickle.dump(tangent_class_metrics, f)   
+        save_text_results("Parcellated Tangent Classification " + str(tangent_class_metrics), summary_file_path)
+
+        
+        # Directory for all things related to the parecllated filters
+        parcellated_filters_dir = os.path.join(filters_dir, "Parcellated")
+        if not os.path.exists(parcellated_filters_dir):
+            os.makedirs(parcellated_filters_dir)
+
+        if tangent_class:
+            eigs, filters_all, W, C = TSSF(partial_train_covs, train_labels, 
+                                        clf_str=tan_class_model, metric=metric, deconf=deconfound, 
+                                        con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
+                                        z_score=0, haufe=False, visualize=True, output_dir=parcellated_filters_dir)
+        else:
+            eigs, filters_all = FKT(partial_train_covs, train_labels, 
+                                    metric=metric, deconf=deconfound, 
+                                    con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
+                                    visualize=True, output_dir=parcellated_filters_dir)
+        
+        filtersA = filters_all[:, -n_filters_per_group:]
+        filtersB = filters_all[:, :n_filters_per_group]
+        filters_parcellated = np.concatenate((filtersB, filtersA), axis=1)
+
+        np.save(os.path.join(parcellated_filters_dir, "filtersA.npy"), filtersA)
+        np.save(os.path.join(parcellated_filters_dir, "filtersB.npy"), filtersB)
+        np.save(os.path.join(parcellated_filters_dir, "filters_parcellated.npy"), filters_parcellated)
+        for i in range(filters_parcellated.shape[1]):
+            save_brain(hcp.unparcellate(filters_parcellated[:,i],hcp.mmp), f"parcellated_filter_{i}", parcellated_filters_dir)
+
+        # Evaluate filters and save those results to overall fold results directory
+        logvar_stats, logcov_stats = evaluate_filters(partial_train_data, train_labels, partial_test_data, test_labels, 
+                                                        filters_parcellated, metric=metric, deconf=deconfound, 
+                                                        con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
+                                                        con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,output_dir=parcellated_filters_dir)
+
+        with open(os.path.join(filters_dir, "logvar_stats.pkl"), "wb") as f:
+                pickle.dump(logvar_stats, f)     
+        with open(os.path.join(filters_dir, "logcov_stats.pkl"), "wb") as f:
+                pickle.dump(logcov_stats, f)      
+        save_text_results("Log Var Filter Feature Classification " + str(logvar_stats), summary_file_path)
+        save_text_results("Log Cov Filter Feature Classification " + str(logcov_stats), summary_file_path)
+        
+        # While PCA Job Runs, run dual regression on parcellated filters
+        filtersA_transform = partial_filter_dual_regression(filtersA, partial_train_data[train_labels == a_label], train_paths[train_labels == a_label], vt, workers=15)
+        filtersB_transform = partial_filter_dual_regression(filtersB, partial_train_data[train_labels == b_label], train_paths[train_labels == b_label], vt, workers=15)
+
+        np.save(os.path.join(parcellated_filters_dir, "A_filters_haufe.npy"), filtersA_transform)
+        np.save(os.path.join(parcellated_filters_dir, "B_filters_haufe.npy"), filtersB_transform)
+        parcelvoxel_filters = orthonormalize_filters(filtersA_transform, filtersB_transform)
+        np.save(os.path.join(parcellated_filters_dir, "filters.npy"), parcelvoxel_filters)
+        for i in range(parcelvoxel_filters.shape[1]):
+            save_brain(parcelvoxel_filters[:,i], f"parcelvoxel_filters{i}", parcellated_filters_dir)
+
+        # Wait for PCA job completion so can read in voxel level filters
+        if not check_job_completion(job_id):
+            print(f"PCA job {job_id} did not complete successfully.")
+            return
+        print(f"PCA job {job_id} completed successfully.")
+
+        
+        # after the job completes, load the relevant data
+        voxel_filters = np.load(os.path.join(voxel_filters_dir, "filters.npy"))
+
         # Calculate the overlap between retained major eigenspace and discriminant subspace
         major_recon_discrim(parcelvoxel_filters, vt, parcellated_filters_dir)
         major_recon_discrim(voxel_filters, vt, voxel_filters_dir)
@@ -361,7 +406,7 @@ def run_fold(outputfolder, fold):
         spatial_maps = [ICA_zmaps, parcelvoxel_IFA_zmaps, voxel_IFA_zmaps]
         outputfolders = [GICA_dir, parcel_IFA_dir, voxel_IFA_dir]
 
-        sample = np.min((50,train_idx.shape[0]))
+        sample = np.min((100,train_idx.shape[0]))
         dual_regressor = DualRegress(
             subs=paths,
             spatial_maps=spatial_maps,

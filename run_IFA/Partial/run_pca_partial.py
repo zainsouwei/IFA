@@ -9,7 +9,7 @@ import json
 # End of save block
 from PCA import migp, PPCA
 import numpy as np
-from filters import voxelwise_FKT_partial
+from filters import voxelwise_FKT
 
 
 def run_pca(outputfolder, fold_output_dir, voxel_filters_dir, batch_size=5):
@@ -49,16 +49,18 @@ def run_pca(outputfolder, fold_output_dir, voxel_filters_dir, batch_size=5):
         reducedsubsA = np.load(os.path.join(migp_dir, "reducedsubsA.npy"))
         reducedsubsB = np.load(os.path.join(migp_dir, "reducedsubsB.npy"))
         
-        filters_dir = os.path.join(fold_output_dir, "Filters")
-        nPCA_levels = settings["nPCA_levels"]
-        vt = np.load(os.path.join(filters_dir, f"vt_{nPCA_levels[0]}.npy"))
+        filters_dir = os.path.dirname(voxel_filters_dir)
+        vt = np.load(os.path.join(filters_dir, "vt.npy"))
 
-        # Now get voxel level filters using MIGP
-        voxelwise_FKT_partial(groupA=reducedsubsA, groupB=reducedsubsB, vt=vt,
-                    n_filters_per_group=n_filters_per_group, 
-                    groupA_paths=None, groupB_paths=None, 
-                    paths=False,log=False,shrinkage=0.01,
-                    cov_method='svd',outputfolder=voxel_filters_dir, save=False)
+
+        A_partial = reducedsubsA - (reducedsubsA@np.linalg.pinv(vt))@vt
+        B_partial = reducedsubsB - (reducedsubsB@np.linalg.pinv(vt))@vt
+
+        voxelwise_FKT(groupA=A_partial, groupB=B_partial, 
+                        n_filters_per_group=n_filters_per_group, 
+                        groupA_paths=None, groupB_paths=None, 
+                        paths=False,log=False,shrinkage=0.01,
+                        cov_method='svd',outputfolder=voxel_filters_dir, save=False)
 
     except Exception as e:
         print(f"Error in run_pca: {e}", flush=True)
