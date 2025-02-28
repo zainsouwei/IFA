@@ -150,6 +150,11 @@ def load_subject(subject_info):
       A normalized NumPy array of subject data or None if an error occurs.
     """
     try:
+        # --- Case: Single file path (simulated data) ---
+        if isinstance(subject_info, str) and subject_info.endswith('.npy'):
+            # Load the .npy file
+            return np.load(subject_info)
+        
         # --- Determine the input structure ---
         # Case 1: subject_info is a list of file paths (all elements are strings)
         if isinstance(subject_info, list) and all(isinstance(task, str) for task in subject_info):
