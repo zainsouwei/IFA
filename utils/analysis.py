@@ -651,6 +651,64 @@ def reduce_dimensionality_torch(train_spatial_maps, test_spatial_maps, device=No
         return X_train_reduced.cpu().numpy(), X_test_reduced.cpu().numpy()
 
 def spatial_discrimination(train_maps, train_labels, test_maps, test_labels,methods=[1,2,4,5],metric="riemann",visualize=True,outputfolder=None,basis="IFA"):
+    # Note for method 1, 2, & 4 Vt == U.T, This is just done so the same code can be used for the grassmann dist
+    #           which operates on two different subspaces where U != V
+    classifier_model = "SVM (C=0.1)"
+    # First look at accuracy of individual maps that span the subspace
+    map_accs = []
+    for i in range(train_maps.shape[1]):
+        # train_map_reduced, test_map_reduced = reduce_dimensionality_torch(train_maps[:, i, :], test_maps[:, i, :], device=None, n=100, svd=True, demean=True)
+        # results = linear_classifier(train_map_reduced, train_labels, test_map_reduced, test_labels, clf_str='Logistic Regression', z_score=1)
+        results = linear_classifier(train_maps[:, i, :], train_labels, test_maps[:, i, :], test_labels, clf_str=classifier_model, z_score=1)
+        map_accs.append(results)
+
+    # Compute the maximum separating directions within that subspace based on different heurstics
+    discrim_dir_acc = {}   # key: method code, value: list of accuracy result dicts (one per projection direction)
+    discrim_dir = {}       # key: method code, value: (U, Vt)
+    for method in methods:
+        # Maximize Between Class Distance Measured via Euclidean Distance
+        if method == 1:
+            U, Vt = spatial_fda(train_maps, train_labels,within=False)
+         # Maximize Between Class Distance and Minimize Within Class Spread Measured via Euclidean Distance
+        elif method == 2:
+            U, Vt = spatial_fda(train_maps, train_labels,within=True)
+        # Sparse Maximization of Between Class Distance Measured via Euclidean Distance
+        elif method == 3:
+            U, Vt = sparse_spatial_dist(train_maps, train_labels,n_components=None,alpha=.01,batch_size=100)
+        # Maximizition of Between Class Distance Measure via Cosine Similarity (i.e., Maximize Subspace Angles)
+        elif method == 4:
+            U, Vt = grassmann_dist(train_maps,train_labels)
+        # CSP (Maximize Distance Between Class Average Covariances)
+        elif method == 5:
+            cov_est = Covariances(estimator='oas')
+            train_covs = cov_est.transform(train_maps)
+            eigs, U, _, _ = TSSF(train_covs, train_labels, clf_str='Logistic Regression', metric=metric, deconf=False, con_confounder_train=None, cat_confounder_train=None, z_score=0, haufe=False, visualize=False, output_dir=None)
+            U = U[:,np.argsort(eigs)]
+            Vt = U.T
+
+        groupA_train = train_maps[train_labels==1]
+        groupB_train = train_maps[train_labels==0]
+
+        groupA_test = test_maps[test_labels==1]
+        groupB_test = test_maps[test_labels==0]
+        accs = []
+        for i in range(train_maps.shape[1]):
+            train_proj = np.vstack((U[:,i].T@groupA_train, Vt[i,:]@groupB_train))
+            proj_train_labels = np.hstack((np.ones(groupA_train.shape[0]),np.zeros(groupB_train.shape[0])))
+            test_proj = np.vstack((U[:,i].T@groupA_test, Vt[i,:]@groupB_test))
+            proj_test_labels = np.hstack((np.ones(groupA_test.shape[0]),np.zeros(groupB_test.shape[0])))
+            # train_reduced,test_reduced = reduce_dimensionality_torch(train_proj, test_proj, device=None, n=100, svd=True, demean=True)
+            # direction_results = linear_classifier(train_reduced, proj_train_labels, test_reduced, proj_test_labels, clf_str='Logistic Regression', z_score=1)
+            direction_results = linear_classifier(train_proj, proj_train_labels, test_proj, proj_test_labels, clf_str=classifier_model, z_score=1)            
+            accs.append(direction_results)
+
+        discrim_dir_acc[method] = accs
+        discrim_dir[method] = (U, Vt)
+
+    if visualize:
+        spatial_vis(map_accs, discrim_dir_acc,outputfolder=outputfolder,basis=basis)
+    
+    
     return (map_accs,discrim_dir_acc,discrim_dir)
 
 
