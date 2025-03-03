@@ -256,8 +256,8 @@ def run_fold(outputfolder, fold):
     # last element in path list is number of timepoints, see load_subject in preprocessing
     m = train_paths[0][-1]
     print("Keep this many pseudotime points", m, flush=True)
-    reducedsubsA = migp(train_paths[train_labels == a_label], m=m, n_jobs=15,batch_size=3)
-    reducedsubsB = migp(train_paths[train_labels == b_label], m=m, n_jobs=15,batch_size=3)
+    reducedsubsA = migp(train_paths[train_labels == a_label], m=m, n_jobs=15,batch_size=1)
+    reducedsubsB = migp(train_paths[train_labels == b_label], m=m, n_jobs=15,batch_size=1)
     np.save(os.path.join(migp_dir, "reducedsubsA.npy"), reducedsubsA)
     np.save(os.path.join(migp_dir, "reducedsubsB.npy"), reducedsubsB)
     reducedsubs = np.concatenate((reducedsubsA, reducedsubsB), axis=0)
@@ -332,13 +332,19 @@ def run_fold(outputfolder, fold):
                                         con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
                                         z_score=0, haufe=False, visualize=True, output_dir=parcellated_filters_dir)
         else:
-            eigs, filters_all = FKT(partial_train_covs, train_labels, 
+            eigs, filters_all = FKT(partial_train_covs, train_labels, a_label, b_label,
                                     metric=metric, deconf=deconfound, 
                                     con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
                                     visualize=True, output_dir=parcellated_filters_dir)
         
-        filtersA = filters_all[:, -n_filters_per_group:]
-        filtersB = filters_all[:, :n_filters_per_group]
+        # if TSSF was used then the lower label is the negative class and corresponds to eigenvalues < 1
+        if a_label < b_label and tangent_class:
+            filtersB = filters_all[:, -n_filters_per_group:]
+            filtersA = filters_all[:, :n_filters_per_group]
+        else: 
+            filtersA = filters_all[:, -n_filters_per_group:]
+            filtersB = filters_all[:, :n_filters_per_group]
+
         filters_parcellated = np.concatenate((filtersB, filtersA), axis=1)
 
         np.save(os.path.join(parcellated_filters_dir, "filtersA.npy"), filtersA)
@@ -409,11 +415,12 @@ def run_fold(outputfolder, fold):
         spatial_maps = [ICA_zmaps, parcelvoxel_IFA_zmaps, voxel_IFA_zmaps]
         outputfolders = [GICA_dir, parcel_IFA_dir, voxel_IFA_dir]
 
-        sample = np.min((100,train_idx.shape[0]))
+        sample = np.min((200,train_idx.shape[0]))
         dual_regressor = DualRegress(
             subs=paths,
             spatial_maps=spatial_maps,
             train_index=train_idx,
+            train_labels=train_labels,
             outputfolders=outputfolders,
             workers=15,
             sample=sample,
@@ -488,151 +495,151 @@ def run_fold(outputfolder, fold):
         run_comparisons(unnormalized_result, compare_dir_unnorm, pairs, alpha=0.05)
         
 
-def run_fold(outputfolder, fold):
-    # Read the settings from the JSON file
-    with open(os.path.join(outputfolder, "settings.json"), "r") as f:
-        settings = json.load(f)
-    random_state = settings["random_state"]
-    n_filters_per_group = settings["n_filters_per_group"]
-    nPCA_levels = settings["nPCA_levels"]
-    tangent_class = settings["tangent_class"]
-    tan_class_model = settings["tan_class_model"]
-    metric = settings["metric"]
-    a_label = settings["a_label"]
-    b_label = settings["b_label"]
-    self_whiten = settings["self_whiten"]
-    deconfound = settings["deconfound"]
-    paired = settings["paired"]
+# def run_fold(outputfolder, fold):
+#     # Read the settings from the JSON file
+#     with open(os.path.join(outputfolder, "settings.json"), "r") as f:
+#         settings = json.load(f)
+#     random_state = settings["random_state"]
+#     n_filters_per_group = settings["n_filters_per_group"]
+#     nPCA_levels = settings["nPCA_levels"]
+#     tangent_class = settings["tangent_class"]
+#     tan_class_model = settings["tan_class_model"]
+#     metric = settings["metric"]
+#     a_label = settings["a_label"]
+#     b_label = settings["b_label"]
+#     self_whiten = settings["self_whiten"]
+#     deconfound = settings["deconfound"]
+#     paired = settings["paired"]
 
-    # Load pickle files
-    with open(os.path.join(outputfolder, "paths.pkl"), "rb") as f:
-        paths = pickle.load(f)
+#     # Load pickle files
+#     with open(os.path.join(outputfolder, "paths.pkl"), "rb") as f:
+#         paths = pickle.load(f)
 
-    with open(os.path.join(outputfolder, "family_ID.pkl"), "rb") as f:
-        family_ID = pickle.load(f)
+#     with open(os.path.join(outputfolder, "family_ID.pkl"), "rb") as f:
+#         family_ID = pickle.load(f)
 
-    # Load numpy files
-    sub_ID = np.load(os.path.join(outputfolder, "Sub_ID.npy"))
-    labels = np.load(os.path.join(outputfolder, "labels.npy"))
+#     # Load numpy files
+#     sub_ID = np.load(os.path.join(outputfolder, "Sub_ID.npy"))
+#     labels = np.load(os.path.join(outputfolder, "labels.npy"))
 
-    # Load Fold Specific Vairables
-    fold_output_dir = os.path.join(outputfolder, f"fold_{fold}")
-    summary_file_path = os.path.join(fold_output_dir, "output_summary.txt")
-    indices_dir = os.path.join(fold_output_dir, "Indices")
-    train_idx = np.load(os.path.join(indices_dir, "train_idx.npy"))
-    test_idx = np.load(os.path.join(indices_dir, "test_idx.npy"))
-    fold_results = os.path.join(fold_output_dir, "Results")
+#     # Load Fold Specific Vairables
+#     fold_output_dir = os.path.join(outputfolder, f"fold_{fold}")
+#     summary_file_path = os.path.join(fold_output_dir, "output_summary.txt")
+#     indices_dir = os.path.join(fold_output_dir, "Indices")
+#     train_idx = np.load(os.path.join(indices_dir, "train_idx.npy"))
+#     test_idx = np.load(os.path.join(indices_dir, "test_idx.npy"))
+#     fold_results = os.path.join(fold_output_dir, "Results")
 
-    # Prepare data for train and test sets
-    train_labels = labels[train_idx]
-    train_paths = paths[train_idx]
+#     # Prepare data for train and test sets
+#     train_labels = labels[train_idx]
+#     train_paths = paths[train_idx]
 
-    test_labels = labels[test_idx]
+#     test_labels = labels[test_idx]
   
-    if deconfound:
-        with open(os.path.join(outputfolder, "cat_confounders.pkl"), "rb") as f:
-            cat_confounders = pickle.load(f)
-        con_confounders = np.load(os.path.join(outputfolder, "con_confounders.npy"))
-        train_con_confounders = con_confounders[train_idx]
-        train_cat_confounders = cat_confounders[train_idx]
-        test_con_confounders = con_confounders[test_idx]
-        test_cat_confounders = cat_confounders[test_idx]
-    else:
-        train_con_confounders = None
-        train_cat_confounders = None
-        test_con_confounders = None
-        test_cat_confounders = None
+#     if deconfound:
+#         with open(os.path.join(outputfolder, "cat_confounders.pkl"), "rb") as f:
+#             cat_confounders = pickle.load(f)
+#         con_confounders = np.load(os.path.join(outputfolder, "con_confounders.npy"))
+#         train_con_confounders = con_confounders[train_idx]
+#         train_cat_confounders = cat_confounders[train_idx]
+#         test_con_confounders = con_confounders[test_idx]
+#         test_cat_confounders = cat_confounders[test_idx]
+#     else:
+#         train_con_confounders = None
+#         train_cat_confounders = None
+#         test_con_confounders = None
+#         test_cat_confounders = None
 
         
-    # Run MIGP
-    migp_dir = os.path.join(fold_output_dir, "MIGP")
+#     # Run MIGP
+#     migp_dir = os.path.join(fold_output_dir, "MIGP")
     
-    for nPCA in nPCA_levels:
-        # Directory for resulst for basis spanned by nPCA components + fixed number of filters
-        nPCA_dir = os.path.join(fold_output_dir, f"nPCA_{nPCA}")
+#     for nPCA in nPCA_levels:
+#         # Directory for resulst for basis spanned by nPCA components + fixed number of filters
+#         nPCA_dir = os.path.join(fold_output_dir, f"nPCA_{nPCA}")
         
-        # Get Parcellated Filters
-        filters_dir = os.path.join(nPCA_dir, "Filters")
+#         # Get Parcellated Filters
+#         filters_dir = os.path.join(nPCA_dir, "Filters")
         
-        # Run the PCA job, now just to get the voxel level filters using GPU
-        voxel_filters_dir = os.path.join(filters_dir, "Voxel")
+#         # Run the PCA job, now just to get the voxel level filters using GPU
+#         voxel_filters_dir = os.path.join(filters_dir, "Voxel")
 
-        # Directory for all things related to the parecllated filters
-        parcellated_filters_dir = os.path.join(filters_dir, "Parcellated")
+#         # Directory for all things related to the parecllated filters
+#         parcellated_filters_dir = os.path.join(filters_dir, "Parcellated")
 
-        # after the job completes, load the relevant data
-        voxel_filters = np.load(os.path.join(voxel_filters_dir, "filters.npy"))
+#         # after the job completes, load the relevant data
+#         voxel_filters = np.load(os.path.join(voxel_filters_dir, "filters.npy"))
 
-        #Create Folders to store ICA outputs for this subspace dimension and run ICA for each basis
-        ICA_dir = os.path.join(nPCA_dir, "ICA")
+#         #Create Folders to store ICA outputs for this subspace dimension and run ICA for each basis
+#         ICA_dir = os.path.join(nPCA_dir, "ICA")
 
         
-        parcel_IFA_dir = os.path.join(ICA_dir, "parcel_IFA")
+#         parcel_IFA_dir = os.path.join(ICA_dir, "parcel_IFA")
 
-        voxel_IFA_dir = os.path.join(ICA_dir, "voxel_IFA")
+#         voxel_IFA_dir = os.path.join(ICA_dir, "voxel_IFA")
 
-        GICA_dir = os.path.join(ICA_dir, "GICA")
+#         GICA_dir = os.path.join(ICA_dir, "GICA")
 
-        outputfolders = [GICA_dir, parcel_IFA_dir, voxel_IFA_dir]
+#         outputfolders = [GICA_dir, parcel_IFA_dir, voxel_IFA_dir]
 
-        nPCA_results = os.path.join(nPCA_dir, "Results")
+#         nPCA_results = os.path.join(nPCA_dir, "Results")
 
 
-        map_names = ["GICA","parcel_IFA","voxel_IFA"]
-        normalized_result = []
-        unnormalized_result = []
+#         map_names = ["GICA","parcel_IFA","voxel_IFA"]
+#         normalized_result = []
+#         unnormalized_result = []
 
-        for i, map_i in enumerate(map_names):
+#         for i, map_i in enumerate(map_names):
 
-#        
-            nPCA_results_maps = os.path.join(nPCA_results, map_i)
-            if not os.path.exists(nPCA_results_maps):
-                os.makedirs(nPCA_results_maps)
+# #        
+#             nPCA_results_maps = os.path.join(nPCA_results, map_i)
+#             if not os.path.exists(nPCA_results_maps):
+#                 os.makedirs(nPCA_results_maps)
             
-            # For Normalized results
-            nPCA_results_maps_norm = os.path.join(nPCA_results_maps, "Normalized")
-            if not os.path.exists(nPCA_results_maps_norm):
-                os.makedirs(nPCA_results_maps_norm)
-            ##### BELOW HERE ############
-            normalized_result_i = evaluate((np.load(os.path.join(outputfolders[i], "An.npy")),  np.load(os.path.join(outputfolders[i], "spatial_map.npy")),  np.load(os.path.join(outputfolders[i], "reconstruction_error_norm.npy"))), 
-                                labels, train_idx, test_idx, 
-                                metric=metric, alpha=0.05, paired=paired, 
-                                permutations=10000, deconf=deconfound, 
-                                con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
-                                con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
-                                output_dir=nPCA_results_maps_norm, random_seed=random_state, basis=f"{map_i}_Normalized")           
+#             # For Normalized results
+#             nPCA_results_maps_norm = os.path.join(nPCA_results_maps, "Normalized")
+#             if not os.path.exists(nPCA_results_maps_norm):
+#                 os.makedirs(nPCA_results_maps_norm)
+#             ##### BELOW HERE ############
+#             normalized_result_i = evaluate((np.load(os.path.join(outputfolders[i], "An.npy")),  np.load(os.path.join(outputfolders[i], "spatial_map.npy")),  np.load(os.path.join(outputfolders[i], "reconstruction_error_norm.npy"))), 
+#                                 labels, train_idx, test_idx, 
+#                                 metric=metric, alpha=0.05, paired=paired, 
+#                                 permutations=10000, deconf=deconfound, 
+#                                 con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
+#                                 con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
+#                                 output_dir=nPCA_results_maps_norm, random_seed=random_state, basis=f"{map_i}_Normalized")           
             
-            normalized_result.append(normalized_result_i)
+#             normalized_result.append(normalized_result_i)
             
-            # For Unnormalized (demeaned) results
-            nPCA_results_maps_unnorm = os.path.join(nPCA_results_maps, "Unnormalized")
-            if not os.path.exists(nPCA_results_maps_unnorm):
-                os.makedirs(nPCA_results_maps_unnorm)
+#             # For Unnormalized (demeaned) results
+#             nPCA_results_maps_unnorm = os.path.join(nPCA_results_maps, "Unnormalized")
+#             if not os.path.exists(nPCA_results_maps_unnorm):
+#                 os.makedirs(nPCA_results_maps_unnorm)
 
-            unnormalized_result_i = evaluate((np.load(os.path.join(outputfolders[i], "Adm.npy")), np.load(os.path.join(outputfolders[i], "spatial_mapdm.npy")), np.load(os.path.join(outputfolders[i], "reconstruction_error_dm.npy"))), 
-                    labels, train_idx, test_idx, 
-                    metric=metric, alpha=0.05, paired=paired, 
-                    permutations=10000, deconf=deconfound, 
-                    con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
-                    con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
-                    output_dir=nPCA_results_maps_unnorm, random_seed=random_state, basis=f"{map_i}_Unnormalized")
+#             unnormalized_result_i = evaluate((np.load(os.path.join(outputfolders[i], "Adm.npy")), np.load(os.path.join(outputfolders[i], "spatial_mapdm.npy")), np.load(os.path.join(outputfolders[i], "reconstruction_error_dm.npy"))), 
+#                     labels, train_idx, test_idx, 
+#                     metric=metric, alpha=0.05, paired=paired, 
+#                     permutations=10000, deconf=deconfound, 
+#                     con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
+#                     con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
+#                     output_dir=nPCA_results_maps_unnorm, random_seed=random_state, basis=f"{map_i}_Unnormalized")
             
-            unnormalized_result.append(unnormalized_result_i)
+#             unnormalized_result.append(unnormalized_result_i)
 
-        # Define the pairwise comparisons (same for both normalized and unnormalized)
-        pairs = [
-            (0, 1, "GICA", "parcel_IFA"),
-            (0, 2, "GICA", "voxel_IFA"),
-            (1, 2, "parcel_IFA", "voxel_IFA")
-        ]
+#         # Define the pairwise comparisons (same for both normalized and unnormalized)
+#         pairs = [
+#             (0, 1, "GICA", "parcel_IFA"),
+#             (0, 2, "GICA", "voxel_IFA"),
+#             (1, 2, "parcel_IFA", "voxel_IFA")
+#         ]
 
-        # Run for normalized results
-        compare_dir_norm = os.path.join(nPCA_results, "Compare", "Normalized")
-        run_comparisons(normalized_result, compare_dir_norm, pairs, alpha=0.05)
+#         # Run for normalized results
+#         compare_dir_norm = os.path.join(nPCA_results, "Compare", "Normalized")
+#         run_comparisons(normalized_result, compare_dir_norm, pairs, alpha=0.05)
 
-        # Run for unnormalized results
-        compare_dir_unnorm = os.path.join(nPCA_results, "Compare", "Unnormalized")
-        run_comparisons(unnormalized_result, compare_dir_unnorm, pairs, alpha=0.05)
+#         # Run for unnormalized results
+#         compare_dir_unnorm = os.path.join(nPCA_results, "Compare", "Unnormalized")
+#         run_comparisons(unnormalized_result, compare_dir_unnorm, pairs, alpha=0.05)
         
 
 

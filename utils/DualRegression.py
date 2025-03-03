@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 import multiprocessing
 from functools import partial
 from sklearn.linear_model import ElasticNet
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedShuffleSplit
 from sklearn.metrics import r2_score
 
 from skopt import gp_minimize
@@ -219,10 +219,11 @@ class DualRegressionOptimizer:
 
 # https://www.frontiersin.org/journals/neuroscience/articles/10.3389/fnins.2017.00115/full
 class DualRegress:
-    def __init__(self,subs,spatial_maps,train_index, outputfolders, workers=20, sample=50, method="bayesian", parallel_points=10, parallel_subs=2, n_calls=20, random_state=42):
+    def __init__(self,subs,spatial_maps,train_index, train_labels,outputfolders, workers=20, sample=50, method="bayesian", parallel_points=10, parallel_subs=2, n_calls=20, random_state=42):
         self.subs = subs
         self.spatial_maps = spatial_maps
         self.train_index = train_index
+        self.train_labels = train_labels
         self.workers = workers
         self.sample = sample
         self.method = method
@@ -350,8 +351,13 @@ class DualRegress:
     def optimize_hyperparameters(self):
         # Create an instance of DualRegressionOptimizer.
         train_paths = self.subs[self.train_index]
-        indices = np.random.choice(len(train_paths), size=self.sample, replace=False)
-        sampled_subjects = train_paths[indices]
+        # indices = np.random.choice(len(train_paths), size=self.sample, replace=False)
+        # sampled_subjects = train_paths[indices]
+        
+        # Ensure Class Distribution Remains
+        sss = StratifiedShuffleSplit(n_splits=1, train_size=self.sample, random_state=self.random_state)
+        for train_idx, _ in sss.split(train_paths, self.train_labels):
+            sampled_subjects = train_paths[train_idx]
         
         for i, s_map in enumerate(self.spatial_maps):
             map_hyperparams = []

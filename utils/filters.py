@@ -114,20 +114,20 @@ def evaluate_filters(train, train_labels, test, test_labels, filters, metric="ri
 
     return metrics_dict_logvar, metrics_dict_logcov
 
-def FKT(cov_matrices, labels, metric="riemann", deconf=True, con_confounder_train=None, cat_confounder_train=None, visualize=True,output_dir="plots"):
+def FKT(cov_matrices, labels, a_label, b_label, metric="riemann", deconf=True, con_confounder_train=None, cat_confounder_train=None, visualize=True,output_dir="plots"):
     # Eigenvalues in ascending order from scipy eigh https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.eigh.html
     unique_labels = np.unique(labels)
 
     if deconf:
         data, Frechet_Mean = tangent_transform(cov_matrices,metric=metric)
         data = deconfound(data, con_confounder_train, cat_confounder_train, X_test=None, con_confounder_test=None, cat_confounder_test=None)
-        groupA_cov_matrices_deconf = untangent_space(data[labels == unique_labels[1]],Frechet_Mean,metric=metric)
-        groupB_cov_matrices_deconf = untangent_space(data[labels == unique_labels[0]],Frechet_Mean,metric=metric)
+        groupA_cov_matrices_deconf = untangent_space(data[labels == a_label],Frechet_Mean,metric=metric)
+        groupB_cov_matrices_deconf = untangent_space(data[labels == b_label],Frechet_Mean,metric=metric)
         groupA_mean_cov= mean_covariance(groupA_cov_matrices_deconf, metric=metric)
         groupB_mean_cov = mean_covariance(groupB_cov_matrices_deconf, metric=metric)
     else:
-        groupA_mean_cov= mean_covariance(cov_matrices[labels == unique_labels[1]], metric=metric)
-        groupB_mean_cov = mean_covariance(cov_matrices[labels == unique_labels[0]], metric=metric)
+        groupA_mean_cov= mean_covariance(cov_matrices[labels == a_label], metric=metric)
+        groupB_mean_cov = mean_covariance(cov_matrices[labels == b_label], metric=metric)
 
     eigsA, filtersA  = eigh(groupA_mean_cov, groupA_mean_cov + groupB_mean_cov,eigvals_only=False,subset_by_value=[0.5,np.inf])
     eigsB, filtersB = eigh(groupB_mean_cov, groupA_mean_cov + groupB_mean_cov,eigvals_only=False,subset_by_value=[0.5,np.inf])

@@ -266,13 +266,19 @@ def run_fold(outputfolder, fold):
                                        con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
                                        z_score=0, haufe=False, visualize=True, output_dir=parcellated_filters_dir)
     else:
-        eigs, filters_all = FKT(train_covs, train_labels, 
+        eigs, filters_all = FKT(train_covs, train_labels, a_label, b_label,
                                 metric=metric, deconf=deconfound, 
                                 con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
                                 visualize=True, output_dir=parcellated_filters_dir)
     
-    filtersA = filters_all[:, -n_filters_per_group:]
-    filtersB = filters_all[:, :n_filters_per_group]
+    # if TSSF was used then the lower label is the negative class and corresponds to eigenvalues < 1
+    if a_label < b_label and tangent_class:
+        filtersB = filters_all[:, -n_filters_per_group:]
+        filtersA = filters_all[:, :n_filters_per_group]
+    else: 
+        filtersA = filters_all[:, -n_filters_per_group:]
+        filtersB = filters_all[:, :n_filters_per_group]
+
     filters_parcellated = np.concatenate((filtersB, filtersA), axis=1)
 
     np.save(os.path.join(parcellated_filters_dir, "filtersA.npy"), filtersA)
@@ -354,11 +360,12 @@ def run_fold(outputfolder, fold):
         spatial_maps = [ICA_zmaps, parcelvoxel_IFA_zmaps, voxel_IFA_zmaps]
         outputfolders = [GICA_dir, parcel_IFA_dir, voxel_IFA_dir]
 
-        sample = np.min((50,train_idx.shape[0]))
+        sample = np.min((200,train_idx.shape[0]))
         dual_regressor = DualRegress(
             subs=paths,
             spatial_maps=spatial_maps,
             train_index=train_idx,
+            train_labels=train_labels,
             outputfolders=outputfolders,
             workers=15,
             sample=sample,
