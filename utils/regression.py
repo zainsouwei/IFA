@@ -50,6 +50,10 @@ confounders =  ["Age_in_Yrs", "Gender", "FS_BrainSeg_Vol", "FS_IntraCranial_Vol"
 continuous_confounders = ["Age_in_Yrs", "FS_BrainSeg_Vol", "FS_IntraCranial_Vol", "motion"]
 categorical_confounders = ["Gender","fMRI_3T_ReconVrs"]
 
+
+# phen_confounders =  ["Age_in_Yrs", "Gender", "FS_BrainSeg_Vol", "FS_IntraCranial_Vol", "fMRI_3T_ReconVrs", "motion"]
+# phen_continuous_confounders = ["Age_in_Yrs", "FS_BrainSeg_Vol", "FS_IntraCranial_Vol", "motion"]
+# phen_categorical_confounders = ["Gender","fMRI_3T_ReconVrs"]
 phen_confounders = ["Age_in_Yrs", "Gender"]
 phen_continuous_confounders = ["Age_in_Yrs"]
 phen_categorical_confounders = ["Gender"]

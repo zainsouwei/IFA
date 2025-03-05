@@ -189,11 +189,10 @@ def tangent_t_test(train_covs, test_covs, test_labels, alpha=.05, permutations=F
 
 
 # https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=5662067
-def var_diff(train_data, train_covs, train_labels, test_data, test_labels, metric='riemann', method='log-var', basis="ICA", deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None,output_dir="path"):
-    unique_labels = np.unique(train_labels)
+def var_diff(train_data, train_covs, train_labels, test_data, test_labels, a_label, b_label, metric='riemann', method='log-var', basis="ICA", deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None,output_dir="path"):
     clf = SVC(kernel='linear', C=0.1, class_weight='balanced')
 
-    _, filters_all = FKT(train_covs, train_labels, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, visualize=False, output_dir=None)
+    _, filters_all = FKT(train_covs, train_labels, a_label=a_label, b_label=b_label, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, visualize=False, output_dir=None)
 
     # Initialize list to store results (accuracy and distance)
     results = []
@@ -211,8 +210,8 @@ def var_diff(train_data, train_covs, train_labels, test_data, test_labels, metri
         accuracy = accuracy_score(test_labels, y_pred)
 
         # Calculate class means for distance (using the training data)
-        mean_group1_test = np.mean(test_features[test_labels==unique_labels[1]], axis=0)
-        mean_group2_test = np.mean(test_features[test_labels==unique_labels[0]], axis=0)
+        mean_group1_test = np.mean(test_features[test_labels==a_label], axis=0)
+        mean_group2_test = np.mean(test_features[test_labels==b_label], axis=0)
         mean_dist = np.linalg.norm(mean_group1_test - mean_group2_test)
 
         # Store accuracy and Riemannian distance for this n
@@ -220,8 +219,8 @@ def var_diff(train_data, train_covs, train_labels, test_data, test_labels, metri
         # Plot when n=1
         if n == 1:
             plt.figure(figsize=(8, 6))
-            plt.scatter(test_features[test_labels==unique_labels[1]][:, 0], test_features[test_labels==unique_labels[1]][:, 1], label=f'Group {unique_labels[1]} {method} (Test)', color='blue')
-            plt.scatter(test_features[test_labels==unique_labels[0]][:, 0], test_features[test_labels==unique_labels[0]][:, 1], label=f'Group {unique_labels[0]} {method} (Test)', color='red')
+            plt.scatter(test_features[test_labels==a_label][:, 0], test_features[test_labels==a_label][:, 1], label=f'Group {a_label} {method} (Test)', color='blue')
+            plt.scatter(test_features[test_labels==b_label][:, 0], test_features[test_labels==b_label][:, 1], label=f'Group {b_label} {method} (Test)', color='red')
 
             # Plot the line connecting the two means
             plt.plot([mean_group1_test[0], mean_group2_test[0]], [mean_group1_test[1], mean_group2_test[1]], 'k--', label=f'Mean Distance: {mean_dist:.2f}')
@@ -232,8 +231,8 @@ def var_diff(train_data, train_covs, train_labels, test_data, test_labels, metri
             plt.plot(x_values, y_values, 'g-', label='Decision Boundary')
 
             # Display plot
-            plt.xlabel(f'{method} Feature {unique_labels[0]}')
-            plt.ylabel(f'{method} Feature {unique_labels[1]}')
+            plt.xlabel(f'{method} Feature {b_label}')
+            plt.ylabel(f'{method} Feature {a_label}')
             plt.title(f'{basis} {method} FKT Feature Comparison and SVM Decision Boundary')
             plt.text(0.05, 0.95, f'Accuracy: {accuracy:.2f}', transform=plt.gca().transAxes, fontsize=12,verticalalignment='top', bbox=dict(boxstyle='round,pad=0.3', edgecolor='black', facecolor='lightgrey'))
             plt.legend(loc='upper right')
@@ -816,7 +815,7 @@ def spatial_comparison_vis(results_one, results_two, label_one="Label 1", label_
             plt.close(fig)
 
 
-def spatial_t_test(maps, labels, paired=True, cluster=False, TFCE=None ,perm=10000, all_maps=True, random_seed=42):
+def spatial_t_test(maps, labels, paired=True, cluster=False, TFCE=None ,perm=10000, all_maps=True, random_seed=42,n_workers=15):
     # Set tfce to None use non TFCE cluster based {"start": 0, "step": 0.3}
     # TODO Add per map cluster 
     # Extract groups from the maps
@@ -845,7 +844,7 @@ def spatial_t_test(maps, labels, paired=True, cluster=False, TFCE=None ,perm=100
                 tail=0,                              # Two-tailed test
                 adjacency=hcp.cortical_adjacency,    # Adjacency for HCP grayordinates
                 # stat_fun = stat_fun_hat,
-                n_jobs=-1,
+                n_jobs=n_workers,
                 # buffer_size=1000, 
                 out_type='indices',
                 seed=random_seed  
@@ -860,7 +859,7 @@ def spatial_t_test(maps, labels, paired=True, cluster=False, TFCE=None ,perm=100
                 tail=0,                              # Two-tailed test
                 stat_fun=ttest_ind_no_p,
                 adjacency=hcp.cortical_adjacency,    # Adjacency for HCP grayordinates
-                n_jobs=-1,
+                n_jobs=n_workers,
                 # buffer_size=1000, 
                 out_type='indices',
                 seed=random_seed 
@@ -884,7 +883,7 @@ def spatial_t_test(maps, labels, paired=True, cluster=False, TFCE=None ,perm=100
                     diff.reshape(A_samples, -1),
                     n_permutations=perm,
                     tail=0,  # Two-tailed test,
-                    n_jobs=-1,
+                    n_jobs=n_workers,
                     seed=random_seed,
                     verbose=False
                 )
@@ -899,7 +898,7 @@ def spatial_t_test(maps, labels, paired=True, cluster=False, TFCE=None ,perm=100
                         diff[:, i, :], 
                         n_permutations=perm, 
                         tail=0, 
-                        n_jobs=-1,
+                        n_jobs=n_workers,
                         seed=random_seed,
                         verbose=False)
                     
@@ -919,7 +918,7 @@ def spatial_t_test(maps, labels, paired=True, cluster=False, TFCE=None ,perm=100
                 result = permuted_ols(
                     X, Y, n_perm=perm,
                     two_sided_test=True,
-                    n_jobs=-1,
+                    n_jobs=n_workers,
                     random_state=random_seed,
                     output_type='dict'
                 )
@@ -943,7 +942,7 @@ def spatial_t_test(maps, labels, paired=True, cluster=False, TFCE=None ,perm=100
                     results_i = permuted_ols(
                         X, data_i, n_perm=perm,
                         two_sided_test=True,
-                        n_jobs=-1,
+                        n_jobs=n_workers,
                         random_state=random_seed,
                         output_type='dict'
                     )
@@ -957,9 +956,9 @@ def spatial_t_test(maps, labels, paired=True, cluster=False, TFCE=None ,perm=100
                 p_vals = np.array(p_vals_list)
                 return t_vals, p_vals
 
-def spatial_analysis(maps,labels,perm=10000, alpha=0.05, paired=True, cluster=False, TFCE=None , all_maps=True, random_seed=42,output_dir=None):
+def spatial_analysis(maps,labels,perm=10000, alpha=0.05, paired=True, cluster=False, TFCE=None , all_maps=True, random_seed=42,output_dir=None, n_workers=15):
     
-    t_vals, p_vals = spatial_t_test(maps, labels, paired=paired, cluster=cluster, TFCE=TFCE ,perm=perm, all_maps=all_maps, random_seed=random_seed)
+    t_vals, p_vals = spatial_t_test(maps, labels, paired=paired, cluster=cluster, TFCE=TFCE ,perm=perm, all_maps=all_maps, random_seed=random_seed,n_workers=n_workers)
     epsilon = 1e-10  # or some other small value
     p_vals = np.clip(p_vals, epsilon, 1)  # ensures p-values are at least epsilon
     p_vals_log = -np.log(p_vals)
@@ -1152,11 +1151,11 @@ def spatial_t_compare(results_one, results_two, label_one="basis_one", label_two
 
 
 
-def evaluate(data_set, labels, train_indx, test_indx, metric='riemann', 
+def evaluate(data_set, labels, train_indx, test_indx, a_label, b_label, metric='riemann', 
                         alpha=0.05, paired=False, permutations=10000, deconf=False, 
                         con_confounder_train=None, cat_confounder_train=None, 
                         con_confounder_test=None, cat_confounder_test=None, output_dir="path",
-                        random_seed=42, basis="Method"):
+                        random_seed=42, basis="Method", n_workers=15):
 
     A, SpatialMaps, recon_error = data_set
     A_train = A[train_indx]
@@ -1196,13 +1195,13 @@ def evaluate(data_set, labels, train_indx, test_indx, metric='riemann',
     Netmats_test = cov_est.transform(np.transpose(A_test, (0, 2, 1)))
     
     
-    var_results = var_diff(A_train, Netmats_train, train_labels, A_test, test_labels, 
+    var_results = var_diff(A_train, Netmats_train, train_labels, A_test, test_labels, a_label, b_label,
                            metric=metric, method='log-var', basis=basis, deconf=deconf, 
                            con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, 
                            con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,
                            output_dir=output_dir)
     
-    cov_results = var_diff(A_train, Netmats_train, train_labels, A_test, test_labels, 
+    cov_results = var_diff(A_train, Netmats_train, train_labels, A_test, test_labels, a_label, b_label,
                            metric=metric, method='log-cov', basis=basis, deconf=deconf, 
                            con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, 
                            con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,
@@ -1229,8 +1228,8 @@ def evaluate(data_set, labels, train_indx, test_indx, metric='riemann',
 
     spatial_t_test_results = spatial_analysis(SpatialMaps_test,test_labels,
                                               perm=permutations, alpha=alpha, 
-                                              paired=paired, cluster=False, TFCE=None , all_maps=True, 
-                                              random_seed=random_seed,output_dir=spatial_t_test_dir)
+                                              paired=paired, cluster=True, TFCE={"start": 0, "step": 0.3}, all_maps=True, 
+                                              random_seed=random_seed,output_dir=spatial_t_test_dir,n_workers=n_workers)
     
     spatial_t_test_discrim = os.path.join(output_dir,"spatial_T_test_discrim")
     if not os.path.exists(spatial_t_test_discrim):
@@ -1240,8 +1239,8 @@ def evaluate(data_set, labels, train_indx, test_indx, metric='riemann',
 
     spatial_t_test_discrim_results = spatial_analysis(U.T@SpatialMaps_test,test_labels,
                                             perm=permutations, alpha=alpha, 
-                                            paired=paired, cluster=False, TFCE=None , all_maps=True, 
-                                            random_seed=random_seed,output_dir=spatial_t_test_discrim)
+                                            paired=paired, cluster=True, TFCE={"start": 0, "step": 0.3}, all_maps=True, 
+                                            random_seed=random_seed,output_dir=spatial_t_test_discrim, n_workers=n_workers)
     
     results = {
         "var_results": var_results,

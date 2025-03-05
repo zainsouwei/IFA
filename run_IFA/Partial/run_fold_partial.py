@@ -169,332 +169,6 @@ def run_comparisons(results_list, base_output_folder, pairs, alpha=0.05):
              alpha=alpha, output_dir=pair_dir
         )
 
-def run_fold(outputfolder, fold):
-    # Read the settings from the JSON file
-    with open(os.path.join(outputfolder, "settings.json"), "r") as f:
-        settings = json.load(f)
-    random_state = settings["random_state"]
-    n_filters_per_group = settings["n_filters_per_group"]
-    nPCA_levels = settings["nPCA_levels"]
-    tangent_class = settings["tangent_class"]
-    tan_class_model = settings["tan_class_model"]
-    metric = settings["metric"]
-    a_label = settings["a_label"]
-    b_label = settings["b_label"]
-    self_whiten = settings["self_whiten"]
-    deconfound = settings["deconfound"]
-    paired = settings["paired"]
-
-    # Load pickle files
-    with open(os.path.join(outputfolder, "paths.pkl"), "rb") as f:
-        paths = pickle.load(f)
-
-    with open(os.path.join(outputfolder, "family_ID.pkl"), "rb") as f:
-        family_ID = pickle.load(f)
-
-    # Load numpy files
-    sub_ID = np.load(os.path.join(outputfolder, "Sub_ID.npy"))
-    labels = np.load(os.path.join(outputfolder, "labels.npy"))
-
-    # Load Fold Specific Vairables
-    fold_output_dir = os.path.join(outputfolder, f"fold_{fold}")
-    summary_file_path = os.path.join(fold_output_dir, "output_summary.txt")
-    indices_dir = os.path.join(fold_output_dir, "Indices")
-    train_idx = np.load(os.path.join(indices_dir, "train_idx.npy"))
-    test_idx = np.load(os.path.join(indices_dir, "test_idx.npy"))
-    fold_results = os.path.join(fold_output_dir, "Results")
-    if not os.path.exists(fold_results):
-        os.makedirs(fold_results)
-
-    # Prepare data for train and test sets
-    train_labels = labels[train_idx]
-    train_paths = paths[train_idx]
-
-    test_labels = labels[test_idx]
-  
-    if deconfound:
-        with open(os.path.join(outputfolder, "cat_confounders.pkl"), "rb") as f:
-            cat_confounders = pickle.load(f)
-        con_confounders = np.load(os.path.join(outputfolder, "con_confounders.npy"))
-        train_con_confounders = con_confounders[train_idx]
-        train_cat_confounders = cat_confounders[train_idx]
-        test_con_confounders = con_confounders[test_idx]
-        test_cat_confounders = cat_confounders[test_idx]
-    else:
-        train_con_confounders = None
-        train_cat_confounders = None
-        test_con_confounders = None
-        test_cat_confounders = None
-
-    # Save summary of data split
-    train_groups = set(np.unique(family_ID[train_idx]))
-    test_groups = set(np.unique(family_ID[test_idx]))
-    intersection = train_groups & test_groups
-    save_text_results(f"Fold {fold + 1}:", summary_file_path)
-    save_text_results(f"  Train size: {len(train_idx)}", summary_file_path)
-    save_text_results(f"  Test size: {len(test_idx)}", summary_file_path)
-    save_text_results(f"  Train labels distribution: {np.bincount(labels[train_idx].astype(int))}", summary_file_path)
-    save_text_results(f"  Test labels distribution: {np.bincount(labels[test_idx].astype(int))}", summary_file_path)
-    save_text_results(f"  Intersection of groups: {len(intersection)} (Groups: {intersection})", summary_file_path)
-    if paired:
-        paired_train = np.array_equal(
-            sub_ID[train_idx][train_labels == a_label],
-            sub_ID[train_idx][train_labels == b_label]
-        )
-        paired_test = np.array_equal(
-            sub_ID[test_idx][test_labels == a_label],
-            sub_ID[test_idx][test_labels == b_label]
-        )
-        save_text_results(f"  Paired Across Train: {paired_train}", summary_file_path)
-        save_text_results(f"  Paired Across Test: {paired_test}", summary_file_path)
-        
-    # Run MIGP
-    migp_dir = os.path.join(fold_output_dir, "MIGP")
-    if not os.path.exists(migp_dir):
-        os.makedirs(migp_dir)
-    
-    # last element in path list is number of timepoints, see load_subject in preprocessing
-    m = train_paths[0][-1]
-    print("Keep this many pseudotime points", m, flush=True)
-    reducedsubsA = migp(train_paths[train_labels == a_label], m=m, n_jobs=15,batch_size=1)
-    reducedsubsB = migp(train_paths[train_labels == b_label], m=m, n_jobs=15,batch_size=1)
-    np.save(os.path.join(migp_dir, "reducedsubsA.npy"), reducedsubsA)
-    np.save(os.path.join(migp_dir, "reducedsubsB.npy"), reducedsubsB)
-    reducedsubs = np.concatenate((reducedsubsA, reducedsubsB), axis=0)
-    np.save(os.path.join(migp_dir, "reducedsubs.npy"), reducedsubs)
-    
-    for nPCA in nPCA_levels:
-        # Directory for resulst for basis spanned by nPCA components + fixed number of filters
-        nPCA_dir = os.path.join(fold_output_dir, f"nPCA_{nPCA}")
-        if not os.path.exists(nPCA_dir):
-            os.makedirs(nPCA_dir)
-        
-        # Get Parcellated Filters
-        filters_dir = os.path.join(nPCA_dir, "Filters")
-        if not os.path.exists(filters_dir):
-            os.makedirs(filters_dir)
-
-        _, vt = PPCA(reducedsubs.copy(), threshold=0.0, niters=1, n=nPCA)
-        np.save(os.path.join(filters_dir, f"vt.npy"), vt)
-        
-        # Run the PCA job, now just to get the voxel level filters using GPU
-        voxel_filters_dir = os.path.join(filters_dir, "Voxel")
-        if not os.path.exists(voxel_filters_dir):
-            os.makedirs(voxel_filters_dir)
-
-        pca_script = "/project/3022057.01/IFA/run_IFA/Partial/run_pca_partial.sh"
-        pca_command = [
-            "sbatch",
-            "--output", os.path.join(fold_output_dir, "pca-%j.out"),
-            "--error", os.path.join(fold_output_dir, "pca-%j.err"),
-            pca_script,
-            outputfolder, fold_output_dir, voxel_filters_dir
-        ]
-
-        pca_process = subprocess.run(pca_command, capture_output=True, text=True)
-        if pca_process.returncode != 0:
-            print(f"Error submitting PCA job: {pca_process.stderr}")
-            return
-        job_id = pca_process.stdout.strip().split()[-1]
-        print(f"PCA job submitted successfully with job ID: {job_id}")
-
-        # Need to partial the data before parcellating; partial then parcellate each subject
-        partial_data, partial_covs = partiallate_subjects(paths, vt, output_dir=filters_dir, n_workers=15)
-
-        # Then split into train and test using your indices:
-        partial_train_data = partial_data[train_idx]
-        partial_test_data  = partial_data[test_idx]
-
-        partial_train_covs = partial_covs[train_idx]
-        partial_test_covs  = partial_covs[test_idx]
-
-
-        # Run tangent classification for measuring separability in parcellated space
-        tangent_class_metrics = tangent_classification(partial_train_covs, train_labels, partial_test_covs, test_labels, 
-                            clf_str='all', z_score=0, metric=metric, deconf=deconfound, 
-                            con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
-                            con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders)
-        
-        # Save those tangent classification results to overall fold results directory
-        with open(os.path.join(filters_dir, "tangent_class_metrics.pkl"), "wb") as f:
-            pickle.dump(tangent_class_metrics, f)   
-        save_text_results("Parcellated Tangent Classification " + str(tangent_class_metrics), summary_file_path)
-
-        
-        # Directory for all things related to the parecllated filters
-        parcellated_filters_dir = os.path.join(filters_dir, "Parcellated")
-        if not os.path.exists(parcellated_filters_dir):
-            os.makedirs(parcellated_filters_dir)
-
-        if tangent_class:
-            eigs, filters_all, W, C = TSSF(partial_train_covs, train_labels, 
-                                        clf_str=tan_class_model, metric=metric, deconf=deconfound, 
-                                        con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
-                                        z_score=0, haufe=False, visualize=True, output_dir=parcellated_filters_dir)
-        else:
-            eigs, filters_all = FKT(partial_train_covs, train_labels, a_label, b_label,
-                                    metric=metric, deconf=deconfound, 
-                                    con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
-                                    visualize=True, output_dir=parcellated_filters_dir)
-        
-        # if TSSF was used then the lower label is the negative class and corresponds to eigenvalues < 1
-        if a_label < b_label and tangent_class:
-            filtersB = filters_all[:, -n_filters_per_group:]
-            filtersA = filters_all[:, :n_filters_per_group]
-        else: 
-            filtersA = filters_all[:, -n_filters_per_group:]
-            filtersB = filters_all[:, :n_filters_per_group]
-
-        filters_parcellated = np.concatenate((filtersB, filtersA), axis=1)
-
-        np.save(os.path.join(parcellated_filters_dir, "filtersA.npy"), filtersA)
-        np.save(os.path.join(parcellated_filters_dir, "filtersB.npy"), filtersB)
-        np.save(os.path.join(parcellated_filters_dir, "filters_parcellated.npy"), filters_parcellated)
-        for i in range(filters_parcellated.shape[1]):
-            save_brain(hcp.unparcellate(filters_parcellated[:,i],hcp.mmp), f"parcellated_filter_{i}", parcellated_filters_dir)
-
-        # Evaluate filters and save those results to overall fold results directory
-        logvar_stats, logcov_stats = evaluate_filters(partial_train_data, train_labels, partial_test_data, test_labels, 
-                                                        filters_parcellated, metric=metric, deconf=deconfound, 
-                                                        con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
-                                                        con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,output_dir=parcellated_filters_dir)
-
-        with open(os.path.join(filters_dir, "logvar_stats.pkl"), "wb") as f:
-                pickle.dump(logvar_stats, f)     
-        with open(os.path.join(filters_dir, "logcov_stats.pkl"), "wb") as f:
-                pickle.dump(logcov_stats, f)      
-        save_text_results("Log Var Filter Feature Classification " + str(logvar_stats), summary_file_path)
-        save_text_results("Log Cov Filter Feature Classification " + str(logcov_stats), summary_file_path)
-        
-        # While PCA Job Runs, run dual regression on parcellated filters
-        filtersA_transform = partial_filter_dual_regression(filtersA, partial_train_data[train_labels == a_label], train_paths[train_labels == a_label], vt, workers=15)
-        filtersB_transform = partial_filter_dual_regression(filtersB, partial_train_data[train_labels == b_label], train_paths[train_labels == b_label], vt, workers=15)
-
-        np.save(os.path.join(parcellated_filters_dir, "A_filters_haufe.npy"), filtersA_transform)
-        np.save(os.path.join(parcellated_filters_dir, "B_filters_haufe.npy"), filtersB_transform)
-        parcelvoxel_filters = orthonormalize_filters(filtersA_transform, filtersB_transform)
-        np.save(os.path.join(parcellated_filters_dir, "filters.npy"), parcelvoxel_filters)
-        for i in range(parcelvoxel_filters.shape[1]):
-            save_brain(parcelvoxel_filters[:,i], f"parcelvoxel_filters{i}", parcellated_filters_dir)
-
-        # Wait for PCA job completion so can read in voxel level filters
-        if not check_job_completion(job_id):
-            print(f"PCA job {job_id} did not complete successfully.")
-            return
-        print(f"PCA job {job_id} completed successfully.")
-
-        
-        # after the job completes, load the relevant data
-        voxel_filters = np.load(os.path.join(voxel_filters_dir, "filters.npy"))
-
-        # Calculate the overlap between retained major eigenspace and discriminant subspace
-        major_recon_discrim(parcelvoxel_filters, vt, parcellated_filters_dir)
-        major_recon_discrim(voxel_filters, vt, voxel_filters_dir)
-        
-        #Create Folders to store ICA outputs for this subspace dimension and run ICA for each basis
-        ICA_dir = os.path.join(nPCA_dir, "ICA")
-        if not os.path.exists(ICA_dir):
-            os.makedirs(ICA_dir)
-        
-        parcel_IFA_dir = os.path.join(ICA_dir, "parcel_IFA")
-        if not os.path.exists(parcel_IFA_dir):
-            os.makedirs(parcel_IFA_dir)
-        parcelvoxel_IFA_zmaps = PPCA_ICA(reducedsubs,basis=np.vstack((vt, parcelvoxel_filters.T)), n_components=None, IFA=True, self_whiten=self_whiten,random_state=random_state,whiten_method="InvCov", output_folder=parcel_IFA_dir)
-
-        voxel_IFA_dir = os.path.join(ICA_dir, "voxel_IFA")
-        if not os.path.exists(voxel_IFA_dir):
-            os.makedirs(voxel_IFA_dir)
-        voxel_IFA_zmaps = PPCA_ICA(reducedsubs,basis=np.vstack((vt, voxel_filters.T)), n_components=None, IFA=True, self_whiten=self_whiten,random_state=random_state,whiten_method="InvCov", output_folder=voxel_IFA_dir)
-
-        GICA_dir = os.path.join(ICA_dir, "GICA")
-        if not os.path.exists(GICA_dir):
-            os.makedirs(GICA_dir)
-        ICA_zmaps = PPCA_ICA(reducedsubs,basis=None, n_components=int(nPCA+2*n_filters_per_group), IFA=False, self_whiten=self_whiten,random_state=random_state,whiten_method="InvCov", output_folder=GICA_dir)
-
-
-        spatial_maps = [ICA_zmaps, parcelvoxel_IFA_zmaps, voxel_IFA_zmaps]
-        outputfolders = [GICA_dir, parcel_IFA_dir, voxel_IFA_dir]
-
-        sample = np.min((200,train_idx.shape[0]))
-        dual_regressor = DualRegress(
-            subs=paths,
-            spatial_maps=spatial_maps,
-            train_index=train_idx,
-            train_labels=train_labels,
-            outputfolders=outputfolders,
-            workers=15,
-            sample=sample,
-            method="bayesian",
-            parallel_points=15,
-            parallel_subs=15,
-            n_calls=15,
-            random_state=random_state
-        )
-
-        dual_regressor.dual_regress()
-
-        # Analyze each set of spatial maps
-        nPCA_results = os.path.join(nPCA_dir, "Results")
-        if not os.path.exists(nPCA_results):
-            os.makedirs(nPCA_results)
-
-        map_names = ["GICA","parcel_IFA","voxel_IFA"]
-        normalized_result = []
-        unnormalized_result = []
-
-        for i, map_i in enumerate(map_names):
-            result = dual_regressor.dual_regression_results[i]
-        
-            nPCA_results_maps = os.path.join(nPCA_results, map_i)
-            if not os.path.exists(nPCA_results_maps):
-                os.makedirs(nPCA_results_maps)
-            
-            # For Normalized results
-            nPCA_results_maps_norm = os.path.join(nPCA_results_maps, "Normalized")
-            if not os.path.exists(nPCA_results_maps_norm):
-                os.makedirs(nPCA_results_maps_norm)
-            ##### BELOW HERE ############
-            normalized_result_i = evaluate((result['normalized']['An'], result['normalized']['spatial_map'], result['normalized']['reconstruction_error']), 
-                                labels, train_idx, test_idx, 
-                                metric=metric, alpha=0.05, paired=paired, 
-                                permutations=10000, deconf=deconfound, 
-                                con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
-                                con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
-                                output_dir=nPCA_results_maps_norm, random_seed=random_state, basis=f"{map_i}_Normalized")           
-            
-            normalized_result.append(normalized_result_i)
-            
-            # For Unnormalized (demeaned) results
-            nPCA_results_maps_unnorm = os.path.join(nPCA_results_maps, "Unnormalized")
-            if not os.path.exists(nPCA_results_maps_unnorm):
-                os.makedirs(nPCA_results_maps_unnorm)
-
-            unnormalized_result_i = evaluate((result['demean']['Adm'], result['demean']['spatial_mapdm'], result['demean']['reconstruction_error']), 
-                    labels, train_idx, test_idx, 
-                    metric=metric, alpha=0.05, paired=paired, 
-                    permutations=10000, deconf=deconfound, 
-                    con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
-                    con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
-                    output_dir=nPCA_results_maps_unnorm, random_seed=random_state, basis=f"{map_i}_Unnormalized")
-            
-            unnormalized_result.append(unnormalized_result_i)
-
-        # Define the pairwise comparisons (same for both normalized and unnormalized)
-        pairs = [
-            (0, 1, "GICA", "parcel_IFA"),
-            (0, 2, "GICA", "voxel_IFA"),
-            (1, 2, "parcel_IFA", "voxel_IFA")
-        ]
-
-        # Run for normalized results
-        compare_dir_norm = os.path.join(nPCA_results, "Compare", "Normalized")
-        run_comparisons(normalized_result, compare_dir_norm, pairs, alpha=0.05)
-
-        # Run for unnormalized results
-        compare_dir_unnorm = os.path.join(nPCA_results, "Compare", "Unnormalized")
-        run_comparisons(unnormalized_result, compare_dir_unnorm, pairs, alpha=0.05)
-        
-
 # def run_fold(outputfolder, fold):
 #     # Read the settings from the JSON file
 #     with open(os.path.join(outputfolder, "settings.json"), "r") as f:
@@ -529,6 +203,8 @@ def run_fold(outputfolder, fold):
 #     train_idx = np.load(os.path.join(indices_dir, "train_idx.npy"))
 #     test_idx = np.load(os.path.join(indices_dir, "test_idx.npy"))
 #     fold_results = os.path.join(fold_output_dir, "Results")
+#     if not os.path.exists(fold_results):
+#         os.makedirs(fold_results)
 
 #     # Prepare data for train and test sets
 #     train_labels = labels[train_idx]
@@ -550,48 +226,225 @@ def run_fold(outputfolder, fold):
 #         test_con_confounders = None
 #         test_cat_confounders = None
 
+#     # Save summary of data split
+#     train_groups = set(np.unique(family_ID[train_idx]))
+#     test_groups = set(np.unique(family_ID[test_idx]))
+#     intersection = train_groups & test_groups
+#     save_text_results(f"Fold {fold + 1}:", summary_file_path)
+#     save_text_results(f"  Train size: {len(train_idx)}", summary_file_path)
+#     save_text_results(f"  Test size: {len(test_idx)}", summary_file_path)
+#     save_text_results(f"  Train labels distribution: {np.bincount(labels[train_idx].astype(int))}", summary_file_path)
+#     save_text_results(f"  Test labels distribution: {np.bincount(labels[test_idx].astype(int))}", summary_file_path)
+#     save_text_results(f"  Intersection of groups: {len(intersection)} (Groups: {intersection})", summary_file_path)
+#     if paired:
+#         paired_train = np.array_equal(
+#             sub_ID[train_idx][train_labels == a_label],
+#             sub_ID[train_idx][train_labels == b_label]
+#         )
+#         paired_test = np.array_equal(
+#             sub_ID[test_idx][test_labels == a_label],
+#             sub_ID[test_idx][test_labels == b_label]
+#         )
+#         save_text_results(f"  Paired Across Train: {paired_train}", summary_file_path)
+#         save_text_results(f"  Paired Across Test: {paired_test}", summary_file_path)
         
 #     # Run MIGP
 #     migp_dir = os.path.join(fold_output_dir, "MIGP")
+#     if not os.path.exists(migp_dir):
+#         os.makedirs(migp_dir)
+    
+#     # last element in path list is number of timepoints, see load_subject in preprocessing
+#     m = train_paths[0][-1]
+#     print("Keep this many pseudotime points", m, flush=True)
+#     reducedsubsA = migp(train_paths[train_labels == a_label], m=m, n_jobs=15,batch_size=1)
+#     reducedsubsB = migp(train_paths[train_labels == b_label], m=m, n_jobs=15,batch_size=1)
+#     np.save(os.path.join(migp_dir, "reducedsubsA.npy"), reducedsubsA)
+#     np.save(os.path.join(migp_dir, "reducedsubsB.npy"), reducedsubsB)
+#     reducedsubs = np.concatenate((reducedsubsA, reducedsubsB), axis=0)
+#     np.save(os.path.join(migp_dir, "reducedsubs.npy"), reducedsubs)
     
 #     for nPCA in nPCA_levels:
 #         # Directory for resulst for basis spanned by nPCA components + fixed number of filters
 #         nPCA_dir = os.path.join(fold_output_dir, f"nPCA_{nPCA}")
+#         if not os.path.exists(nPCA_dir):
+#             os.makedirs(nPCA_dir)
         
 #         # Get Parcellated Filters
 #         filters_dir = os.path.join(nPCA_dir, "Filters")
+#         if not os.path.exists(filters_dir):
+#             os.makedirs(filters_dir)
+
+#         _, vt = PPCA(reducedsubs.copy(), threshold=0.0, niters=1, n=nPCA)
+#         np.save(os.path.join(filters_dir, f"vt.npy"), vt)
         
 #         # Run the PCA job, now just to get the voxel level filters using GPU
 #         voxel_filters_dir = os.path.join(filters_dir, "Voxel")
+#         if not os.path.exists(voxel_filters_dir):
+#             os.makedirs(voxel_filters_dir)
 
+#         pca_script = "/project/3022057.01/IFA/run_IFA/Partial/run_pca_partial.sh"
+#         pca_command = [
+#             "sbatch",
+#             "--output", os.path.join(fold_output_dir, "pca-%j.out"),
+#             "--error", os.path.join(fold_output_dir, "pca-%j.err"),
+#             pca_script,
+#             outputfolder, fold_output_dir, voxel_filters_dir
+#         ]
+
+#         pca_process = subprocess.run(pca_command, capture_output=True, text=True)
+#         if pca_process.returncode != 0:
+#             print(f"Error submitting PCA job: {pca_process.stderr}")
+#             return
+#         job_id = pca_process.stdout.strip().split()[-1]
+#         print(f"PCA job submitted successfully with job ID: {job_id}")
+
+#         # Need to partial the data before parcellating; partial then parcellate each subject
+#         partial_data, partial_covs = partiallate_subjects(paths, vt, output_dir=filters_dir, n_workers=15)
+
+#         # Then split into train and test using your indices:
+#         partial_train_data = partial_data[train_idx]
+#         partial_test_data  = partial_data[test_idx]
+
+#         partial_train_covs = partial_covs[train_idx]
+#         partial_test_covs  = partial_covs[test_idx]
+
+
+#         # Run tangent classification for measuring separability in parcellated space
+#         tangent_class_metrics = tangent_classification(partial_train_covs, train_labels, partial_test_covs, test_labels, 
+#                             clf_str='all', z_score=0, metric=metric, deconf=deconfound, 
+#                             con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
+#                             con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders)
+        
+#         # Save those tangent classification results to overall fold results directory
+#         with open(os.path.join(filters_dir, "tangent_class_metrics.pkl"), "wb") as f:
+#             pickle.dump(tangent_class_metrics, f)   
+#         save_text_results("Parcellated Tangent Classification " + str(tangent_class_metrics), summary_file_path)
+
+        
 #         # Directory for all things related to the parecllated filters
 #         parcellated_filters_dir = os.path.join(filters_dir, "Parcellated")
+#         if not os.path.exists(parcellated_filters_dir):
+#             os.makedirs(parcellated_filters_dir)
 
+#         if tangent_class:
+#             eigs, filters_all, W, C = TSSF(partial_train_covs, train_labels, 
+#                                         clf_str=tan_class_model, metric=metric, deconf=deconfound, 
+#                                         con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
+#                                         z_score=0, haufe=False, visualize=True, output_dir=parcellated_filters_dir)
+#         else:
+#             eigs, filters_all = FKT(partial_train_covs, train_labels, a_label, b_label,
+#                                     metric=metric, deconf=deconfound, 
+#                                     con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
+#                                     visualize=True, output_dir=parcellated_filters_dir)
+        
+#         # if TSSF was used then the lower label is the negative class and corresponds to eigenvalues < 1
+#         if a_label < b_label and tangent_class:
+#             filtersB = filters_all[:, -n_filters_per_group:]
+#             filtersA = filters_all[:, :n_filters_per_group]
+#         else: 
+#             filtersA = filters_all[:, -n_filters_per_group:]
+#             filtersB = filters_all[:, :n_filters_per_group]
+
+#         filters_parcellated = np.concatenate((filtersB, filtersA), axis=1)
+
+#         np.save(os.path.join(parcellated_filters_dir, "filtersA.npy"), filtersA)
+#         np.save(os.path.join(parcellated_filters_dir, "filtersB.npy"), filtersB)
+#         np.save(os.path.join(parcellated_filters_dir, "filters_parcellated.npy"), filters_parcellated)
+#         for i in range(filters_parcellated.shape[1]):
+#             save_brain(hcp.unparcellate(filters_parcellated[:,i],hcp.mmp), f"parcellated_filter_{i}", parcellated_filters_dir)
+
+#         # Evaluate filters and save those results to overall fold results directory
+#         logvar_stats, logcov_stats = evaluate_filters(partial_train_data, train_labels, partial_test_data, test_labels, 
+#                                                         filters_parcellated, metric=metric, deconf=deconfound, 
+#                                                         con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
+#                                                         con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,output_dir=parcellated_filters_dir)
+
+#         with open(os.path.join(filters_dir, "logvar_stats.pkl"), "wb") as f:
+#                 pickle.dump(logvar_stats, f)     
+#         with open(os.path.join(filters_dir, "logcov_stats.pkl"), "wb") as f:
+#                 pickle.dump(logcov_stats, f)      
+#         save_text_results("Log Var Filter Feature Classification " + str(logvar_stats), summary_file_path)
+#         save_text_results("Log Cov Filter Feature Classification " + str(logcov_stats), summary_file_path)
+        
+#         # While PCA Job Runs, run dual regression on parcellated filters
+#         filtersA_transform = partial_filter_dual_regression(filtersA, partial_train_data[train_labels == a_label], train_paths[train_labels == a_label], vt, workers=15)
+#         filtersB_transform = partial_filter_dual_regression(filtersB, partial_train_data[train_labels == b_label], train_paths[train_labels == b_label], vt, workers=15)
+
+#         np.save(os.path.join(parcellated_filters_dir, "A_filters_haufe.npy"), filtersA_transform)
+#         np.save(os.path.join(parcellated_filters_dir, "B_filters_haufe.npy"), filtersB_transform)
+#         parcelvoxel_filters = orthonormalize_filters(filtersA_transform, filtersB_transform)
+#         np.save(os.path.join(parcellated_filters_dir, "filters.npy"), parcelvoxel_filters)
+#         for i in range(parcelvoxel_filters.shape[1]):
+#             save_brain(parcelvoxel_filters[:,i], f"parcelvoxel_filters{i}", parcellated_filters_dir)
+
+#         # Wait for PCA job completion so can read in voxel level filters
+#         if not check_job_completion(job_id):
+#             print(f"PCA job {job_id} did not complete successfully.")
+#             return
+#         print(f"PCA job {job_id} completed successfully.")
+
+        
 #         # after the job completes, load the relevant data
 #         voxel_filters = np.load(os.path.join(voxel_filters_dir, "filters.npy"))
 
+#         # Calculate the overlap between retained major eigenspace and discriminant subspace
+#         major_recon_discrim(parcelvoxel_filters, vt, parcellated_filters_dir)
+#         major_recon_discrim(voxel_filters, vt, voxel_filters_dir)
+        
 #         #Create Folders to store ICA outputs for this subspace dimension and run ICA for each basis
 #         ICA_dir = os.path.join(nPCA_dir, "ICA")
-
+#         if not os.path.exists(ICA_dir):
+#             os.makedirs(ICA_dir)
         
 #         parcel_IFA_dir = os.path.join(ICA_dir, "parcel_IFA")
+#         if not os.path.exists(parcel_IFA_dir):
+#             os.makedirs(parcel_IFA_dir)
+#         parcelvoxel_IFA_zmaps = PPCA_ICA(reducedsubs,basis=np.vstack((vt, parcelvoxel_filters.T)), n_components=None, IFA=True, self_whiten=self_whiten,random_state=random_state,whiten_method="InvCov", output_folder=parcel_IFA_dir)
 
 #         voxel_IFA_dir = os.path.join(ICA_dir, "voxel_IFA")
+#         if not os.path.exists(voxel_IFA_dir):
+#             os.makedirs(voxel_IFA_dir)
+#         voxel_IFA_zmaps = PPCA_ICA(reducedsubs,basis=np.vstack((vt, voxel_filters.T)), n_components=None, IFA=True, self_whiten=self_whiten,random_state=random_state,whiten_method="InvCov", output_folder=voxel_IFA_dir)
 
 #         GICA_dir = os.path.join(ICA_dir, "GICA")
+#         if not os.path.exists(GICA_dir):
+#             os.makedirs(GICA_dir)
+#         ICA_zmaps = PPCA_ICA(reducedsubs,basis=None, n_components=int(nPCA+2*n_filters_per_group), IFA=False, self_whiten=self_whiten,random_state=random_state,whiten_method="InvCov", output_folder=GICA_dir)
 
+
+#         spatial_maps = [ICA_zmaps, parcelvoxel_IFA_zmaps, voxel_IFA_zmaps]
 #         outputfolders = [GICA_dir, parcel_IFA_dir, voxel_IFA_dir]
 
-#         nPCA_results = os.path.join(nPCA_dir, "Results")
+#         sample = np.min((200,train_idx.shape[0]))
+#         dual_regressor = DualRegress(
+#             subs=paths,
+#             spatial_maps=spatial_maps,
+#             train_index=train_idx,
+#             train_labels=train_labels,
+#             outputfolders=outputfolders,
+#             workers=15,
+#             sample=sample,
+#             method="bayesian",
+#             parallel_points=15,
+#             parallel_subs=15,
+#             n_calls=15,
+#             random_state=random_state
+#         )
 
+#         dual_regressor.dual_regress()
+
+#         # Analyze each set of spatial maps
+#         nPCA_results = os.path.join(nPCA_dir, "Results")
+#         if not os.path.exists(nPCA_results):
+#             os.makedirs(nPCA_results)
 
 #         map_names = ["GICA","parcel_IFA","voxel_IFA"]
 #         normalized_result = []
 #         unnormalized_result = []
 
 #         for i, map_i in enumerate(map_names):
-
-# #        
+#             result = dual_regressor.dual_regression_results[i]
+        
 #             nPCA_results_maps = os.path.join(nPCA_results, map_i)
 #             if not os.path.exists(nPCA_results_maps):
 #                 os.makedirs(nPCA_results_maps)
@@ -601,13 +454,13 @@ def run_fold(outputfolder, fold):
 #             if not os.path.exists(nPCA_results_maps_norm):
 #                 os.makedirs(nPCA_results_maps_norm)
 #             ##### BELOW HERE ############
-#             normalized_result_i = evaluate((np.load(os.path.join(outputfolders[i], "An.npy")),  np.load(os.path.join(outputfolders[i], "spatial_map.npy")),  np.load(os.path.join(outputfolders[i], "reconstruction_error_norm.npy"))), 
-#                                 labels, train_idx, test_idx, 
+#             normalized_result_i = evaluate((result['normalized']['An'], result['normalized']['spatial_map'], result['normalized']['reconstruction_error']), 
+#                                 labels, train_idx, test_idx, a_label, b_label,
 #                                 metric=metric, alpha=0.05, paired=paired, 
 #                                 permutations=10000, deconf=deconfound, 
 #                                 con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
 #                                 con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
-#                                 output_dir=nPCA_results_maps_norm, random_seed=random_state, basis=f"{map_i}_Normalized")           
+#                                 output_dir=nPCA_results_maps_norm, random_seed=random_state, basis=f"{map_i}_Normalized",n_workers=15)           
             
 #             normalized_result.append(normalized_result_i)
             
@@ -616,13 +469,13 @@ def run_fold(outputfolder, fold):
 #             if not os.path.exists(nPCA_results_maps_unnorm):
 #                 os.makedirs(nPCA_results_maps_unnorm)
 
-#             unnormalized_result_i = evaluate((np.load(os.path.join(outputfolders[i], "Adm.npy")), np.load(os.path.join(outputfolders[i], "spatial_mapdm.npy")), np.load(os.path.join(outputfolders[i], "reconstruction_error_dm.npy"))), 
-#                     labels, train_idx, test_idx, 
+#             unnormalized_result_i = evaluate((result['demean']['Adm'], result['demean']['spatial_mapdm'], result['demean']['reconstruction_error']), 
+#                     labels, train_idx, test_idx, a_label, b_label,
 #                     metric=metric, alpha=0.05, paired=paired, 
 #                     permutations=10000, deconf=deconfound, 
 #                     con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
 #                     con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
-#                     output_dir=nPCA_results_maps_unnorm, random_seed=random_state, basis=f"{map_i}_Unnormalized")
+#                     output_dir=nPCA_results_maps_unnorm, random_seed=random_state, basis=f"{map_i}_Unnormalized",n_workers=15)
             
 #             unnormalized_result.append(unnormalized_result_i)
 
@@ -640,6 +493,153 @@ def run_fold(outputfolder, fold):
 #         # Run for unnormalized results
 #         compare_dir_unnorm = os.path.join(nPCA_results, "Compare", "Unnormalized")
 #         run_comparisons(unnormalized_result, compare_dir_unnorm, pairs, alpha=0.05)
+        
+
+def run_fold(outputfolder, fold):
+    # Read the settings from the JSON file
+    with open(os.path.join(outputfolder, "settings.json"), "r") as f:
+        settings = json.load(f)
+    random_state = settings["random_state"]
+    n_filters_per_group = settings["n_filters_per_group"]
+    nPCA_levels = settings["nPCA_levels"]
+    tangent_class = settings["tangent_class"]
+    tan_class_model = settings["tan_class_model"]
+    metric = settings["metric"]
+    a_label = settings["a_label"]
+    b_label = settings["b_label"]
+    self_whiten = settings["self_whiten"]
+    deconfound = settings["deconfound"]
+    paired = settings["paired"]
+
+    # Load pickle files
+    with open(os.path.join(outputfolder, "paths.pkl"), "rb") as f:
+        paths = pickle.load(f)
+
+    with open(os.path.join(outputfolder, "family_ID.pkl"), "rb") as f:
+        family_ID = pickle.load(f)
+
+    # Load numpy files
+    sub_ID = np.load(os.path.join(outputfolder, "Sub_ID.npy"))
+    labels = np.load(os.path.join(outputfolder, "labels.npy"))
+
+    # Load Fold Specific Vairables
+    fold_output_dir = os.path.join(outputfolder, f"fold_{fold}")
+    summary_file_path = os.path.join(fold_output_dir, "output_summary.txt")
+    indices_dir = os.path.join(fold_output_dir, "Indices")
+    train_idx = np.load(os.path.join(indices_dir, "train_idx.npy"))
+    test_idx = np.load(os.path.join(indices_dir, "test_idx.npy"))
+    fold_results = os.path.join(fold_output_dir, "Results")
+
+    # Prepare data for train and test sets
+    train_labels = labels[train_idx]
+    train_paths = paths[train_idx]
+
+    test_labels = labels[test_idx]
+  
+    if deconfound:
+        with open(os.path.join(outputfolder, "cat_confounders.pkl"), "rb") as f:
+            cat_confounders = pickle.load(f)
+        con_confounders = np.load(os.path.join(outputfolder, "con_confounders.npy"))
+        train_con_confounders = con_confounders[train_idx]
+        train_cat_confounders = cat_confounders[train_idx]
+        test_con_confounders = con_confounders[test_idx]
+        test_cat_confounders = cat_confounders[test_idx]
+    else:
+        train_con_confounders = None
+        train_cat_confounders = None
+        test_con_confounders = None
+        test_cat_confounders = None
+
+        
+    # Run MIGP
+    migp_dir = os.path.join(fold_output_dir, "MIGP")
+    
+    for nPCA in nPCA_levels:
+        # Directory for resulst for basis spanned by nPCA components + fixed number of filters
+        nPCA_dir = os.path.join(fold_output_dir, f"nPCA_{nPCA}")
+        
+        # Get Parcellated Filters
+        filters_dir = os.path.join(nPCA_dir, "Filters")
+        
+        # Run the PCA job, now just to get the voxel level filters using GPU
+        voxel_filters_dir = os.path.join(filters_dir, "Voxel")
+
+        # Directory for all things related to the parecllated filters
+        parcellated_filters_dir = os.path.join(filters_dir, "Parcellated")
+
+        # after the job completes, load the relevant data
+        voxel_filters = np.load(os.path.join(voxel_filters_dir, "filters.npy"))
+
+        #Create Folders to store ICA outputs for this subspace dimension and run ICA for each basis
+        ICA_dir = os.path.join(nPCA_dir, "ICA")
+
+        
+        parcel_IFA_dir = os.path.join(ICA_dir, "parcel_IFA")
+
+        voxel_IFA_dir = os.path.join(ICA_dir, "voxel_IFA")
+
+        GICA_dir = os.path.join(ICA_dir, "GICA")
+
+        outputfolders = [GICA_dir, parcel_IFA_dir, voxel_IFA_dir]
+
+        nPCA_results = os.path.join(nPCA_dir, "Results")
+
+
+        map_names = ["GICA","parcel_IFA","voxel_IFA"]
+        normalized_result = []
+        unnormalized_result = []
+
+        for i, map_i in enumerate(map_names):
+
+#        
+            nPCA_results_maps = os.path.join(nPCA_results, map_i)
+            if not os.path.exists(nPCA_results_maps):
+                os.makedirs(nPCA_results_maps)
+            
+            # For Normalized results
+            nPCA_results_maps_norm = os.path.join(nPCA_results_maps, "Normalized")
+            if not os.path.exists(nPCA_results_maps_norm):
+                os.makedirs(nPCA_results_maps_norm)
+            ##### BELOW HERE ############
+            normalized_result_i = evaluate((np.load(os.path.join(outputfolders[i], "An.npy")),  np.load(os.path.join(outputfolders[i], "spatial_map.npy")),  np.load(os.path.join(outputfolders[i], "reconstruction_error_norm.npy"))), 
+                                labels, train_idx, test_idx, a_label, b_label,
+                                metric=metric, alpha=0.05, paired=paired, 
+                                permutations=10000, deconf=deconfound, 
+                                con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
+                                con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
+                                output_dir=nPCA_results_maps_norm, random_seed=random_state, basis=f"{map_i}_Normalized", n_workers=15)           
+            
+            normalized_result.append(normalized_result_i)
+            
+            # For Unnormalized (demeaned) results
+            nPCA_results_maps_unnorm = os.path.join(nPCA_results_maps, "Unnormalized")
+            if not os.path.exists(nPCA_results_maps_unnorm):
+                os.makedirs(nPCA_results_maps_unnorm)
+
+            unnormalized_result_i = evaluate((np.load(os.path.join(outputfolders[i], "Adm.npy")), np.load(os.path.join(outputfolders[i], "spatial_mapdm.npy")), np.load(os.path.join(outputfolders[i], "reconstruction_error_dm.npy"))), 
+                    labels, train_idx, test_idx, a_label, b_label,
+                    metric=metric, alpha=0.05, paired=paired, 
+                    permutations=10000, deconf=deconfound, 
+                    con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
+                    con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
+                    output_dir=nPCA_results_maps_unnorm, random_seed=random_state, basis=f"{map_i}_Unnormalized", n_workers=15)
+            
+            unnormalized_result.append(unnormalized_result_i)
+
+        # Define the pairwise comparisons (same for both normalized and unnormalized)
+        pairs = [
+            (0, 1, "GICA", "parcel_IFA"),
+            (0, 2, "GICA", "voxel_IFA"),
+            (1, 2, "parcel_IFA", "voxel_IFA")
+        ]
+
+        # Run for normalized results
+        compare_dir_norm = os.path.join(nPCA_results, "Compare", "Normalized")
+        run_comparisons(normalized_result, compare_dir_norm, pairs, alpha=0.05)
+
+        # Run for unnormalized results
+        compare_dir_unnorm = os.path.join(nPCA_results, "Compare", "Unnormalized")
+        run_comparisons(unnormalized_result, compare_dir_unnorm, pairs, alpha=0.05)
         
 
 

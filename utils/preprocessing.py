@@ -15,6 +15,10 @@ import sys
 import json
 import re
 from pyriemann.estimation import Covariances
+from scipy.stats import norm
+import scipy.io
+from sklearn.preprocessing import StandardScaler
+
 sys.path.append('/utils')
 
 from regression import deconfound, confounders, continuous_confounders, categorical_confounders, phen_confounders, phen_continuous_confounders, phen_categorical_confounders
@@ -231,6 +235,125 @@ def process_subject(sub):
         traceback.print_exc()  # Print the full traceback
         return None
 
+def create_cca_phenotype(num_weights, headers_path, cca_mat_path, loaded_data_path, apply_deconfounding=True):
+    """
+    Creates a composite phenotype column based on the top num_weights from the CCA subject-measure weight vector.
+    It converts any T-scores to percentiles (for columns with '_Pct'), extracts the top variables,
+    optionally deconfounds those phenotype columns, and then computes a weighted sum.
+    
+    Parameters:
+      num_weights (int): Number of top weights (by absolute value) to use.
+      headers_path (str): Path to the column_headers.txt file.
+      cca_mat_path (str): Path to the MAT file with the CCA weights.
+      loaded_data_path (str): Path to the pickle file containing the DataFrame.
+      output_col_name (str): (Optional) Name for the new phenotype column.
+                             Defaults to "CCA_score_top<num_weights>".
+      apply_deconfounding (bool): If True, deconfounds each top phenotype column using phen_continuous_confounders
+                                  and phen_categorical_confounders.
+    
+    Returns:
+      pd.DataFrame: A new DataFrame containing only subjects with complete data for the top variables,
+                    along with a new composite phenotype column.
+    """
+    # Load headers (list of 478 variable names)
+    with open(headers_path, 'r') as f:
+        headers = [line.strip() for line in f if line.strip()]
+    
+    # Load the MAT file with CCA weights
+    cca_data = scipy.io.loadmat(cca_mat_path)
+    
+    # Load the DataFrame from the pickle file
+    loaded_data = pd.read_pickle(loaded_data_path)
+    
+    # For each header that contains '_Pct', convert the corresponding T score column to percentiles.
+    # This will update loaded_data by creating (or replacing) the _Pct columns.
+    for col in headers:
+        if '_Pct' in col:
+            base = col.replace('_Pct', '')
+            t_col = base + '_T'
+            if t_col in loaded_data.columns:
+                loaded_data[col] = norm.cdf((loaded_data[t_col] - 50) / 10) * 100
+                print(f"Created/updated column '{col}' from '{t_col}'")
+            else:
+                print(f"Warning: T column '{t_col}' not found for header '{col}'")
+    
+    # Extract the weight vector from the MAT file.
+    # We assume the subject-measure weights are in cca_data['hcp_cca_public'][0][0][1]
+    weights = cca_data['hcp_cca_public'][0][0][1].flatten()  # expected shape (478,)
+    
+    # Create a mask for non-NaN weights and for headers present in loaded_data
+    valid_mask = ~np.isnan(weights)
+    loaded_columns = set(loaded_data.columns)
+    header_in_loaded = np.array([header in loaded_columns for header in headers])
+    combined_mask = valid_mask & header_in_loaded
+    
+    valid_indices = np.where(combined_mask)[0]
+    valid_weights = weights[combined_mask]
+    
+    # Sort valid weights by descending absolute value
+    sorted_valid_indices = np.argsort(np.abs(valid_weights))[::-1]
+    
+    # Select the top num_weights indices (relative to the full array)
+    top_indices = valid_indices[sorted_valid_indices[:num_weights]]
+    top_weights = weights[top_indices]
+    top_headers = [headers[i] for i in top_indices]
+    
+    print(f"Top {num_weights} subject-measure weights:")
+    for header, weight in zip(top_headers, top_weights):
+        print(f"{header}: {weight}")
+    
+    if apply_deconfounding:
+        unique_confounders = list(dict.fromkeys(confounders + phen_confounders))
+        # Drop rows with NaN values in the specified columns
+        loaded_data["motion"] = loaded_data["motion"].apply(lambda x: np.mean(np.array(x)))
+        columns = ["Subject", "parcellated_data", "paths", "Family_ID"] + top_headers + unique_confounders
+    else:
+        columns = ["Subject", "parcellated_data", "paths", "Family_ID"] + top_headers
+    
+    X_top = loaded_data[columns]
+
+    # Drop rows (subjects) with any NaNs in these top columns
+    X_top_complete = X_top.dropna(axis=0)
+    print("Shape of X_top before dropping NaNs:", X_top.shape)
+    print("Shape of X_top after dropping rows with NaNs:", X_top_complete.shape)
+    
+    # If deconfounding is enabled, deconfound each phenotype column individually.
+    if apply_deconfounding:
+        # For each top variable, deconfound it using the specified phenotype confounders.
+        for phenotype in top_headers:
+            if X_top_complete[phenotype].dtype != bool:
+                # deconfound returns a Series with residuals
+                deconf_series = deconfound(
+                    X_train=X_top_complete[phenotype],
+                    con_confounder_train=X_top_complete[phen_continuous_confounders],
+                    cat_confounder_train=X_top_complete[phen_categorical_confounders],
+                    phenotype_labels=None,
+                    output_path=None 
+                )
+                # Replace the column with its deconfounded values for the subjects where deconfounding succeeded
+                X_top_complete.loc[deconf_series.index, phenotype] = deconf_series
+
+    # After you finish deconfounding your top columns...
+    for phenotype in top_headers:
+        # Only standardize if it's not boolean
+        if X_top_complete[phenotype].dtype != bool:
+            # scikit-learn requires a 2D array, so reshape
+            values_2d = X_top_complete[phenotype].values.reshape(-1, 1)
+            scaler = StandardScaler()
+            standardized = scaler.fit_transform(values_2d).flatten()
+            X_top_complete.loc[:, phenotype] = standardized
+
+    # Compute the composite phenotype: weighted sum (dot product) for each subject in complete cases.
+    phenotype_scores = X_top_complete[top_headers].dot(top_weights)
+    
+    # Define output column name if not provided.
+    output_col_name = "CCA_top"
+    
+    # Create a new DataFrame (using the deconfounded complete data) and add the composite phenotype column.
+    new_data = X_top_complete.copy()
+    new_data[output_col_name] = phenotype_scores
+    
+    return new_data, columns
            
 def get_groups(phenotypes, quantile, data_path, apply_deconfounding=True, regression=False, visualize=True, output_dir="plots",bins=30,min_frequency_factor=0.05):
     # Load the phenotype data
@@ -279,17 +402,26 @@ def get_groups(phenotypes, quantile, data_path, apply_deconfounding=True, regres
     #     return phenotype_data
 
     loaded_data = pd.read_pickle(data_path)
-
-    if apply_deconfounding:
-        unique_confounders = list(dict.fromkeys(confounders + phen_confounders))
-        # Drop rows with NaN values in the specified columns
-        loaded_data["motion"] = loaded_data["motion"].apply(lambda x: np.mean(np.array(x)))
-        columns = ["Subject", "parcellated_data", "paths", "Family_ID"] + phenotypes + unique_confounders
-        # loaded_data = loaded_data[(loaded_data["motion"] < 0.15 ) & (loaded_data["MMSE_Score"] > 26 )]
+    if isinstance(phenotypes[0], int) and len(phenotypes) == 1:
+        phenotype_data, columns = create_cca_phenotype(phenotypes[0], '/project/3022057.01/HCP/column_headers.txt', 
+                                '/project/3022057.01/HCP/hcp_cca_public.mat',
+                                data_path,
+                                apply_deconfounding=apply_deconfounding)
+        # Replace phenotype with newly created CCA column
+        phenotypes = ["CCA_top"]
+        # Set deconfounding to False so we do not deconfound again since, deconfounding is handled before the CCA projection
+        apply_deconfounding = False
     else:
-        columns = ["Subject", "parcellated_data", "paths", "Family_ID"] + phenotypes
-        
-    phenotype_data = loaded_data[columns].dropna()
+        if apply_deconfounding:
+            unique_confounders = list(dict.fromkeys(confounders + phen_confounders))
+            # Drop rows with NaN values in the specified columns
+            loaded_data["motion"] = loaded_data["motion"].apply(lambda x: np.mean(np.array(x)))
+            columns = ["Subject", "parcellated_data", "paths", "Family_ID"] + phenotypes + unique_confounders
+            # loaded_data = loaded_data[(loaded_data["motion"] < 0.15 ) & (loaded_data["MMSE_Score"] > 26 )]
+        else:
+            columns = ["Subject", "parcellated_data", "paths", "Family_ID"] + phenotypes
+            
+        phenotype_data = loaded_data[columns].dropna()
 
     group_a_subjects = set(phenotype_data["Subject"])
     group_b_subjects = set(phenotype_data["Subject"])

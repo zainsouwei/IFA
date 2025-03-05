@@ -400,12 +400,12 @@ def run_fold(outputfolder, fold):
                 os.makedirs(nPCA_results_maps_norm)
 
             normalized_result_i = evaluate((result['normalized']['An'], result['normalized']['spatial_map'], result['normalized']['reconstruction_error']), 
-                                labels, train_idx, test_idx, 
+                                labels, train_idx, test_idx, a_label, b_label,
                                 metric=metric, alpha=0.05, paired=paired, 
                                 permutations=10000, deconf=deconfound, 
                                 con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
                                 con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
-                                output_dir=nPCA_results_maps_norm, random_seed=random_state, basis=f"{map_i}_Normalized")           
+                                output_dir=nPCA_results_maps_norm, random_seed=random_state, basis=f"{map_i}_Normalized", n_workers=15)           
             
             normalized_result.append(normalized_result_i)
             
@@ -415,12 +415,12 @@ def run_fold(outputfolder, fold):
                 os.makedirs(nPCA_results_maps_unnorm)
 
             unnormalized_result_i = evaluate((result['demean']['Adm'], result['demean']['spatial_mapdm'], result['demean']['reconstruction_error']), 
-                    labels, train_idx, test_idx, 
+                    labels, train_idx, test_idx, a_label, b_label,
                     metric=metric, alpha=0.05, paired=paired, 
                     permutations=10000, deconf=deconfound, 
                     con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
                     con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
-                    output_dir=nPCA_results_maps_unnorm, random_seed=random_state, basis=f"{map_i}_Unnormalized")
+                    output_dir=nPCA_results_maps_unnorm, random_seed=random_state, basis=f"{map_i}_Unnormalized", n_workers=15)
             
             unnormalized_result.append(unnormalized_result_i)
 
