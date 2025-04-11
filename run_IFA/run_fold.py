@@ -61,6 +61,39 @@ def major_recon_discrim(discrim_basis, major_space,output_folder):
         print("Failed to compute reconstruction percentage:", e)
         reconstruction_percentage = None
 
+# def PPCA_ICA(reducedsubs,basis=None, n_components=None, IFA=True, self_whiten=False,random_state=42,whiten_method="InvCov", output_folder=None):
+#     if IFA:
+#         if self_whiten:
+#             ## Whiten Basis, will need to whiten because this is a combined basis; method chosen wil rotate it to change ICA unmixing starting position (ICA unmixing is nondeterministic)
+#             basis, _ = whiten(basis, n_components=basis.shape[0], method=whiten_method)
+        
+#         # Variance Normalize Data (PPCA is only being used for variance normalizing data since we already have the basis)
+#         data_vn, _ = PPCA(reducedsubs.copy(), filters=basis.T, threshold=0.0, niters=1)
+#     else:
+#         # For group ICA need to use PPCA to get the major space to match the dimensionality from IFA
+#         data_vn, basis = PPCA(reducedsubs.copy(), threshold=0.0, niters=1, n=n_components)
+
+#         if self_whiten:
+#             ## Although basis is orthogonal, this rewhitening accounts for number of samples for whitening
+#             basis, _ = whiten(basis, n_components=basis.shape[0], method=whiten_method)
+
+#     spatial_maps, A, W = ICA(data_vn, basis, whiten=(not self_whiten), output_dir=output_folder,random_state=random_state)
+#     zmaps, zmaps_thresh = threshold_and_visualize(data_vn, W, spatial_maps.T, visualize=True,output_dir=output_folder)
+
+#     for i in range(zmaps.shape[1]):
+#         save_brain(zmaps[:,i], f"z_map_{i}", output_folder)
+
+#     np.save(os.path.join(output_folder, "basis.npy"), basis)
+#     np.save(os.path.join(output_folder, "data_vn.npy"), data_vn)
+#     np.save(os.path.join(output_folder, "spatial_maps.npy"), spatial_maps)
+#     np.save(os.path.join(output_folder, "A.npy"), A)
+#     np.save(os.path.join(output_folder, "W.npy"), W)
+#     np.save(os.path.join(output_folder, "ICA_zmaps.npy"), zmaps)
+#     np.save(os.path.join(output_folder, "ICA_zmaps_thresh.npy"), zmaps_thresh)
+
+#     return zmaps
+
+
 def PPCA_ICA(reducedsubs,basis=None, n_components=None, IFA=True, self_whiten=False,random_state=42,whiten_method="InvCov", output_folder=None):
     if IFA:
         if self_whiten:
@@ -68,30 +101,32 @@ def PPCA_ICA(reducedsubs,basis=None, n_components=None, IFA=True, self_whiten=Fa
             basis, _ = whiten(basis, n_components=basis.shape[0], method=whiten_method)
         
         # Variance Normalize Data (PPCA is only being used for variance normalizing data since we already have the basis)
-        data_vn, _ = PPCA(reducedsubs.copy(), filters=basis.T, threshold=0.0, niters=1)
+        # data_vn, _ = PPCA(reducedsubs.copy(), filters=basis.T, threshold=0.0, niters=1)
     else:
         # For group ICA need to use PPCA to get the major space to match the dimensionality from IFA
-        data_vn, basis = PPCA(reducedsubs.copy(), threshold=0.0, niters=1, n=n_components)
+        _, basis = PPCA(reducedsubs.copy(), threshold=0.0, niters=1, n=n_components)
 
         if self_whiten:
             ## Although basis is orthogonal, this rewhitening accounts for number of samples for whitening
             basis, _ = whiten(basis, n_components=basis.shape[0], method=whiten_method)
 
-    spatial_maps, A, W = ICA(data_vn, basis, whiten=(not self_whiten), output_dir=output_folder,random_state=random_state)
-    zmaps, zmaps_thresh = threshold_and_visualize(data_vn, W, spatial_maps.T, visualize=True,output_dir=output_folder)
-
-    for i in range(zmaps.shape[1]):
-        save_brain(zmaps[:,i], f"z_map_{i}", output_folder)
+    # spatial_maps, A, W = ICA(data_vn, basis, whiten=(not self_whiten), output_dir=output_folder,random_state=random_state)
+    # zmaps, zmaps_thresh = threshold_and_visualize(data_vn, W, spatial_maps.T, visualize=True,output_dir=output_folder)
+    spatial_maps = ICA(basis, whiten=(not self_whiten), output_dir=output_folder,random_state=random_state)
+    spatial_maps = spatial_maps.T
+    for i in range(spatial_maps.shape[1]):
+        save_brain(spatial_maps[:,i], f"s_map_{i}", output_folder)
 
     np.save(os.path.join(output_folder, "basis.npy"), basis)
-    np.save(os.path.join(output_folder, "data_vn.npy"), data_vn)
+    # np.save(os.path.join(output_folder, "data_vn.npy"), data_vn)
     np.save(os.path.join(output_folder, "spatial_maps.npy"), spatial_maps)
-    np.save(os.path.join(output_folder, "A.npy"), A)
-    np.save(os.path.join(output_folder, "W.npy"), W)
-    np.save(os.path.join(output_folder, "ICA_zmaps.npy"), zmaps)
-    np.save(os.path.join(output_folder, "ICA_zmaps_thresh.npy"), zmaps_thresh)
+    # np.save(os.path.join(output_folder, "A.npy"), A)
+    # np.save(os.path.join(output_folder, "W.npy"), W)
+    # np.save(os.path.join(output_folder, "ICA_zmaps.npy"), zmaps)
+    # np.save(os.path.join(output_folder, "ICA_zmaps_thresh.npy"), zmaps_thresh)
 
-    return zmaps
+    # return zmaps
+    return spatial_maps
 
 def run_comparisons(results_list, base_output_folder, pairs, alpha=0.05):
     """
@@ -344,20 +379,20 @@ def run_fold(outputfolder, fold):
         parcel_IFA_dir = os.path.join(ICA_dir, "parcel_IFA")
         if not os.path.exists(parcel_IFA_dir):
             os.makedirs(parcel_IFA_dir)
-        parcelvoxel_IFA_zmaps = PPCA_ICA(reducedsubs,basis=np.vstack((vt, parcelvoxel_filters.T)), n_components=None, IFA=True, self_whiten=self_whiten,random_state=random_state,whiten_method="InvCov", output_folder=parcel_IFA_dir)
+        parcelvoxel_IFA_maps = PPCA_ICA(reducedsubs,basis=np.vstack((vt, parcelvoxel_filters.T)), n_components=None, IFA=True, self_whiten=self_whiten,random_state=random_state,whiten_method="InvCov", output_folder=parcel_IFA_dir)
 
         voxel_IFA_dir = os.path.join(ICA_dir, "voxel_IFA")
         if not os.path.exists(voxel_IFA_dir):
             os.makedirs(voxel_IFA_dir)
-        voxel_IFA_zmaps = PPCA_ICA(reducedsubs,basis=np.vstack((vt, voxel_filters.T)), n_components=None, IFA=True, self_whiten=self_whiten,random_state=random_state,whiten_method="InvCov", output_folder=voxel_IFA_dir)
+        voxel_IFA_maps = PPCA_ICA(reducedsubs,basis=np.vstack((vt, voxel_filters.T)), n_components=None, IFA=True, self_whiten=self_whiten,random_state=random_state,whiten_method="InvCov", output_folder=voxel_IFA_dir)
 
         GICA_dir = os.path.join(ICA_dir, "GICA")
         if not os.path.exists(GICA_dir):
             os.makedirs(GICA_dir)
-        ICA_zmaps = PPCA_ICA(reducedsubs,basis=None, n_components=int(nPCA+2*n_filters_per_group), IFA=False, self_whiten=self_whiten,random_state=random_state,whiten_method="InvCov", output_folder=GICA_dir)
+        ICA_maps = PPCA_ICA(reducedsubs,basis=None, n_components=int(nPCA+2*n_filters_per_group), IFA=False, self_whiten=self_whiten,random_state=random_state,whiten_method="InvCov", output_folder=GICA_dir)
 
 
-        spatial_maps = [ICA_zmaps, parcelvoxel_IFA_zmaps, voxel_IFA_zmaps]
+        spatial_maps = [ICA_maps, parcelvoxel_IFA_maps, voxel_IFA_maps]
         outputfolders = [GICA_dir, parcel_IFA_dir, voxel_IFA_dir]
 
         sample = np.min((200,train_idx.shape[0]))
@@ -405,7 +440,7 @@ def run_fold(outputfolder, fold):
                                 permutations=10000, deconf=deconfound, 
                                 con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
                                 con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
-                                output_dir=nPCA_results_maps_norm, random_seed=random_state, basis=f"{map_i}_Normalized", n_workers=15)           
+                                output_dir=nPCA_results_maps_norm, random_seed=random_state, basis=f"{map_i}_Normalized", n_workers=8)           
             
             normalized_result.append(normalized_result_i)
             
@@ -420,7 +455,7 @@ def run_fold(outputfolder, fold):
                     permutations=10000, deconf=deconfound, 
                     con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
                     con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
-                    output_dir=nPCA_results_maps_unnorm, random_seed=random_state, basis=f"{map_i}_Unnormalized", n_workers=15)
+                    output_dir=nPCA_results_maps_unnorm, random_seed=random_state, basis=f"{map_i}_Unnormalized", n_workers=8)
             
             unnormalized_result.append(unnormalized_result_i)
 

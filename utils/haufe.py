@@ -1,4 +1,5 @@
 import numpy as np
+import functools
 from sklearn.linear_model import LinearRegression, Lasso, MultiTaskLasso, ElasticNet
 from pyriemann.estimation import Covariances
 from concurrent.futures import ProcessPoolExecutor, TimeoutError
@@ -127,7 +128,6 @@ def partial_filter_dual_regression(F, parcellated, paths, vt, workers=20):
     pinv_TF_list = np.array_split(pinv_TF, len(paths), axis=1)
     
     # Create a partial function so that vt is fixed for every subject.
-    import functools
     func = functools.partial(process_subject_haufe_partial, vt=vt)
     
     with ProcessPoolExecutor(max_workers=workers) as executor:

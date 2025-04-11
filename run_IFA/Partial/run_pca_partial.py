@@ -19,6 +19,8 @@ def run_pca(outputfolder, fold_output_dir, voxel_filters_dir, batch_size=5):
         
 
         n_filters_per_group = settings["n_filters_per_group"]
+        cov_log = settings["cov_log"]
+        shrink = settings["shrinkage"]
         # a_label = settings["a_label"]
         # b_label = settings["b_label"]
 
@@ -59,7 +61,7 @@ def run_pca(outputfolder, fold_output_dir, voxel_filters_dir, batch_size=5):
         voxelwise_FKT(groupA=A_partial, groupB=B_partial, 
                         n_filters_per_group=n_filters_per_group, 
                         groupA_paths=None, groupB_paths=None, 
-                        paths=False,log=False,shrinkage=0.01,
+                        paths=False,log=cov_log,shrinkage=shrink,
                         cov_method='svd',outputfolder=voxel_filters_dir, save=False)
 
     except Exception as e:

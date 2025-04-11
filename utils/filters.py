@@ -793,6 +793,7 @@ def save_brain(map, title, output_dir):
 
 
 def voxelwise_FKT(groupA=None, groupB=None, n_filters_per_group=1, groupA_paths=None, groupB_paths=None, paths=False,log=False,shrinkage=0.01,cov_method='svd',outputfolder='Path', save=False):
+    print(log,shrinkage)
     try:
         assert (not log) or (cov_method == 'svd'), "If log is True, then method must be 'svd'."
         if paths:

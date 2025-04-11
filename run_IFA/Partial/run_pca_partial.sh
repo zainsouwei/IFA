@@ -1,8 +1,13 @@
 #!/bin/bash
-#SBATCH --partition=gpu                       # Use the GPU partition
-#SBATCH --gpus=nvidia_a100_80gb_pcie:1        # Request 1 NVIDIA A100 GPU 80GB
-#SBATCH --mem=150G                             # Total memory for the job
-#SBATCH --time=10:00:00                       
+#NULLSBATCH --partition=gpu                       # Use the GPU partition
+#NULLSBATCH --gpus=nvidia_a100_80gb_pcie:1        # Request 1 NVIDIA A100 GPU 80GB
+#NULLSBATCH --mem=150G                             # Total memory for the job
+#NULLSBATCH --time=10:00:00                       
+#SBATCH --partition=batch
+#SBATCH --mem=140G                             
+#SBATCH --time=72:00:00
+#NULLSBATCH --ntasks 1     
+#NULLSBATCH --cpus-per-task=15       
 
 # Set ulimit to change the soft limit for virtual memory and data segment size
 ulimit -v unlimited  # Remove the soft limit on virtual memory
