@@ -107,7 +107,7 @@ def update_W(current_W, new_data, m):
     return updated_W
 
 
-def migp_worker(subs,batch_size=1, m=4800):  #TODO chaneg back to non PCN m=4800
+def migp_worker(subs,batch_size=1, m=4800, vt=None):  #TODO chaneg back to non PCN m=4800
 
     if batch_size > len(subs):
         print(f"Warning: batch_size ({batch_size}) is greater than number of subjects ({len(subs)}). Setting batch_size to {len(subs)}.")
@@ -121,8 +121,11 @@ def migp_worker(subs,batch_size=1, m=4800):  #TODO chaneg back to non PCN m=4800
         try:
             concatenated_data = []  
             for path in batch_subs:
-                concatenated_data.append(load_subject(path))
-
+                data = load_subject(path)
+                if vt is not None:
+                    # Remove the projection onto vt for migp in residual space
+                    data = data - (data @ np.linalg.pinv(vt)) @ vt
+                concatenated_data.append(data)
             # Concatenate data along the first axis  
             batch = np.concatenate(concatenated_data, axis=0)
             del concatenated_data
@@ -181,7 +184,7 @@ def merge_W_in_batches(W_list, batch_size=1, m=4800):
     return final_W
 
 
-def migp(subs, m=4800, n_jobs=4,batch_size=3):
+def migp(subs, m=4800, n_jobs=4,batch_size=3,vt=None):
     """
     Splits subjects into n_jobs groups, runs migp_worker on each in parallel,
     and merges the results.
@@ -193,7 +196,7 @@ def migp(subs, m=4800, n_jobs=4,batch_size=3):
     W_list = []
     with concurrent.futures.ProcessPoolExecutor(max_workers=n_jobs) as executor:
         # Submit one job per sublist, making sure each sublist is converted to a regular list
-        futures = [executor.submit(migp_worker, list(sublist), batch_size, m) for sublist in sublists]
+        futures = [executor.submit(migp_worker, list(sublist), batch_size, m, vt=vt) for sublist in sublists]
         for future in concurrent.futures.as_completed(futures):
             result = future.result()
             if result is not None:

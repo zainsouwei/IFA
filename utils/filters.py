@@ -646,7 +646,7 @@ def oas_estimator(sample_covariance,n_samples, shrink=None):
     torch.cuda.empty_cache()
     return oas_estimate
 
-def Large_FKT(X1, X2, n, LOBPCG=True,num_simulations=1000, log=False,largest=True):
+def Large_FKT(X1, X2, n, LOBPCG=True,num_simulations=1000, log=False,largest=True,reg=False):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if LOBPCG:
         try:
@@ -655,7 +655,22 @@ def Large_FKT(X1, X2, n, LOBPCG=True,num_simulations=1000, log=False,largest=Tru
             if log:
                 L, Q = torch.lobpcg(A=X1_gpu - Sum_gpu.div_(2),B=None, k=n, largest=largest)
             else:
-                L, Q = torch.lobpcg(A=X1_gpu,B=Sum_gpu, k=n, largest=largest)
+                if reg:
+                    # 1) Add a small ridge ε to both A and B
+                    eps = 1e-6
+                    N = X1_gpu.size(0)
+                    X1_gpu.add_(eps *torch.eye(N, device=device))
+                    Sum_gpu.add_(eps *torch.eye(N, device=device))
+
+                    # 2) Build Jacobi preconditioner from A_eps
+                    inv_diag = 1.0 / X1_gpu.diag()     # shape (N,)
+                    iK = torch.diag(inv_diag)         # shape (N, N)
+                else:
+                    iK = None
+                L, Q = torch.lobpcg(A=X1_gpu,B=Sum_gpu, k=n, iK=iK, largest=largest)
+                if iK is not None:
+                    del iK
+            torch.cuda.empty_cache()
             print(f"L: {L.shape}, S: {Q.shape}")
             print(f"eigenvalue {L}")
             # del X1_gpu
@@ -794,74 +809,75 @@ def save_brain(map, title, output_dir):
 
 def voxelwise_FKT(groupA=None, groupB=None, n_filters_per_group=1, groupA_paths=None, groupB_paths=None, paths=False,log=False,shrinkage=0.01,cov_method='svd',outputfolder='Path', save=False):
     print(log,shrinkage)
-    try:
-        assert (not log) or (cov_method == 'svd'), "If log is True, then method must be 'svd'."
-        if paths:
-            # If passed as a list of subjects that contain their paths, last element in list is number of timepoints, see load_subject in preprocessing
-            A_samples = groupA_paths[0][-1]
-            B_samples = groupB_paths[0][-1]
+    with torch.no_grad():
+        try:
+            assert (not log) or (cov_method == 'svd'), "If log is True, then method must be 'svd'."
+            if paths:
+                # If passed as a list of subjects that contain their paths, last element in list is number of timepoints, see load_subject in preprocessing
+                A_samples = groupA_paths[0][-1]
+                B_samples = groupB_paths[0][-1]
 
-            A_dense = average_covariances(groupA_paths, method=cov_method, log=log, shrink=None)
-            B_dense = average_covariances(groupB_paths, method=cov_method, log=log, shrink=None)
-        else:
-            A_samples = groupA.shape[0]
-            B_samples = groupB.shape[0]
-            A_dense = compute_cov(groupA, method=cov_method, log=log, shrink=None)
-            B_dense = compute_cov(groupB, method=cov_method, log=log, shrink=None)
+                A_dense = average_covariances(groupA_paths, method=cov_method, log=log, shrink=None)
+                B_dense = average_covariances(groupB_paths, method=cov_method, log=log, shrink=None)
+            else:
+                A_samples = groupA.shape[0]
+                B_samples = groupB.shape[0]
+                A_dense = compute_cov(groupA, method=cov_method, log=log, shrink=None)
+                B_dense = compute_cov(groupB, method=cov_method, log=log, shrink=None)
 
-        A_dense_adj = oas_estimator(A_dense,n_samples=A_samples,shrink=shrinkage)
-        B_dense_adj = oas_estimator(B_dense,n_samples=B_samples,shrink=shrinkage)
+            A_dense_adj = oas_estimator(A_dense,n_samples=A_samples,shrink=shrinkage)
+            B_dense_adj = oas_estimator(B_dense,n_samples=B_samples,shrink=shrinkage)
 
-        A_eigs, A_filters = Large_FKT(A_dense_adj, B_dense_adj, n=n_filters_per_group, LOBPCG=True,num_simulations=1000,log=log,largest=True)
-        B_eigs, B_filters = Large_FKT(B_dense_adj, A_dense_adj, n=n_filters_per_group, LOBPCG=True,num_simulations=1000,log=log,largest=True)
+            A_eigs, A_filters = Large_FKT(A_dense_adj.clone(), B_dense_adj, n=n_filters_per_group, LOBPCG=True,num_simulations=1000,log=log,largest=True)
+            B_eigs, B_filters = Large_FKT(B_dense_adj.clone(), A_dense_adj, n=n_filters_per_group, LOBPCG=True,num_simulations=1000,log=log,largest=True)
 
-        for i in range(A_filters.shape[1]):
-            save_brain(A_filters[:,i].cpu().numpy(),f"A_filter{i}",outputfolder)
-        for i in range(B_filters.shape[1]):
-            save_brain(B_filters[:,i].cpu().numpy(),f"B_filter{i}",outputfolder)
+            for i in range(A_filters.shape[1]):
+                save_brain(A_filters[:,i].cpu().numpy(),f"A_filter{i}",outputfolder)
+            for i in range(B_filters.shape[1]):
+                save_brain(B_filters[:,i].cpu().numpy(),f"B_filter{i}",outputfolder)
 
-        np.save(os.path.join(outputfolder, "filtersA.npy"), A_filters.cpu().numpy())
-        np.save(os.path.join(outputfolder, "filtersB.npy"), B_filters.cpu().numpy())
-        
-        # If the filters were calculated in logspace then the average cov is in log space and cant be used for haufe transform
-        # thus need to calcualte the normal covariance and use this for haufe
-        if log:
-            A_dense_euc = compute_cov(groupA, method='svd', log=False, shrink=None)
-            B_dense_euc = compute_cov(groupB, method='svd', log=False, shrink=None)
-            A_dense_haufe = oas_estimator(A_dense_euc,n_samples=A_samples,shrink=shrinkage)
-            B_dense_haufe = oas_estimator(B_dense_euc,n_samples=B_samples,shrink=shrinkage)
+            np.save(os.path.join(outputfolder, "filtersA.npy"), A_filters.cpu().numpy())
+            np.save(os.path.join(outputfolder, "filtersB.npy"), B_filters.cpu().numpy())
+            
+            # If the filters were calculated in logspace then the average cov is in log space and cant be used for haufe transform
+            # thus need to calcualte the normal covariance and use this for haufe
+            if log:
+                A_dense_euc = compute_cov(groupA, method='svd', log=False, shrink=None)
+                B_dense_euc = compute_cov(groupB, method='svd', log=False, shrink=None)
+                A_dense_haufe = oas_estimator(A_dense_euc,n_samples=A_samples,shrink=shrinkage)
+                B_dense_haufe = oas_estimator(B_dense_euc,n_samples=B_samples,shrink=shrinkage)
 
-            if save:
-                np.save(os.path.join(outputfolder, "A_avg_cov.npy"), A_dense_haufe.cpu().numpy())
-                np.save(os.path.join(outputfolder, "B_avg_cov.npy"), B_dense_haufe.cpu().numpy())
-                np.save(os.path.join(outputfolder, "A_avg_logcov.npy"), A_dense.cpu().numpy())
-                np.save(os.path.join(outputfolder, "B_avg_logcov.npy"), B_dense.cpu().numpy())
-        else:
-            A_dense_haufe = A_dense_adj
-            B_dense_haufe = B_dense_adj
-            if save:
-                np.save(os.path.join(outputfolder, "A_avg_cov.npy"), A_dense_haufe.cpu().numpy())
-                np.save(os.path.join(outputfolder, "B_avg_cov.npy"), B_dense_haufe.cpu().numpy())
-        
-        A_filters_haufe = haufe_transform_torch(A_filters,A_dense_haufe)
-        B_filters_haufe = haufe_transform_torch(B_filters,B_dense_haufe)
+                if save:
+                    np.save(os.path.join(outputfolder, "A_avg_cov.npy"), A_dense_haufe.cpu().numpy())
+                    np.save(os.path.join(outputfolder, "B_avg_cov.npy"), B_dense_haufe.cpu().numpy())
+                    np.save(os.path.join(outputfolder, "A_avg_logcov.npy"), A_dense.cpu().numpy())
+                    np.save(os.path.join(outputfolder, "B_avg_logcov.npy"), B_dense.cpu().numpy())
+            else:
+                A_dense_haufe = A_dense_adj
+                B_dense_haufe = B_dense_adj
+                if save:
+                    np.save(os.path.join(outputfolder, "A_avg_cov.npy"), A_dense_haufe.cpu().numpy())
+                    np.save(os.path.join(outputfolder, "B_avg_cov.npy"), B_dense_haufe.cpu().numpy())
+            
+            A_filters_haufe = haufe_transform_torch(A_filters,A_dense_haufe)
+            B_filters_haufe = haufe_transform_torch(B_filters,B_dense_haufe)
 
-        np.save(os.path.join(outputfolder, "A_filters_haufe.npy"), A_filters_haufe.cpu().numpy())
-        np.save(os.path.join(outputfolder, "B_filters_haufe.npy"), B_filters_haufe.cpu().numpy())
+            np.save(os.path.join(outputfolder, "A_filters_haufe.npy"), A_filters_haufe.cpu().numpy())
+            np.save(os.path.join(outputfolder, "B_filters_haufe.npy"), B_filters_haufe.cpu().numpy())
 
-        for i in range(A_filters_haufe.shape[1]):
-            save_brain(A_filters_haufe[:,i].cpu().numpy(),f"A_filter_haufe{i}",outputfolder)
-        for i in range(B_filters_haufe.shape[1]):
-            save_brain(B_filters_haufe[:,i].cpu().numpy(),f"B_filter_haufe{i}",outputfolder)
+            for i in range(A_filters_haufe.shape[1]):
+                save_brain(A_filters_haufe[:,i].cpu().numpy(),f"A_filter_haufe{i}",outputfolder)
+            for i in range(B_filters_haufe.shape[1]):
+                save_brain(B_filters_haufe[:,i].cpu().numpy(),f"B_filter_haufe{i}",outputfolder)
 
 
-        filters = orthonormalize_filters_torch(A_filters_haufe,B_filters_haufe)
-        np.save(os.path.join(outputfolder, "filters.npy"), filters.cpu().numpy())
-        for i in range(filters.shape[1]):
-            save_brain(filters[:,i].cpu().numpy(),f"filter_haufe_ortho{i}",outputfolder)
-    except Exception as e:
-        print(f"Failed During Filter Computation: {e}")
-        return
+            filters = orthonormalize_filters_torch(A_filters_haufe,B_filters_haufe)
+            np.save(os.path.join(outputfolder, "filters.npy"), filters.cpu().numpy())
+            for i in range(filters.shape[1]):
+                save_brain(filters[:,i].cpu().numpy(),f"filter_haufe_ortho{i}",outputfolder)
+        except Exception as e:
+            print(f"Failed During Filter Computation: {e}")
+            return
 
 ########################################################################################################################################################################################################
 ########################################################################## Untested and in development: joint optimization #############################################################################

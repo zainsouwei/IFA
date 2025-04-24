@@ -226,9 +226,21 @@ def var_diff(train_data, train_covs, train_labels, test_data, test_labels, a_lab
             plt.plot([mean_group1_test[0], mean_group2_test[0]], [mean_group1_test[1], mean_group2_test[1]], 'k--', label=f'Mean Distance: {mean_dist:.2f}')
 
             # Decision boundary
-            x_values = np.array([train_features[:, 0].min(), train_features[:, 0].max()])
-            y_values = -(clf.intercept_ + clf.coef_[0][0] * x_values) / clf.coef_[0][1]
-            plt.plot(x_values, y_values, 'g-', label='Decision Boundary')
+            # x_values = np.array([train_features[:, 0].min(), train_features[:, 0].max()])
+            # y_values = -(clf.intercept_ + clf.coef_[0][0] * x_values) / clf.coef_[0][1]
+            # plt.plot(x_values, y_values, 'g-', label='Decision Boundary')
+            # Decision boundary
+            coef = clf.coef_[0]
+            intercept = clf.intercept_[0]
+            # coef[1] is the denominator in your original code:
+            if abs(coef[1]) < 1e-8:
+                # Vertical boundary at x = –intercept/coef[0]
+                x_vert = - intercept / (coef[0] + 1e-12)
+                plt.axvline(x_vert, color='g', linestyle='-', label='Decision Boundary')
+            else:
+                x_values = np.array([train_features[:, 0].min(), train_features[:, 0].max()])
+                y_values = - (intercept + coef[0] * x_values) / coef[1]
+                plt.plot(x_values, y_values, 'g-', label='Decision Boundary')
 
             # Display plot
             plt.xlabel(f'{method} Feature {b_label}')
@@ -424,6 +436,14 @@ def spatial_fda(train_maps,train_labels,within=True):
         # # Compute the pooled covariance:
         # Sw = cov_est.fit(all_deviations).covariance_
         # print("Pooled within-class covariance (both classes) shape:", Sw.shape)
+        eigvals = np.linalg.eigvalsh(Sw)
+        min_eig = eigvals[0]
+
+        if min_eig < 1e-6:
+            # Sw is not PSD.  Option A: replace with identity
+            print(f"Warning: Sw has min eigenvalue {min_eig:.2e} < 0; replacing with I")
+            Sw = np.eye(Sw.shape[0])
+            
         _, U = eigh(Sb,Sw)
     else:
         _, U = eigh(Sb)
