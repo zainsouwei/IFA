@@ -15,6 +15,7 @@ from pymanopt.optimizers import ConjugateGradient, TrustRegions
 from pymanopt import Problem
 import pymanopt
 import optax
+import gc
 
 import sys
 sys.path.append('/utils')
@@ -25,19 +26,22 @@ from haufe import haufe_transform
 from regression import deconfound
 from preprocessing import gpu_mem, cpu_mem
 
-def feature_generation(train,test, filters,method='log-var',metric='riemann',cov="oas"):
-    train_transformed = train @ filters
-    test_transformed = test @ filters
+def feature_generation(train, test, filters, method='log-var', metric='riemann', cov="oas"):
+    # Transform each subject individually
+    train_transformed = [subj @ filters for subj in train]
+    test_transformed  = [subj @ filters for subj in test]
 
     if method == 'log-var':
-        train_features = np.log(np.var(train_transformed, axis=1))
-        test_features = np.log(np.var(test_transformed, axis=1))
+        # Compute log-variance feature for each subject
+        train_features = np.array([np.log(np.var(subj, axis=0)) for subj in train_transformed])
+        test_features  = np.array([np.log(np.var(subj, axis=0)) for subj in test_transformed])
     
     elif method == 'log-cov':
+        # Compute covariances one subject at a time
         cov_est = Covariances(estimator=cov)
-        train_cov = cov_est.transform(np.transpose(train_transformed, (0, 2, 1)))
-        test_cov = cov_est.transform(np.transpose(test_transformed, (0, 2, 1)))
-        train_features, test_features, _ = tangent_transform(train_cov,  test_cov, metric)
+        train_cov = np.array([ cov_est.transform(subj.T[np.newaxis, :, :])[0] for subj in train_transformed ])
+        test_cov = np.array([ cov_est.transform(subj.T[np.newaxis, :, :])[0] for subj in test_transformed ])
+        train_features, test_features, _ = tangent_transform(train_cov, test_cov, metric)
 
     return train_features, test_features
 
@@ -45,19 +49,31 @@ def test_filters(train, train_labels, test, test_labels, filters, metric="rieman
     train_features, test_features = feature_generation(train, test, filters, method=method,metric=metric)
     if deconf:
         train_features, test_features = deconfound(train_features, con_confounder_train, cat_confounder_train, X_test=test_features, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
+    
+    
     accuracy = linear_classifier(train_features, train_labels, test_features, test_labels, clf_str=clf_str, z_score=2)
     return accuracy
 
-def test_visualize_variance(data, labels, filters,output_dir="plots"):
-    for i in range(0,filters.shape[1]//2):
-        data_transform = np.var(data@filters[:,[i,-(i+1)]],axis=1)
-        unique_labels = np.unique(labels)
 
-        # Visualize variance based on the unique labels
-        if len(unique_labels) == 2:  # Assuming binary classification
-            data_1_transform = data_transform[labels == unique_labels[0]]
-            data_2_transform = data_transform[labels == unique_labels[1]]
-            
+def test_visualize_variance(train, test, test_labels, filters, deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None,  output_dir="plots", metric="riemann", cov="oas"):
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Generate features like in test_filters
+    train_features, test_features = feature_generation(train, test, filters, method="log-var", metric=metric, cov=cov)
+    
+    # Deconfound if needed
+    if deconf:
+        train_features, test_features = deconfound(train_features, con_confounder_train, cat_confounder_train, X_test=test_features, con_confounder_test=con_confounder_test,cat_confounder_test=cat_confounder_test)
+
+    # undo log
+    test_features = np.exp(test_features)
+
+    for i in range(0, filters.shape[1] // 2):
+        test_features_iter = test_features[:,[i,-(i+1)]]
+        unique_labels = np.unique(test_labels)
+        data_1_transform = test_features_iter[test_labels == unique_labels[0]]
+        data_2_transform = test_features_iter[test_labels == unique_labels[1]]
+
         # Create figure and gridspec layout
         fig = plt.figure(figsize=(8, 8))
         gs = gridspec.GridSpec(4, 4)
@@ -101,16 +117,10 @@ def test_visualize_variance(data, labels, filters,output_dir="plots"):
         plt.close('all')
 
 
-
 def evaluate_filters(train, train_labels, test, test_labels, filters, metric="riemann", deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None,output_dir="plots"):
-
-    if deconf:
-        metrics_dict_logvar = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-var',clf_str='all', deconf=deconf,con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
-        metrics_dict_logcov = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-cov',clf_str='all', deconf=deconf,con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
-    else:
-        test_visualize_variance(test, test_labels, filters,output_dir=output_dir)
-        metrics_dict_logvar = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-var',clf_str='all')
-        metrics_dict_logcov = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-cov',clf_str='all')
+    test_visualize_variance(train, test, test_labels, filters,  deconf=deconf,con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,  output_dir=output_dir, metric=metric, cov="oas")
+    metrics_dict_logvar = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-var',clf_str='all', deconf=deconf,con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
+    metrics_dict_logcov = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-cov',clf_str='all', deconf=deconf,con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
 
     return metrics_dict_logvar, metrics_dict_logcov
 
@@ -489,6 +499,7 @@ def compute_cov(data, method='svd', log=False, shrink=None):
     if device.type == 'cuda':
         torch.cuda.empty_cache()
     
+    print_memory_status("Before computing raw cov matrix")
     if method == 'svd':
         # Use SVD to compute eigenvalues/eigenvectors of the standardized data.
         _, S, Vh = torch.linalg.svd(demeaned, full_matrices=False)
@@ -514,11 +525,13 @@ def compute_cov(data, method='svd', log=False, shrink=None):
     
     if device.type == 'cuda':
         torch.cuda.empty_cache()
-    cov_cpu = cov.cpu()
-    del cov
-    if device.type == 'cuda':
-        torch.cuda.empty_cache()
-    return cov_cpu
+    
+    print_memory_status("Before moving raw cov to CPU")
+    if cov.device.type != 'cpu':
+        cov = cov.cpu()
+    print_memory_status("After moving raw cov to CPU")
+
+    return cov, n
 
 
 def average_covariances(group, method='svd', log=False, shrink=None):
@@ -536,11 +549,13 @@ def average_covariances(group, method='svd', log=False, shrink=None):
       avg_cov (torch.Tensor): The average covariance matrix (on CPU).
     """
     avg_cov = None
+    avg_samples = 0
     for idx, sub in enumerate(group):
         # Load subject data if a file path is provided.
         data = load_subject(sub)
 
-        cov = compute_cov(data, method=method, log=log, shrink=shrink)
+        cov, samples = compute_cov(data, method=method, log=log, shrink=shrink)
+        avg_samples += samples
         if avg_cov is None:
             avg_cov = cov.clone()
         else:
@@ -549,10 +564,11 @@ def average_covariances(group, method='svd', log=False, shrink=None):
         # Clear CUDA cache if applicable
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-    
+
     # Average the summed covariance matrices
     avg_cov.div_(len(group))
-    return avg_cov
+    avg_samples = avg_samples/(len(group))
+    return avg_cov, avg_samples
 
     #     cov_cpu = cov.cpu()
     #     del cov
@@ -588,6 +604,25 @@ def average_covariances(group, method='svd', log=False, shrink=None):
 
     # return sum
 
+def oas_shrinkage(sample_covariance, n_samples):
+    """Get OAS shrinkage parameter.
+    
+    Arguments:
+    ----------
+    sample_covariance : torch.Tensor
+        Sample covariance matrix.
+    """
+    n_dim = sample_covariance.shape[0]
+    tr_cov = torch.trace(sample_covariance)
+    tr_prod = torch.linalg.norm(sample_covariance, ord='fro')**2
+    shrinkage = (
+    (1 - 2 / n_dim) * tr_prod + tr_cov ** 2
+    ) / (
+    (n_samples + 1 - 2 / n_dim) * (tr_prod - tr_cov ** 2 / n_dim)
+    )
+    shrinkage = torch.clamp(shrinkage, max=1)
+    return shrinkage
+
 def isotropic_estimator(sample_covariance):
     """Isotropic covariance estimate with same trace as sample.
     
@@ -601,25 +636,6 @@ def isotropic_estimator(sample_covariance):
     isotropic = (trace / n_dim) * torch.eye(n_dim, device=sample_covariance.device, dtype=sample_covariance.dtype)
     return isotropic
 
-def oas_shrinkage(sample_covariance, n_samples):
-    """Get OAS shrinkage parameter.
-    
-    Arguments:
-    ----------
-    sample_covariance : torch.Tensor
-        Sample covariance matrix.
-    """
-    n_dim = sample_covariance.shape[0]
-    tr_cov = torch.trace(sample_covariance)
-    tr_prod = torch.sum(sample_covariance ** 2)
-    shrinkage = (
-    (1 - 2 / n_dim) * tr_prod + tr_cov ** 2
-    ) / (
-    (n_samples + 1 - 2 / n_dim) * (tr_prod - tr_cov ** 2 / n_dim)
-    )
-    shrinkage = torch.clamp(shrinkage, max=1)
-    return shrinkage
-
 def oas_estimator(sample_covariance,n_samples, shrink=None):
     """Oracle Approximating Shrinkage (OAS) covariance estimate.
 
@@ -628,29 +644,36 @@ def oas_estimator(sample_covariance,n_samples, shrink=None):
     Covariance : torch.Tensor
         Data matrix with shape (n_features, n_features).
     """
-    # Compute OAS shrinkage parameter
     if shrink is None:
-        shrinkage = oas_shrinkage(sample_covariance, n_samples)
-        # Compute isotropic estimator F
-        isotropic = isotropic_estimator(sample_covariance)
+        shrinkage = oas_shrinkage(sample_covariance, n_samples) 
     else:
-        shrinkage = shrink
-        isotropic = isotropic_estimator(sample_covariance)
-    # Compute OAS shrinkage covariance estimate
-    sample_covariance.mul_(1 - shrinkage)
-    isotropic.mul_(shrinkage)
-    sample_covariance.add_(isotropic)
-    # Move the result back to CPU
-    oas_estimate = sample_covariance.to('cpu')
-    del sample_covariance, isotropic, n_samples,shrinkage
-    torch.cuda.empty_cache()
-    return oas_estimate
+        shrinkage = torch.as_tensor(shrink, dtype=sample_covariance.dtype,device=sample_covariance.device)
+    
+    # 2) get trace & isotropic mean
+    tr = torch.trace(sample_covariance)     
+    iso = tr / sample_covariance.shape[0]
+                               
+
+    # 3) shrink the entire matrix
+    sample_covariance.mul_(1 - shrinkage)                 
+
+    # 4) add α·iso *only to the diagonal
+    sample_covariance.diagonal().add_(shrinkage * iso)       
+
+    # 5) move back to CPU if needed
+    if sample_covariance.device.type != 'cpu':
+        sample_covariance = sample_covariance.cpu()
+
+    return sample_covariance
 
 def Large_FKT(X1, X2, n, LOBPCG=True,num_simulations=1000, log=False,largest=True,reg=False):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if LOBPCG:
         try:
-            X1_gpu = X1.to(device=device)
+            if reg:
+                X1_gpu = X1.clone().to(device=device)
+            else:
+                X1_gpu = X1.to(device=device)
             Sum_gpu = (X1 + X2).to(device=device)
             if log:
                 L, Q = torch.lobpcg(A=X1_gpu - Sum_gpu.div_(2),B=None, k=n, largest=largest)
@@ -807,68 +830,108 @@ def save_brain(map, title, output_dir):
     ).save_as_html(os.path.join(output_dir, f"{title}.html"))
 
 
-def voxelwise_FKT(groupA=None, groupB=None, n_filters_per_group=1, groupA_paths=None, groupB_paths=None, paths=False,log=False,shrinkage=0.01,cov_method='svd',outputfolder='Path', save=False):
+def create_dense_cov(group=None, group_paths=None,  paths=False, log=False, shrinkage=0.01 , cov_method='svd'):
+        if paths:
+            dense, samples = average_covariances(group_paths, method=cov_method, log=log, shrink=None)
+        else:
+            dense, samples = compute_cov(group, method=cov_method, log=log, shrink=None)
+        
+        print_memory_status("Before Regularizing Matrix")
+        dense_adj = oas_estimator(dense,n_samples=samples,shrink=shrinkage)
+
+        return dense_adj
+
+def print_memory_status(tag=""):
+    """Prints current and peak RAM usage in GB with an optional tag."""
+    status = {}
+    with open("/proc/self/status", "r") as f:
+        for line in f:
+            parts = line.strip().split(":")
+            if len(parts) == 2:
+                key, value = parts
+                status[key] = value.strip()
+
+    ram_current_gb = int(status.get("VmRSS", "0").split()[0]) / 1e6
+    ram_peak_gb = int(status.get("VmPeak", "0").split()[0]) / 1e6
+
+    print(f"[{tag}] Current RAM: {ram_current_gb:.2f} GB | Peak RAM: {ram_peak_gb:.2f} GB")
+
+
+
+
+def voxelwise_FKT(groupA=None, groupB=None, n_filters_per_group=1, groupA_paths=None, groupB_paths=None, paths=False,log=False,shrinkage=0.01,cov_method='svd',outputfolder='Path', save=False, save_img=True):
     print(log,shrinkage)
     with torch.no_grad():
         try:
             assert (not log) or (cov_method == 'svd'), "If log is True, then method must be 'svd'."
-            if paths:
-                # If passed as a list of subjects that contain their paths, last element in list is number of timepoints, see load_subject in preprocessing
-                A_samples = groupA_paths[0][-1]
-                B_samples = groupB_paths[0][-1]
+            
+            print_memory_status("Before computing Group A dense matrix")
+            A_dense_adj = create_dense_cov(group=groupA, group_paths=groupA_paths,  paths=paths, log=log, shrinkage=shrinkage , cov_method=cov_method)
+            print(f"Group A dense matrix loaded. Memory size: {A_dense_adj.element_size() * A_dense_adj.nelement() / 1e9:.4f} GB")
 
-                A_dense = average_covariances(groupA_paths, method=cov_method, log=log, shrink=None)
-                B_dense = average_covariances(groupB_paths, method=cov_method, log=log, shrink=None)
-            else:
-                A_samples = groupA.shape[0]
-                B_samples = groupB.shape[0]
-                A_dense = compute_cov(groupA, method=cov_method, log=log, shrink=None)
-                B_dense = compute_cov(groupB, method=cov_method, log=log, shrink=None)
+            print_memory_status("Before computing Group B dense matrix")
+            B_dense_adj = create_dense_cov(group=groupB, group_paths=groupB_paths,  paths=paths, log=log, shrinkage=shrinkage , cov_method=cov_method)
+            print(f"Group B dense matrix loaded. Memory size: {B_dense_adj.element_size() * B_dense_adj.nelement() / 1e9:.4f} GB")
 
-            A_dense_adj = oas_estimator(A_dense,n_samples=A_samples,shrink=shrinkage)
-            B_dense_adj = oas_estimator(B_dense,n_samples=B_samples,shrink=shrinkage)
-
-            A_eigs, A_filters = Large_FKT(A_dense_adj.clone(), B_dense_adj, n=n_filters_per_group, LOBPCG=True,num_simulations=1000,log=log,largest=True)
-            B_eigs, B_filters = Large_FKT(B_dense_adj.clone(), A_dense_adj, n=n_filters_per_group, LOBPCG=True,num_simulations=1000,log=log,largest=True)
-
-            for i in range(A_filters.shape[1]):
-                save_brain(A_filters[:,i].cpu().numpy(),f"A_filter{i}",outputfolder)
-            for i in range(B_filters.shape[1]):
-                save_brain(B_filters[:,i].cpu().numpy(),f"B_filter{i}",outputfolder)
-
+            print_memory_status("Before running Large_FKT for A_filters")
+            _, A_filters = Large_FKT(A_dense_adj, B_dense_adj, n=n_filters_per_group, LOBPCG=True,num_simulations=1000,log=log,largest=True)
             np.save(os.path.join(outputfolder, "filtersA.npy"), A_filters.cpu().numpy())
+
+            print_memory_status("Before running Large_FKT for B_filters")
+            _, B_filters = Large_FKT(B_dense_adj, A_dense_adj, n=n_filters_per_group, LOBPCG=True,num_simulations=1000,log=log,largest=True)
             np.save(os.path.join(outputfolder, "filtersB.npy"), B_filters.cpu().numpy())
+            
+            print_memory_status("After Running FKT")
+
+            if save_img:
+                for i in range(A_filters.shape[1]):
+                    save_brain(A_filters[:,i].cpu().numpy(),f"A_filter{i}",outputfolder)
+                for i in range(B_filters.shape[1]):
+                    save_brain(B_filters[:,i].cpu().numpy(),f"B_filter{i}",outputfolder)
+
             
             # If the filters were calculated in logspace then the average cov is in log space and cant be used for haufe transform
             # thus need to calcualte the normal covariance and use this for haufe
             if log:
-                A_dense_euc = compute_cov(groupA, method='svd', log=False, shrink=None)
-                B_dense_euc = compute_cov(groupB, method='svd', log=False, shrink=None)
-                A_dense_haufe = oas_estimator(A_dense_euc,n_samples=A_samples,shrink=shrinkage)
-                B_dense_haufe = oas_estimator(B_dense_euc,n_samples=B_samples,shrink=shrinkage)
+                if save:
+                    np.save(os.path.join(outputfolder, "A_avg_logcov.npy"), A_dense_adj.cpu().numpy())
+                    np.save(os.path.join(outputfolder, "B_avg_logcov.npy"), B_dense_adj.cpu().numpy())
+                del A_dense_adj, B_dense_adj
+                gc.collect()
+                torch.cuda.empty_cache()
+
+                A_dense_adj = create_dense_cov(group=groupA, group_paths=groupA_paths,paths=paths, log=False, shrinkage=shrinkage , cov_method='svd')
+                B_dense_adj = create_dense_cov(group=groupB, group_paths=groupB_paths,paths=paths, log=False, shrinkage=shrinkage , cov_method='svd')
 
                 if save:
-                    np.save(os.path.join(outputfolder, "A_avg_cov.npy"), A_dense_haufe.cpu().numpy())
-                    np.save(os.path.join(outputfolder, "B_avg_cov.npy"), B_dense_haufe.cpu().numpy())
-                    np.save(os.path.join(outputfolder, "A_avg_logcov.npy"), A_dense.cpu().numpy())
-                    np.save(os.path.join(outputfolder, "B_avg_logcov.npy"), B_dense.cpu().numpy())
+                    np.save(os.path.join(outputfolder, "A_avg_cov.npy"), A_dense_adj.cpu().numpy())
+                    np.save(os.path.join(outputfolder, "B_avg_cov.npy"), B_dense_adj.cpu().numpy())
             else:
-                A_dense_haufe = A_dense_adj
-                B_dense_haufe = B_dense_adj
                 if save:
-                    np.save(os.path.join(outputfolder, "A_avg_cov.npy"), A_dense_haufe.cpu().numpy())
-                    np.save(os.path.join(outputfolder, "B_avg_cov.npy"), B_dense_haufe.cpu().numpy())
+                    np.save(os.path.join(outputfolder, "A_avg_cov.npy"), A_dense_adj.cpu().numpy())
+                    np.save(os.path.join(outputfolder, "B_avg_cov.npy"), B_dense_adj.cpu().numpy())
             
-            A_filters_haufe = haufe_transform_torch(A_filters,A_dense_haufe)
-            B_filters_haufe = haufe_transform_torch(B_filters,B_dense_haufe)
-
+            A_filters_haufe = haufe_transform_torch(A_filters,A_dense_adj)
+            del A_dense_adj
+            gc.collect()
+            torch.cuda.empty_cache()
+            print_memory_status("After Running Group A Haufe Transform and Deleting Covariances")
+            
             np.save(os.path.join(outputfolder, "A_filters_haufe.npy"), A_filters_haufe.cpu().numpy())
-            np.save(os.path.join(outputfolder, "B_filters_haufe.npy"), B_filters_haufe.cpu().numpy())
 
-            for i in range(A_filters_haufe.shape[1]):
-                save_brain(A_filters_haufe[:,i].cpu().numpy(),f"A_filter_haufe{i}",outputfolder)
-            for i in range(B_filters_haufe.shape[1]):
-                save_brain(B_filters_haufe[:,i].cpu().numpy(),f"B_filter_haufe{i}",outputfolder)
+            B_filters_haufe = haufe_transform_torch(B_filters,B_dense_adj)
+            del B_dense_adj
+            gc.collect()
+            torch.cuda.empty_cache()
+            print_memory_status("After Running Group B Haufe Transform and Deleting Covariances")
+
+            np.save(os.path.join(outputfolder, "B_filters_haufe.npy"), B_filters_haufe.cpu().numpy())
+            
+            if save_img:
+                for i in range(A_filters_haufe.shape[1]):
+                    save_brain(A_filters_haufe[:,i].cpu().numpy(),f"A_filter_haufe{i}",outputfolder)
+                for i in range(B_filters_haufe.shape[1]):
+                    save_brain(B_filters_haufe[:,i].cpu().numpy(),f"B_filter_haufe{i}",outputfolder)
 
 
             filters = orthonormalize_filters_torch(A_filters_haufe,B_filters_haufe)

@@ -121,12 +121,25 @@ def partial_filter_dual_regression(F, parcellated, paths, vt, workers=20):
     Returns:
       - The aggregated transformation across subjects.
     """
-    # Compute the transformation matrix using the parcellated data and F.
-    pinv_TF = np.linalg.pinv(parcellated.reshape(-1, parcellated.shape[-1]) @ np.linalg.pinv(F.T))
+    # # Compute the transformation matrix using the parcellated data and F.
+    # pinv_TF = np.linalg.pinv(parcellated.reshape(-1, parcellated.shape[-1]) @ np.linalg.pinv(F.T))
     
-    # Split pinv_TF along the column dimension into as many blocks as there are subjects.
-    pinv_TF_list = np.array_split(pinv_TF, len(paths), axis=1)
-    
+    # # Split pinv_TF along the column dimension into as many blocks as there are subjects.
+    # pinv_TF_list = np.array_split(pinv_TF, len(paths), axis=1)
+
+    stacked_parcellated = np.vstack(parcellated)  # (sum_T, Parcels)
+
+    # Compute pseudo-inverse transformation
+    pinv_TF = np.linalg.pinv(stacked_parcellated @ np.linalg.pinv(F.T))  # (parcels, sum_T)
+
+    # Compute number of timepoints per subject
+    subject_lengths = [subj.shape[0] for subj in parcellated]
+    cumsum_lengths = np.cumsum(subject_lengths)
+
+    # Split pinv_TF based on subject timepoints
+    pinv_TF_list = np.split(pinv_TF, cumsum_lengths[:-1], axis=1)
+
+
     # Create a partial function so that vt is fixed for every subject.
     func = functools.partial(process_subject_haufe_partial, vt=vt)
     

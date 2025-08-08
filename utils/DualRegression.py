@@ -245,8 +245,7 @@ class DualRegress:
         self.dual_regression_results = []
         for i in range(len(self.spatial_maps)):
             self.dual_regression_results.append({
-                'normalized': {'An': [], 'spatial_map': [], 'reconstruction_error': []},
-                'demean': {'Adm': [], 'spatial_mapdm': [], 'reconstruction_error': []}
+                'normalized': {'A': [], 'spatial_map': [], 'reconstruction_error': []},
             })
 
 
@@ -284,21 +283,17 @@ class DualRegress:
         
         # Time x Components
         A = (Xn-Xn.mean(axis=1,keepdims=True)) @ map_plus  # A is Time x Components (T x C)
-        
+        A = A - A.mean(axis=0,keepdims=True)
+
         # Normalized Time x Components matrix
         An = hcp.normalize(A)  # An is Time x Components (T x C)
         # An = Adm/np.percentile(np.abs(Adm),95,axis=0)
-
-        Adm = A - A.mean(axis=0,keepdims=True)
-        del A
         
-        spatial_map_norm = self.stage_two_elastic(An,Xn,map_index=map_index,norm_index=0)
-        spatial_map_dm = self.stage_two_elastic(Adm,Xn,map_index=map_index,norm_index=1)
+        spatial_map_ = self.stage_two_elastic(An,Xn,map_index=map_index,norm_index=0)
         
-        rec_error_norm = self.recon(An, spatial_map_norm.T, Xn)
-        rec_error_dm   = self.recon(Adm, spatial_map_dm.T, Xn)
+        rec_error_norm = self.recon(An, spatial_map_.T, Xn)
     
-        return [An, spatial_map_norm, rec_error_norm, Adm, spatial_map_dm, rec_error_dm]
+        return [A, spatial_map_, rec_error_norm]
 
         # Components x Grayordinates spatial map
         # spatial_map = np.linalg.pinv(An) @ hcp.normalize(Xn)  # Spatial map is Components x Grayordinates (C x V)
@@ -351,8 +346,6 @@ class DualRegress:
     def optimize_hyperparameters(self):
         # Create an instance of DualRegressionOptimizer.
         train_paths = self.subs[self.train_index]
-        # indices = np.random.choice(len(train_paths), size=self.sample, replace=False)
-        # sampled_subjects = train_paths[indices]
         
         # Ensure Class Distribution Remains
         if self.sample >= len(train_paths):
@@ -364,9 +357,8 @@ class DualRegress:
                 sampled_subjects = train_paths[sample_idx]
         for i, s_map in enumerate(self.spatial_maps):
             map_hyperparams = []
-            for mode in ["normalize","demean"]:
+            for mode in ["normalize"]:
                 optimizer_instance = DualRegressionOptimizer(sampled_subjects, s_map, mode=mode,parallel_points=self.parallel_points, parallel_subs=self.parallel_subs)
-                # optimizer_instance = DualRegressionOptimizer(sampled_subjects, s_map, mode=mode,parallel_points=self.parallel_points)
 
                 best_params, best_cv_score = optimizer_instance.optimize(optimizer=self.method, n_calls=self.n_calls, random_state=self.random_state)
                 map_hyperparams.append(best_params)
@@ -385,7 +377,6 @@ class DualRegress:
         Run dual regression for all subjects in parallel and store & save the aggregated results.
         For each spatial map (indexed by i), the following are stored:
         - Normalized results: 'An' (network matrices) and 'spatial_map'
-        - Demeaned results: 'Adm' and 'spatial_mapdm'
         - Reconstruction error: reconstruction_error
         The results are saved to the corresponding output folder specified in self.outputfolders.
         """
@@ -399,34 +390,26 @@ class DualRegress:
         
         # Aggregate results from each subject.
         # Each subject's result is expected to be a list with one element per spatial map:
-        # [An, spatial_map, variance_explained, Adm, spatial_mapdm]
+        # [A, spatial_map, variance_explained]
         for subject_result in results:
             if subject_result is None:
                 continue
             for i, map_result in enumerate(subject_result):
-                self.dual_regression_results[i]['normalized']['An'].append(map_result[0])
+                self.dual_regression_results[i]['normalized']['A'].append(map_result[0])
                 self.dual_regression_results[i]['normalized']['spatial_map'].append(map_result[1])
                 self.dual_regression_results[i]['normalized']['reconstruction_error'].append(map_result[2])
-                self.dual_regression_results[i]['demean']['Adm'].append(map_result[3])
-                self.dual_regression_results[i]['demean']['spatial_mapdm'].append(map_result[4])
-                self.dual_regression_results[i]['demean']['reconstruction_error'].append(map_result[5])
+
         
         for i in range(num_maps):
-            self.dual_regression_results[i]['normalized']['An'] = np.array(self.dual_regression_results[i]['normalized']['An'])
+            self.dual_regression_results[i]['normalized']['A'] = np.array(self.dual_regression_results[i]['normalized']['A'])
             self.dual_regression_results[i]['normalized']['spatial_map'] = np.array(self.dual_regression_results[i]['normalized']['spatial_map'])
             self.dual_regression_results[i]['normalized']['reconstruction_error'] = np.array(self.dual_regression_results[i]['normalized']['reconstruction_error'])
-            self.dual_regression_results[i]['demean']['Adm'] = np.array(self.dual_regression_results[i]['demean']['Adm'])
-            self.dual_regression_results[i]['demean']['spatial_mapdm'] = np.array(self.dual_regression_results[i]['demean']['spatial_mapdm'])
-            self.dual_regression_results[i]['demean']['reconstruction_error'] = np.array(self.dual_regression_results[i]['demean']['reconstruction_error'])
         
         for i in range(num_maps):
             out_folder = self.outputfolders[i]
             if not os.path.exists(out_folder):
                 os.makedirs(out_folder)
             
-            np.save(os.path.join(out_folder, "An.npy"), self.dual_regression_results[i]['normalized']['An'])
+            np.save(os.path.join(out_folder, "A.npy"), self.dual_regression_results[i]['normalized']['A'])
             np.save(os.path.join(out_folder, "spatial_map.npy"), self.dual_regression_results[i]['normalized']['spatial_map'])
             np.save(os.path.join(out_folder, "reconstruction_error_norm.npy"), self.dual_regression_results[i]['normalized']['reconstruction_error'])
-            np.save(os.path.join(out_folder, "Adm.npy"), self.dual_regression_results[i]['demean']['Adm'])
-            np.save(os.path.join(out_folder, "spatial_mapdm.npy"), self.dual_regression_results[i]['demean']['spatial_mapdm'])
-            np.save(os.path.join(out_folder, "reconstruction_error_dm.npy"), self.dual_regression_results[i]['demean']['reconstruction_error'])

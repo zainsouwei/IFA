@@ -1,4 +1,3 @@
-import hcp_utils as hcp # https://rmldj.github.io/hcp-utils/
 import nibabel as nib
 import torch
 import numpy as np
@@ -102,6 +101,9 @@ def update_W(current_W, new_data, m):
         combined = torch.cat([current_W, new_data], dim=0)
     # Perform eigen-decomposition on the covariance matrix.
     _, Q = torch.linalg.eigh(combined @ combined.T)
+
+    m = min(m, Q.shape[0])
+
     # Update W: select top m eigenvectors and project combined data.
     updated_W = Q[:, -m:].T @ combined
     return updated_W
@@ -168,6 +170,8 @@ def merge_W_in_batches(W_list, batch_size=1, m=4800):
 
     # Convert each intermediate W to a tensor once, for consistency
     W_tensors = [torch.tensor(W, dtype=torch.float32) for W in W_list]
+    del W_list
+    torch.cuda.empty_cache()
     
     W_gpu = None
     # Process in batches similar to migp

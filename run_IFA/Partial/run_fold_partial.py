@@ -19,7 +19,7 @@ sys.path.append('/project/3022057.01/IFA/utils')
 # Import necessary modules
 from analysis import evaluate, compare
 from PCA import PPCA, migp
-from filters import whiten, orthonormalize_filters, save_brain
+from filters import save_brain
 from ICA import ICA, threshold_and_visualize
 from DualRegression import DualRegress
 from filters import TSSF, FKT, evaluate_filters
@@ -183,38 +183,18 @@ def major_recon_discrim(discrim_basis, major_space,output_folder):
         print("Failed to compute reconstruction percentage:", e)
         reconstruction_percentage = None
 
-def PPCA_ICA(reducedsubs,basis=None, n_components=None, IFA=True, self_whiten=False,random_state=42,whiten_method="InvCov", output_folder=None):
-    if IFA:
-        if self_whiten:
-            ## Whiten Basis, will need to whiten because this is a combined basis; method chosen wil rotate it to change ICA unmixing starting position (ICA unmixing is nondeterministic)
-            basis, _ = whiten(basis, n_components=basis.shape[0], method=whiten_method)
-        
-        # Variance Normalize Data (PPCA is only being used for variance normalizing data since we already have the basis)
-        # data_vn, _ = PPCA(reducedsubs.copy(), filters=basis.T, threshold=0.0, niters=1)
-    else:
-        # For group ICA need to use PPCA to get the major space to match the dimensionality from IFA
+def PPCA_ICA(reducedsubs,basis=None, n_components=None, IFA=True,random_state=42, output_folder=None):
+    if not IFA:
         _, basis = PPCA(reducedsubs.copy(), threshold=0.0, niters=1, n=n_components)
 
-        if self_whiten:
-            ## Although basis is orthogonal, this rewhitening accounts for number of samples for whitening
-            basis, _ = whiten(basis, n_components=basis.shape[0], method=whiten_method)
-
-    # spatial_maps, A, W = ICA(data_vn, basis, whiten=(not self_whiten), output_dir=output_folder,random_state=random_state)
-    # zmaps, zmaps_thresh = threshold_and_visualize(data_vn, W, spatial_maps.T, visualize=True,output_dir=output_folder)
-    spatial_maps = ICA(basis, whiten=(not self_whiten), output_dir=output_folder,random_state=random_state)
+    spatial_maps = ICA(basis, output_dir=output_folder,random_state=random_state)
     spatial_maps = spatial_maps.T
     for i in range(spatial_maps.shape[1]):
         save_brain(spatial_maps[:,i], f"s_map_{i}", output_folder)
 
     np.save(os.path.join(output_folder, "basis.npy"), basis)
-    # np.save(os.path.join(output_folder, "data_vn.npy"), data_vn)
     np.save(os.path.join(output_folder, "spatial_maps.npy"), spatial_maps)
-    # np.save(os.path.join(output_folder, "A.npy"), A)
-    # np.save(os.path.join(output_folder, "W.npy"), W)
-    # np.save(os.path.join(output_folder, "ICA_zmaps.npy"), zmaps)
-    # np.save(os.path.join(output_folder, "ICA_zmaps_thresh.npy"), zmaps_thresh)
 
-    # return zmaps
     return spatial_maps
 
 def run_comparisons(results_list, base_output_folder, pairs, alpha=0.05):
@@ -252,7 +232,6 @@ def run_fold(outputfolder, fold):
     metric = settings["metric"]
     a_label = settings["a_label"]
     b_label = settings["b_label"]
-    self_whiten = settings["self_whiten"]
     deconfound = settings["deconfound"]
     paired = settings["paired"]
 
@@ -322,8 +301,8 @@ def run_fold(outputfolder, fold):
     # Run MIGP
     migp_dir = os.path.join(fold_output_dir, "MIGP")
     
-    reducedsubsA = np.load(os.path.join(migp_dir, "reducedsubsA.npy"))
-    reducedsubsB = np.load(os.path.join(migp_dir, "reducedsubsB.npy"))
+    # reducedsubsA = np.load(os.path.join(migp_dir, "reducedsubsA.npy"))
+    # reducedsubsB = np.load(os.path.join(migp_dir, "reducedsubsB.npy"))
     reducedsubs = np.load(os.path.join(migp_dir, "reducedsubs.npy"))
 
     for nPCA in nPCA_levels:
@@ -336,9 +315,13 @@ def run_fold(outputfolder, fold):
         filters_dir = os.path.join(nPCA_dir, "Filters")
         if not os.path.exists(filters_dir):
             os.makedirs(filters_dir)
-
-        _, vt = PPCA(reducedsubs.copy(), threshold=0.0, niters=1, n=nPCA)
-        np.save(os.path.join(filters_dir, f"vt.npy"), vt)
+        
+        # Check if the file exists
+        if os.path.exists(os.path.join(filters_dir, f"vt.npy")):
+            vt = np.load(os.path.join(filters_dir, f"vt.npy"))
+        else:
+            _, vt = PPCA(reducedsubs.copy(), threshold=0.0, niters=1, n=nPCA)
+            np.save(os.path.join(filters_dir, f"vt.npy"), vt)
 
         #Create Folders to store ICA outputs for this subspace dimension and run ICA for each basis
         ICA_dir = os.path.join(nPCA_dir, "ICA")
@@ -348,33 +331,37 @@ def run_fold(outputfolder, fold):
         GICA_dir = os.path.join(ICA_dir, "GICA")
         if not os.path.exists(GICA_dir):
             os.makedirs(GICA_dir)
-        ICA_zmaps = PPCA_ICA(reducedsubs,basis=None, n_components=int(nPCA+2*n_filters_per_group), IFA=False, self_whiten=self_whiten,random_state=random_state,whiten_method="InvCov", output_folder=GICA_dir)
+        
+        if os.path.exists(os.path.join(GICA_dir, "spatial_maps.npy")):
+            ICA_zmaps = np.load(os.path.join(GICA_dir, "spatial_maps.npy"))
+        else:
+            ICA_zmaps = PPCA_ICA(reducedsubs,basis=None, n_components=int(nPCA+2*n_filters_per_group), IFA=False, random_state=random_state, output_folder=GICA_dir)
 
 
         spatial_maps = [ICA_zmaps]
 
         outputfolders = [GICA_dir]
 
+        if not os.path.exists(os.path.join(outputfolders[0], "A.npy")):
+            sample = np.min((200,train_idx.shape[0]))
+            dual_regressor = DualRegress(
+                subs=paths,
+                spatial_maps=spatial_maps,
+                train_index=train_idx,
+                train_labels=train_labels,
+                outputfolders=outputfolders,
+                workers=15,
+                sample=sample,
+                method="bayesian",
+                parallel_points=15,
+                parallel_subs=15,
+                n_calls=15,
+                random_state=random_state
+            )
 
-        sample = np.min((200,train_idx.shape[0]))
-        dual_regressor = DualRegress(
-            subs=paths,
-            spatial_maps=spatial_maps,
-            train_index=train_idx,
-            train_labels=train_labels,
-            outputfolders=outputfolders,
-            workers=15,
-            sample=sample,
-            method="bayesian",
-            parallel_points=15,
-            parallel_subs=15,
-            n_calls=15,
-            random_state=random_state
-        )
-
-        dual_regressor.dual_regress()
-        del dual_regressor
-        gc.collect()
+            dual_regressor.dual_regress()
+            del dual_regressor
+            gc.collect()
 
         # Analyze each set of spatial maps
         nPCA_results = os.path.join(nPCA_dir, "Results")
@@ -384,59 +371,45 @@ def run_fold(outputfolder, fold):
         map_names = ["GICA"]
 
         normalized_result = []
-        unnormalized_result = []
 
         for i, map_i in enumerate(map_names):        
             nPCA_results_maps = os.path.join(nPCA_results, map_i)
             if not os.path.exists(nPCA_results_maps):
                 os.makedirs(nPCA_results_maps)
-            
-            # For Normalized results
-            nPCA_results_maps_norm = os.path.join(nPCA_results_maps, "Normalized")
-            if not os.path.exists(nPCA_results_maps_norm):
-                os.makedirs(nPCA_results_maps_norm)
+
             ##### BELOW HERE ############
-            # Load files into temporary variables.
-            tmp_an = np.load(os.path.join(outputfolders[i], "An.npy"))
-            tmp_spatial_map = np.load(os.path.join(outputfolders[i], "spatial_map.npy"))
-            tmp_recon_norm = np.load(os.path.join(outputfolders[i], "reconstruction_error_norm.npy"))
+            # Define file paths
+            a_path = os.path.join(outputfolders[i], "A.npy")
+            map_path = os.path.join(outputfolders[i], "spatial_map.npy")
+            recon_path = os.path.join(outputfolders[i], "reconstruction_error_norm.npy")
             
-            normalized_result_i = evaluate((tmp_an, tmp_spatial_map, tmp_recon_norm), 
+            # Load into memory
+            tmp_A = np.load(a_path)
+            tmp_spatial_map = np.load(map_path)
+            tmp_recon_norm = np.load(recon_path)
+            
+            result = evaluate((tmp_A, tmp_spatial_map, tmp_recon_norm), 
                                         labels, train_idx, test_idx, a_label, b_label,
                                         metric=metric, alpha=0.05, paired=paired, 
-                                        permutations=10000, deconf=deconfound, 
+                                        permutations=5000, deconf=deconfound, 
                                         con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
                                         con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
-                                        output_dir=nPCA_results_maps_norm, random_seed=random_state, basis=f"{map_i}_Normalized", n_workers=10)           
+                                        output_dir=nPCA_results_maps, random_seed=random_state, basis=f"{map_i}", n_workers=7)           
 
-            normalized_result.append(normalized_result_i)
+            normalized_result.append(result)
             
-            # Remove the temporary variables and force garbage collection.
-            del tmp_an, tmp_spatial_map, tmp_recon_norm
+            # Clean up RAM
+            del tmp_A, tmp_spatial_map, tmp_recon_norm
             gc.collect()
-            
-            # For Unnormalized (demeaned) results:
-            nPCA_results_maps_unnorm = os.path.join(nPCA_results_maps, "Unnormalized")
-            if not os.path.exists(nPCA_results_maps_unnorm):
-                os.makedirs(nPCA_results_maps_unnorm)
-            
-            tmp_adm = np.load(os.path.join(outputfolders[i], "Adm.npy"))
-            tmp_spatial_mapdm = np.load(os.path.join(outputfolders[i], "spatial_mapdm.npy"))
-            tmp_recon_dm = np.load(os.path.join(outputfolders[i], "reconstruction_error_dm.npy"))
-            
-            unnormalized_result_i = evaluate((tmp_adm, tmp_spatial_mapdm, tmp_recon_dm), 
-                                            labels, train_idx, test_idx, a_label, b_label,
-                                            metric=metric, alpha=0.05, paired=paired, 
-                                            permutations=10000, deconf=deconfound, 
-                                            con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
-                                            con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
-                                            output_dir=nPCA_results_maps_unnorm, random_seed=random_state, basis=f"{map_i}_Unnormalized", n_workers=10)
-            
-            unnormalized_result.append(unnormalized_result_i)
-            
-            # Clean up the temporary variables.
-            del tmp_adm, tmp_spatial_mapdm, tmp_recon_dm
-            gc.collect()
+
+            # Delete files from disk
+            for file_path in [a_path, map_path, recon_path]:
+                try:
+                    os.remove(file_path)
+                    print(f"Deleted {file_path}")
+                except Exception as e:
+                    print(f"Failed to delete {file_path}: {e}")
+    
 
         # # Define the pairwise comparisons (same for both normalized and unnormalized)
         # pairs = [
@@ -465,7 +438,6 @@ def run_fold(outputfolder, fold):
 #     metric = settings["metric"]
 #     a_label = settings["a_label"]
 #     b_label = settings["b_label"]
-#     self_whiten = settings["self_whiten"]
 #     deconfound = settings["deconfound"]
 #     paired = settings["paired"]
 
@@ -694,17 +666,17 @@ def run_fold(outputfolder, fold):
 #         parcel_IFA_dir = os.path.join(ICA_dir, "parcel_IFA")
 #         if not os.path.exists(parcel_IFA_dir):
 #             os.makedirs(parcel_IFA_dir)
-#         parcelvoxel_IFA_zmaps = PPCA_ICA(reducedsubs,basis=np.vstack((vt, parcelvoxel_filters.T)), n_components=None, IFA=True, self_whiten=self_whiten,random_state=random_state,whiten_method="InvCov", output_folder=parcel_IFA_dir)
+#         parcelvoxel_IFA_zmaps = PPCA_ICA(reducedsubs,basis=np.vstack((vt, parcelvoxel_filters.T)), n_components=None, IFA=True, random_state=random_state, output_folder=parcel_IFA_dir)
 
 #         voxel_IFA_dir = os.path.join(ICA_dir, "voxel_IFA")
 #         if not os.path.exists(voxel_IFA_dir):
 #             os.makedirs(voxel_IFA_dir)
-#         voxel_IFA_zmaps = PPCA_ICA(reducedsubs,basis=np.vstack((vt, voxel_filters.T)), n_components=None, IFA=True, self_whiten=self_whiten,random_state=random_state,whiten_method="InvCov", output_folder=voxel_IFA_dir)
+#         voxel_IFA_zmaps = PPCA_ICA(reducedsubs,basis=np.vstack((vt, voxel_filters.T)), n_components=None, IFA=True, random_state=random_state, output_folder=voxel_IFA_dir)
 
 #         GICA_dir = os.path.join(ICA_dir, "GICA")
 #         if not os.path.exists(GICA_dir):
 #             os.makedirs(GICA_dir)
-#         ICA_zmaps = PPCA_ICA(reducedsubs,basis=None, n_components=int(nPCA+2*n_filters_per_group), IFA=False, self_whiten=self_whiten,random_state=random_state,whiten_method="InvCov", output_folder=GICA_dir)
+#         ICA_zmaps = PPCA_ICA(reducedsubs,basis=None, n_components=int(nPCA+2*n_filters_per_group), IFA=False, random_state=random_state, output_folder=GICA_dir)
 
 
 #         spatial_maps = [ICA_zmaps, parcelvoxel_IFA_zmaps, voxel_IFA_zmaps]
@@ -825,7 +797,6 @@ def run_fold(outputfolder, fold):
 #     metric = settings["metric"]
 #     a_label = settings["a_label"]
 #     b_label = settings["b_label"]
-#     self_whiten = settings["self_whiten"]
 #     deconfound = settings["deconfound"]
 #     paired = settings["paired"]
 

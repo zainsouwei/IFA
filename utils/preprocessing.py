@@ -18,10 +18,11 @@ from pyriemann.estimation import Covariances
 from scipy.stats import norm
 import scipy.io
 from sklearn.preprocessing import StandardScaler
+from nilearn.maskers import NiftiMasker
 
 sys.path.append('/utils')
 
-from regression import deconfound, confounders, continuous_confounders, categorical_confounders, phen_confounders, phen_continuous_confounders, phen_categorical_confounders
+# from regression import deconfound, confounders, continuous_confounders, categorical_confounders, phen_confounders, phen_continuous_confounders, phen_categorical_confounders
 
 def gpu_mem():
     # Memory usage information
@@ -154,6 +155,13 @@ def load_subject(subject_info):
       A normalized NumPy array of subject data or None if an error occurs.
     """
     try:
+        # LEAP Data
+        if (isinstance(subject_info, np.ndarray) and subject_info.shape == (2,) and all(isinstance(x, str) for x in subject_info) and ("mask" in subject_info[1].lower())):
+            func_img, mask_img = subject_info
+            masker = NiftiMasker(mask_img=mask_img,standardize='zscore_sample',dtype=np.float32)
+            X = masker.fit_transform(func_img)
+            return X
+
         # --- Case: Single file path (simulated data) ---
         if isinstance(subject_info, str) and subject_info.endswith('.npy'):
             # Load the .npy file

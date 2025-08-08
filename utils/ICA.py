@@ -6,12 +6,8 @@ from sklearn.decomposition import FastICA
 from scipy.stats import norm
 from statsmodels.stats.multitest import multipletests
 
-def ICA(whitened_data, whiten=False, output_dir="plots", random_state=None):
-    if whiten:
-        ica = FastICA(whiten='unit-variance', random_state=random_state)
-    else:
-        # Assume basis is already whitened
-        ica = FastICA(whiten=False, random_state=random_state)
+def ICA(whitened_data, output_dir="plots", random_state=None):
+    ica = FastICA(whiten='unit-variance', random_state=random_state)
     # Takes in array-like of shape (n_samples, n_features) and returns ndarray of shape (n_samples, n_components)
     spatial_components = ica.fit_transform(whitened_data.T).T
 

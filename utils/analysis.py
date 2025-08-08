@@ -1242,25 +1242,25 @@ def evaluate(data_set, labels, train_indx, test_indx, a_label, b_label, metric='
                                              methods=[2],metric=metric,visualize=True,
                                              outputfolder=output_dir,basis=basis)
     
-    spatial_t_test_dir = os.path.join(output_dir,"spatial_T_test")
-    if not os.path.exists(spatial_t_test_dir):
-        os.makedirs(spatial_t_test_dir)
+    # spatial_t_test_dir = os.path.join(output_dir,"spatial_T_test")
+    # if not os.path.exists(spatial_t_test_dir):
+    #     os.makedirs(spatial_t_test_dir)
 
-    spatial_t_test_results = spatial_analysis(SpatialMaps_test,test_labels,
-                                              perm=permutations, alpha=alpha, 
-                                              paired=paired, cluster=False, TFCE=None, all_maps=True, 
-                                              random_seed=random_seed,output_dir=spatial_t_test_dir,n_workers=n_workers)
+    # spatial_t_test_results = spatial_analysis(SpatialMaps_test,test_labels,
+    #                                           perm=permutations, alpha=alpha, 
+    #                                           paired=paired, cluster=False, TFCE=None, all_maps=True, 
+    #                                           random_seed=random_seed,output_dir=spatial_t_test_dir,n_workers=n_workers)
     
-    spatial_t_test_discrim = os.path.join(output_dir,"spatial_T_test_discrim")
-    if not os.path.exists(spatial_t_test_discrim):
-        os.makedirs(spatial_t_test_discrim)
+    # spatial_t_test_discrim = os.path.join(output_dir,"spatial_T_test_discrim")
+    # if not os.path.exists(spatial_t_test_discrim):
+    #     os.makedirs(spatial_t_test_discrim)
     
-    U, _ = spatial_fda(SpatialMaps_train, train_labels,within=True)
+    # U, _ = spatial_fda(SpatialMaps_train, train_labels,within=True)
 
-    spatial_t_test_discrim_results = spatial_analysis(U.T@SpatialMaps_test,test_labels,
-                                            perm=permutations, alpha=alpha, 
-                                            paired=paired, cluster=False, TFCE=None, all_maps=True, 
-                                            random_seed=random_seed,output_dir=spatial_t_test_discrim, n_workers=n_workers)
+    # spatial_t_test_discrim_results = spatial_analysis(U.T@SpatialMaps_test,test_labels,
+    #                                         perm=permutations, alpha=alpha, 
+    #                                         paired=paired, cluster=False, TFCE=None, all_maps=True, 
+    #                                         random_seed=random_seed,output_dir=spatial_t_test_discrim, n_workers=n_workers)
     
     results = {
         "var_results": var_results,
@@ -1269,8 +1269,8 @@ def evaluate(data_set, labels, train_indx, test_indx, a_label, b_label, metric='
         "t_test": t_test,
         "recon": recon,
         "Spatial_discrim": spatial_results,
-        "Spatial_t_test": spatial_t_test_results,
-        "Spatial_t_test_discrim": spatial_t_test_discrim_results,
+        # "Spatial_t_test": spatial_t_test_results,
+        # "Spatial_t_test_discrim": spatial_t_test_discrim_results,
 
     }
 
