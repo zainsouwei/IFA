@@ -32,13 +32,12 @@ def evaluate_subject_helper(args):
     return instance.evaluate_subject(sub_path, hyperparams)
 
 class DualRegressionOptimizer:
-    def __init__(self, subject_paths, spatial_map, mode="normalize", search_space=None, 
+    def __init__(self, subject_paths, spatial_map, search_space=None, 
                  parallel_points=10, parallel_subs=3):
         """
         Parameters:
           - subject_paths: list of file paths for subjects.
           - spatial_map: spatial map array (e.g., from IFA/ICA), shape [V, C].
-          - mode: "normalize" or "demean". Determines how predictors are computed.
           - search_space: Optional; either a dict with keys 'alpha' and 'l1_ratio' 
                           or a list of skopt dimensions.
           - parallel_points: Number of parallel evaluations for Bayesian optimization.
@@ -51,10 +50,6 @@ class DualRegressionOptimizer:
         self.parallel_points = parallel_points
         self.parallel_subs = parallel_subs
 
-        self.mode = mode.lower()
-        if self.mode not in ["normalize", "demean"]:
-            raise ValueError("mode must be either 'normalize' or 'demean'")
-       
         if search_space is None:
             self.search_space_dict = {'alpha': (1e-3, 10), 'l1_ratio': ((1e-4), 1-(1e-4))}
         elif isinstance(search_space, dict):
@@ -88,16 +83,13 @@ class DualRegressionOptimizer:
             # Compute the network matrix A.
             A = Xn_demeaned @ self.spatial_map_dm_plus
             # Compute predictors.
-            if self.mode == "normalize":
-                predictors = hcp.normalize(A)
-            else:
-                predictors = A - A.mean(axis=0, keepdims=True)
+            predictors = hcp.normalize(A)
             # Split data into train and test sets.
             X_train, X_test, y_train, y_test = train_test_split(
                 predictors, Xn, test_size=0.3, random_state=42
             )
             # Train ElasticNet.
-            model = ElasticNet(alpha=hyperparams[0], l1_ratio=hyperparams[1], fit_intercept=False, max_iter=10000, selection='random')
+            model = ElasticNet(alpha=hyperparams[0], l1_ratio=hyperparams[1], fit_intercept=False, selection='random')
             model.fit(X_train, y_train)
             y_pred = model.predict(X_test)
             score = r2_score(y_test, y_pred, multioutput='uniform_average')
@@ -244,14 +236,12 @@ class DualRegress:
 
         self.dual_regression_results = []
         for i in range(len(self.spatial_maps)):
-            self.dual_regression_results.append({
-                'normalized': {'A': [], 'spatial_map': [], 'reconstruction_error': []},
-            })
+            self.dual_regression_results.append({'A': [], 'spatial_map': [], 'reconstruction_error': []})
 
 
     def stage_two_elastic(self,A,X,map_index=0,norm_index=0):
         hyper = self.hyperparams[map_index][norm_index]
-        Elastic = ElasticNet(alpha=hyper[0], l1_ratio=hyper[1], fit_intercept=False, max_iter=10000, selection='random')
+        Elastic = ElasticNet(alpha=hyper[0], l1_ratio=hyper[1], fit_intercept=False, selection='random')
         Elastic.fit(A, X)
         spatial_map = Elastic.coef_.T  # Coefficients are Components x Grayordinates (C x V)
         return spatial_map
@@ -291,9 +281,9 @@ class DualRegress:
         
         spatial_map_ = self.stage_two_elastic(An,Xn,map_index=map_index,norm_index=0)
         
-        rec_error_norm = self.recon(An, spatial_map_.T, Xn)
+        rec_error = self.recon(An, spatial_map_.T, Xn)
     
-        return [A, spatial_map_, rec_error_norm]
+        return [A, spatial_map_, rec_error]
 
         # Components x Grayordinates spatial map
         # spatial_map = np.linalg.pinv(An) @ hcp.normalize(Xn)  # Spatial map is Components x Grayordinates (C x V)
@@ -357,13 +347,12 @@ class DualRegress:
                 sampled_subjects = train_paths[sample_idx]
         for i, s_map in enumerate(self.spatial_maps):
             map_hyperparams = []
-            for mode in ["normalize"]:
-                optimizer_instance = DualRegressionOptimizer(sampled_subjects, s_map, mode=mode,parallel_points=self.parallel_points, parallel_subs=self.parallel_subs)
+            optimizer_instance = DualRegressionOptimizer(sampled_subjects, s_map,parallel_points=self.parallel_points, parallel_subs=self.parallel_subs)
 
-                best_params, best_cv_score = optimizer_instance.optimize(optimizer=self.method, n_calls=self.n_calls, random_state=self.random_state)
-                map_hyperparams.append(best_params)
-                np.save(os.path.join(self.outputfolders[i],f"{mode}_best_params"),np.array(best_params))
-                np.save(os.path.join(self.outputfolders[i],f"{mode}_best_cv"),np.array(best_cv_score))
+            best_params, best_cv_score = optimizer_instance.optimize(optimizer=self.method, n_calls=self.n_calls, random_state=self.random_state)
+            map_hyperparams.append(best_params)
+            np.save(os.path.join(self.outputfolders[i],f"best_params"),np.array(best_params))
+            np.save(os.path.join(self.outputfolders[i],f"best_cv"),np.array(best_cv_score))
             self.hyperparams.append(map_hyperparams)
         
             # Choose an optimization method: "bayesian" or "pso"
@@ -395,21 +384,21 @@ class DualRegress:
             if subject_result is None:
                 continue
             for i, map_result in enumerate(subject_result):
-                self.dual_regression_results[i]['normalized']['A'].append(map_result[0])
-                self.dual_regression_results[i]['normalized']['spatial_map'].append(map_result[1])
-                self.dual_regression_results[i]['normalized']['reconstruction_error'].append(map_result[2])
+                self.dual_regression_results[i]['A'].append(map_result[0])
+                self.dual_regression_results[i]['spatial_map'].append(map_result[1])
+                self.dual_regression_results[i]['reconstruction_error'].append(map_result[2])
 
         
         for i in range(num_maps):
-            self.dual_regression_results[i]['normalized']['A'] = np.array(self.dual_regression_results[i]['normalized']['A'])
-            self.dual_regression_results[i]['normalized']['spatial_map'] = np.array(self.dual_regression_results[i]['normalized']['spatial_map'])
-            self.dual_regression_results[i]['normalized']['reconstruction_error'] = np.array(self.dual_regression_results[i]['normalized']['reconstruction_error'])
+            self.dual_regression_results[i]['A'] = np.array(self.dual_regression_results[i]['A'])
+            self.dual_regression_results[i]['spatial_map'] = np.array(self.dual_regression_results[i]['spatial_map'])
+            self.dual_regression_results[i]['reconstruction_error'] = np.array(self.dual_regression_results[i]['reconstruction_error'])
         
         for i in range(num_maps):
             out_folder = self.outputfolders[i]
             if not os.path.exists(out_folder):
                 os.makedirs(out_folder)
             
-            np.save(os.path.join(out_folder, "A.npy"), self.dual_regression_results[i]['normalized']['A'])
-            np.save(os.path.join(out_folder, "spatial_map.npy"), self.dual_regression_results[i]['normalized']['spatial_map'])
-            np.save(os.path.join(out_folder, "reconstruction_error_norm.npy"), self.dual_regression_results[i]['normalized']['reconstruction_error'])
+            np.save(os.path.join(out_folder, "A.npy"), self.dual_regression_results[i]['A'])
+            np.save(os.path.join(out_folder, "spatial_map.npy"), self.dual_regression_results[i]['spatial_map'])
+            np.save(os.path.join(out_folder, "reconstruction_error.npy"), self.dual_regression_results[i]['reconstruction_error'])

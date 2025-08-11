@@ -126,7 +126,6 @@ def evaluate_filters(train, train_labels, test, test_labels, filters, metric="ri
 
 def FKT(cov_matrices, labels, a_label, b_label, metric="riemann", deconf=True, con_confounder_train=None, cat_confounder_train=None, visualize=True,output_dir="plots"):
     # Eigenvalues in ascending order from scipy eigh https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.eigh.html
-    unique_labels = np.unique(labels)
 
     if deconf:
         data, Frechet_Mean = tangent_transform(cov_matrices,metric=metric)
@@ -217,7 +216,7 @@ def TSSF(covs, labels, clf_str="L2 SVM (C=1)", metric="riemann", deconf=True, co
 def orthonormalize_filters(W1, W2):
     # Stack the two filters into a single matrix
     W = np.concatenate((W1, W2)).T  # shape: (features x 2)
-    
+    print("Shape of concatenated filters", W.shape)
     # Perform QR decomposition to orthonormalize the filters
     Q, _ = np.linalg.qr(W)
     
@@ -865,23 +864,23 @@ def voxelwise_FKT(groupA=None, groupB=None, n_filters_per_group=1, groupA_paths=
         try:
             assert (not log) or (cov_method == 'svd'), "If log is True, then method must be 'svd'."
             
-            print_memory_status("Before computing Group A dense matrix")
+            # print_memory_status("Before computing Group A dense matrix")
             A_dense_adj = create_dense_cov(group=groupA, group_paths=groupA_paths,  paths=paths, log=log, shrinkage=shrinkage , cov_method=cov_method)
-            print(f"Group A dense matrix loaded. Memory size: {A_dense_adj.element_size() * A_dense_adj.nelement() / 1e9:.4f} GB")
+            # print(f"Group A dense matrix loaded. Memory size: {A_dense_adj.element_size() * A_dense_adj.nelement() / 1e9:.4f} GB")
 
-            print_memory_status("Before computing Group B dense matrix")
+            # print_memory_status("Before computing Group B dense matrix")
             B_dense_adj = create_dense_cov(group=groupB, group_paths=groupB_paths,  paths=paths, log=log, shrinkage=shrinkage , cov_method=cov_method)
-            print(f"Group B dense matrix loaded. Memory size: {B_dense_adj.element_size() * B_dense_adj.nelement() / 1e9:.4f} GB")
+            # print(f"Group B dense matrix loaded. Memory size: {B_dense_adj.element_size() * B_dense_adj.nelement() / 1e9:.4f} GB")
 
-            print_memory_status("Before running Large_FKT for A_filters")
+            # print_memory_status("Before running Large_FKT for A_filters")
             _, A_filters = Large_FKT(A_dense_adj, B_dense_adj, n=n_filters_per_group, LOBPCG=True,num_simulations=1000,log=log,largest=True)
             np.save(os.path.join(outputfolder, "filtersA.npy"), A_filters.cpu().numpy())
 
-            print_memory_status("Before running Large_FKT for B_filters")
+            # print_memory_status("Before running Large_FKT for B_filters")
             _, B_filters = Large_FKT(B_dense_adj, A_dense_adj, n=n_filters_per_group, LOBPCG=True,num_simulations=1000,log=log,largest=True)
             np.save(os.path.join(outputfolder, "filtersB.npy"), B_filters.cpu().numpy())
             
-            print_memory_status("After Running FKT")
+            # print_memory_status("After Running FKT")
 
             if save_img:
                 for i in range(A_filters.shape[1]):

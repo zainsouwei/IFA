@@ -109,7 +109,7 @@ def update_W(current_W, new_data, m):
     return updated_W
 
 
-def migp_worker(subs,batch_size=1, m=4800, vt=None):  #TODO chaneg back to non PCN m=4800
+def migp_worker(subs,batch_size=1, m=4800, vt=None):
 
     if batch_size > len(subs):
         print(f"Warning: batch_size ({batch_size}) is greater than number of subjects ({len(subs)}). Setting batch_size to {len(subs)}.")
@@ -334,7 +334,7 @@ def PPCA(data, filters=None, threshold=1.6, niters=10, n=-1):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     data_gpu = torch.tensor(data,device=device, dtype=torch.float32)
 
-    while n_components != n_prev and i < niters:
+    while int(n_components) != int(n_prev) and i < niters:
         n_prev = n_components
         if filters is not None:
             basis_gpu =  torch.tensor(filters.T,device=device, dtype=torch.float32)

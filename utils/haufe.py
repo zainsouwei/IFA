@@ -75,25 +75,8 @@ def process_subject_haufe(sub,pinv_TF):
 
     except Exception as e:
         print(f"Error processing subject: {e}")
-        return None
+        raise                      # (k, V)
 
-
-def filter_dual_regression(F, parcellated,paths,workers=20):
-    
-    # Ensure the tensors are on the correct device
-    pinv_TF = np.linalg.pinv(parcellated.reshape(-1,parcellated.shape[-1]) @ np.linalg.pinv(F.T))
-
-
-    # pinv_TF_list = pinv_TF.reshape(len(paths),F.shape[1],pinv_TF.shape[0])
-    pinv_TF_list = (np.array_split(pinv_TF, len(paths), axis=1))
-
-    with ProcessPoolExecutor(max_workers=(int(workers))) as executor:
-        # Use map to process subjects in parallel
-        blocks = np.array(list(executor.map(process_subject_haufe, paths,pinv_TF_list)))
-        return (blocks.sum(axis=0))
-    
-
-####################### For Partialing Out #######################
 def process_subject_haufe_partial(sub, pinv_TF, vt):
     try:
         # Load raw subject data.
@@ -107,7 +90,7 @@ def process_subject_haufe_partial(sub, pinv_TF, vt):
         print(f"Error processing subject {sub}: {e}")
         raise
 
-def partial_filter_dual_regression(F, parcellated, paths, vt, workers=20):
+def partial_filter_dual_regression(F, parcellated, paths, vt=None, workers=20):
     """
     Map the filters F from parcel space to vertex (CIFTI) space.
     
@@ -130,7 +113,7 @@ def partial_filter_dual_regression(F, parcellated, paths, vt, workers=20):
     stacked_parcellated = np.vstack(parcellated)  # (sum_T, Parcels)
 
     # Compute pseudo-inverse transformation
-    pinv_TF = np.linalg.pinv(stacked_parcellated @ np.linalg.pinv(F.T))  # (parcels, sum_T)
+    pinv_TF = np.linalg.pinv(stacked_parcellated @ np.linalg.pinv(F.T))  # (k, sum_T)
 
     # Compute number of timepoints per subject
     subject_lengths = [subj.shape[0] for subj in parcellated]
@@ -139,13 +122,13 @@ def partial_filter_dual_regression(F, parcellated, paths, vt, workers=20):
     # Split pinv_TF based on subject timepoints
     pinv_TF_list = np.split(pinv_TF, cumsum_lengths[:-1], axis=1)
 
+    if vt is None:
+        func = process_subject_haufe                                     
+    else:
+        func = functools.partial(process_subject_haufe_partial, vt=vt)   
 
-    # Create a partial function so that vt is fixed for every subject.
-    func = functools.partial(process_subject_haufe_partial, vt=vt)
-    
-    with ProcessPoolExecutor(max_workers=workers) as executor:
-        # Map over subject paths and corresponding pinv_TF blocks.
-        results = list(executor.map(func, paths, pinv_TF_list))
+    with ProcessPoolExecutor(max_workers=workers) as ex:
+        results = list(ex.map(func, paths, pinv_TF_list))     
     
     # Aggregate the results (here, summing along the subject axis; adjust if needed)
     aggregated = np.array(results).sum(axis=0)

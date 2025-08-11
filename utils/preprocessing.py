@@ -155,7 +155,7 @@ def load_subject(subject_info):
       A normalized NumPy array of subject data or None if an error occurs.
     """
     try:
-        # LEAP Data
+        # LEAP Data and POM
         if (isinstance(subject_info, np.ndarray) and subject_info.shape == (2,) and all(isinstance(x, str) for x in subject_info) and ("mask" in subject_info[1].lower())):
             func_img, mask_img = subject_info
             masker = NiftiMasker(mask_img=mask_img,standardize='zscore_sample',dtype=np.float32)
