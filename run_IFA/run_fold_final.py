@@ -390,7 +390,8 @@ def run_fold(outputfolder, fold):
         tangent_class_metrics = tangent_classification(partial_train_covs, train_labels, partial_test_covs, test_labels, 
                             clf_str='all', z_score=0, metric=metric, deconf=deconfound, 
                             con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
-                            con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders)
+                            con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
+                           random_state=0, n_inner_splits=5,n_cpus=15, n_calls=25, n_initial=6)
         
         
         # Save those tangent classification results to overall fold results directory
@@ -514,7 +515,8 @@ def run_fold(outputfolder, fold):
             tmp_a = np.load(os.path.join(outputfolders[i], "A.npy"))
             tmp_spatial_map = np.load(os.path.join(outputfolders[i], "spatial_map.npy"))
             tmp_recon = np.load(os.path.join(outputfolders[i], "reconstruction_error.npy"))
-            # TODO change 2d lda to account for class imbalance, t-test cluster/tfce logic changes
+            # TODO change 2d lda to account for class imbalance, t-test cluster/tfce logic changes, decide on z scoring projection, 
+            #           have plots check if cifti, change spatial_map classification to be hyperparam learned
             result_i = evaluate((tmp_a, tmp_spatial_map, tmp_recon), 
                                         labels, train_idx, test_idx, a_label, b_label,
                                         metric=metric, alpha=0.05, paired=paired, 

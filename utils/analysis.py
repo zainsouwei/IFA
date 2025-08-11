@@ -6,9 +6,11 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.svm import SVC
 from scipy.linalg import eigh,subspace_angles
-from pyriemann.utils.tangentspace import untangent_space, mean_covariance
+from pyriemann.utils.tangentspace import untangent_space
+from pyriemann.utils.mean import mean_covariance
 from sklearn.metrics import accuracy_score
 from sklearn.covariance import OAS,LedoitWolf, EmpiricalCovariance
+from sklearn.preprocessing import StandardScaler
 import hcp_utils as hcp
 from nilearn import plotting
 from pyriemann.estimation import Covariances
@@ -24,8 +26,9 @@ import pickle
 sys.path.append('/utils')
 
 from tangent import tangent_transform, tangent_classification
-from filters import feature_generation, FKT
+from filters import feature_generation, FKT, test_filters
 from regression import deconfound
+from classification import clf_dict
 
 def scatter_with_lines(data1, data2, label1='Series 1', label2='Series 2', xlabel='X', ylabel='Y', title='Scatter Plot with Connecting Lines',output_dir='path'):
     """
@@ -187,10 +190,9 @@ def tangent_t_test(train_covs, test_covs, test_labels, alpha=.05, permutations=F
 
     return (diff_thresholded_matrix, t_values_thresholded_matrix, groupA, groupB)
 
-
+# TODO decide on z scoring projection 
 # https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=5662067
 def var_diff(train_data, train_covs, train_labels, test_data, test_labels, a_label, b_label, metric='riemann', method='log-var', basis="ICA", deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None,output_dir="path"):
-    clf = SVC(kernel='linear', C=0.1, class_weight='balanced')
 
     _, filters_all = FKT(train_covs, train_labels, a_label=a_label, b_label=b_label, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, visualize=False, output_dir=None)
 
@@ -202,12 +204,20 @@ def var_diff(train_data, train_covs, train_labels, test_data, test_labels, a_lab
         if deconf:
             train_features, test_features = deconfound(train_features, con_confounder_train, cat_confounder_train, X_test=test_features, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
 
-        # Train SVM regression classifier on training data
-        clf.fit(train_features, train_labels)
 
-        # Predict on the test data and calculate accuracy
+        _, C_best = test_filters(train_data, train_labels, test_data, test_labels,
+                                    filters, metric=metric, method=method,
+                                    deconf=deconf, con_confounder_train=con_confounder_train,
+                                    cat_confounder_train=cat_confounder_train,
+                                    con_confounder_test=con_confounder_test,
+                                    cat_confounder_test=cat_confounder_test,
+                                    cv_splits=5, random_state=0,z_score=0)
+
+        # only needed for the n==1 decision boundary plot (use same scaling as CV)        
+        clf = clf_dict["svc"]["make"](C=C_best)
+        clf.fit(train_features, train_labels)
         y_pred = clf.predict(test_features)
-        accuracy = accuracy_score(test_labels, y_pred)
+        accuracy = accuracy_score(test_labels, y_pred) 
 
         # Calculate class means for distance (using the training data)
         mean_group1_test = np.mean(test_features[test_labels==a_label], axis=0)
@@ -672,13 +682,13 @@ def reduce_dimensionality_torch(train_spatial_maps, test_spatial_maps, device=No
 def spatial_discrimination(train_maps, train_labels, test_maps, test_labels,methods=[1,2,4,5],metric="riemann",visualize=True,outputfolder=None,basis="IFA"):
     # Note for method 1, 2, & 4 Vt == U.T, This is just done so the same code can be used for the grassmann dist
     #           which operates on two different subspaces where U != V
-    classifier_model = "SVM (C=0.1)"
+    classifier_model = clf_dict["svc"]["make"](C=0.1)    
     # First look at accuracy of individual maps that span the subspace
     map_accs = []
     for i in range(train_maps.shape[1]):
         # train_map_reduced, test_map_reduced = reduce_dimensionality_torch(train_maps[:, i, :], test_maps[:, i, :], device=None, n=100, svd=True, demean=True)
         # results = linear_classifier(train_map_reduced, train_labels, test_map_reduced, test_labels, clf_str='Logistic Regression', z_score=1)
-        results = linear_classifier(train_maps[:, i, :], train_labels, test_maps[:, i, :], test_labels, clf_str=classifier_model, z_score=1)
+        results = linear_classifier(train_maps[:, i, :], train_labels, test_maps[:, i, :], test_labels, clfs_list=[classifier_model], z_score=1)
         map_accs.append(results)
 
     # Compute the maximum separating directions within that subspace based on different heurstics
@@ -718,7 +728,7 @@ def spatial_discrimination(train_maps, train_labels, test_maps, test_labels,meth
             proj_test_labels = np.hstack((np.ones(groupA_test.shape[0]),np.zeros(groupB_test.shape[0])))
             # train_reduced,test_reduced = reduce_dimensionality_torch(train_proj, test_proj, device=None, n=100, svd=True, demean=True)
             # direction_results = linear_classifier(train_reduced, proj_train_labels, test_reduced, proj_test_labels, clf_str='Logistic Regression', z_score=1)
-            direction_results = linear_classifier(train_proj, proj_train_labels, test_proj, proj_test_labels, clf_str=classifier_model, z_score=1)            
+            direction_results = linear_classifier(train_proj, proj_train_labels, test_proj, proj_test_labels, clfs_list=[classifier_model], z_score=1)            
             accs.append(direction_results)
 
         discrim_dir_acc[method] = accs

@@ -51,7 +51,8 @@ def feature_generation(train, test, filters, method='log-var', metric='riemann',
 
     return train_features, test_features
 
-def test_filters(train, train_labels, test, test_labels, filters, metric="riemann", method='log-cov', deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None, cv_splits=5, random_state=0):
+# TODO decide on z scoring projection 
+def test_filters(train, train_labels, test, test_labels, filters, metric="riemann", method='log-cov', deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None, cv_splits=5, random_state=0,z_score=2):
     make_final = clf_dict["svc"]["make"]
     C_grid = np.logspace(-6, 3, 10)
     skf = StratifiedKFold(n_splits=cv_splits, shuffle=True, random_state=random_state)
@@ -67,7 +68,7 @@ def test_filters(train, train_labels, test, test_labels, filters, metric="rieman
             Xtr, Xval = deconfound(Xtr, ctr, cta, X_test=Xval, con_confounder_test=cvr, cat_confounder_test=cva)
 
         ytr, yval = train_labels[tr_idx], train_labels[val_idx]
-        out = linear_classifier(Xtr, ytr, Xval, yval, clfs_list=[make_final(C=C)], z_score=2)        
+        out = linear_classifier(Xtr, ytr, Xval, yval, clfs_list=[make_final(C=C)], z_score=z_score)        
         yhat = next(iter(out.values()))['predictions']
         return balanced_accuracy_score(yval, yhat)
 
@@ -88,7 +89,7 @@ def test_filters(train, train_labels, test, test_labels, filters, metric="rieman
                                         X_test=Xte_full, con_confounder_test=con_confounder_test,
                                         cat_confounder_test=cat_confounder_test)
     best_model = make_final(C=C_best)
-    return linear_classifier(Xtr_full, train_labels, Xte_full, test_labels, clfs_list=[best_model], z_score=2)
+    return linear_classifier(Xtr_full, train_labels, Xte_full, test_labels, clfs_list=[best_model], z_score=z_score), C_best
 
 
 def test_visualize_variance(train, test, test_labels, filters, deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None,  output_dir="plots", metric="riemann", cov="oas"):
@@ -155,8 +156,8 @@ def test_visualize_variance(train, test, test_labels, filters, deconf=False, con
 
 def evaluate_filters(train, train_labels, test, test_labels, filters, metric="riemann", deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None,output_dir="plots"):
     test_visualize_variance(train, test, test_labels, filters,  deconf=deconf,con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,  output_dir=output_dir, metric=metric, cov="oas")
-    metrics_dict_logvar = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-var', deconf=deconf,con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
-    metrics_dict_logcov = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-cov', deconf=deconf,con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
+    metrics_dict_logvar, _ = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-var', deconf=deconf,con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
+    metrics_dict_logcov, _ = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-cov', deconf=deconf,con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
 
     return metrics_dict_logvar, metrics_dict_logcov
 
