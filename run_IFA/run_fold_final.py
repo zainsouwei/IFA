@@ -26,7 +26,7 @@ from PCA import PPCA, migp
 from filters import orthonormalize_filters, save_brain
 from ICA import ICA
 from DualRegression import DualRegress
-from filters import TSSF, FKT, evaluate_filters
+from filters import TSSF_select, TSSF, FKT, evaluate_filters
 from tangent import tangent_classification
 from haufe import partial_filter_dual_regression
 from preprocessing import load_subject
@@ -242,7 +242,6 @@ def run_fold(outputfolder, fold):
     n_filters_per_group = settings["n_filters_per_group"]
     nPCA_levels = settings["nPCA_levels"]
     tangent_class = settings["tangent_class"]
-    tan_class_model = settings["tan_class_model"]
     metric = settings["metric"]
     a_label = settings["a_label"]
     b_label = settings["b_label"]
@@ -395,16 +394,29 @@ def run_fold(outputfolder, fold):
         
         
         # Save those tangent classification results to overall fold results directory
+        # Remove predictions before saving since that will be too long of a print
+        def _strip_preds(d): 
+            return {k: {kk: vv for kk, vv in v.items() if kk != "predictions"} for k, v in d.items()}
+        
         with open(os.path.join(filters_dir, "tangent_class_metrics.pkl"), "wb") as f:
-            pickle.dump(tangent_class_metrics, f)   
-        save_text_results("Parcellated Tangent Classification " + str(tangent_class_metrics), summary_file_path)
+            pickle.dump(_strip_preds(tangent_class_metrics), f)
+
+        save_text_results("Parcellated Tangent Classification " + str(_strip_preds(tangent_class_metrics)), summary_file_path)
         
         # TODO GPOT for hyperparameter selection, decide on z_scoring here
         if tangent_class:
-            _, filters_all, _, _ = TSSF(partial_train_covs, train_labels, 
-                                        clf_str=tan_class_model, metric=metric, deconf=deconfound, 
-                                        con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
-                                        z_score=0, haufe=False, visualize=True, output_dir=parcellated_filters_dir)
+            # Tune tangent-space model (on TRAIN only) and pick winner
+            sel = TSSF_select(partial_train_covs, train_labels, partial_train_data,
+                              a_label=a_label, b_label=b_label, n=n_filters_per_group, metric=metric, feature_kind="log-cov",          # or "log-var"
+                              deconf=deconfound, con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders,
+                              tan_model_keys=("logreg_en","svc_l2_sq","svc_l1"), final_svm_key="svc",
+                             z_score_tan=0, haufe=False, n_inner_splits=5, n_calls=25, n_initial=6, random_state=random_state,)
+            with open(os.path.join(parcellated_filters_dir, "tssf_selection.json"), "w") as f:
+                json.dump(sel, f, indent=2)
+            # Fit filters with the selected model + BO-tuned params (still TRAIN only)
+            _, filters_all, _, _ = TSSF(partial_train_covs, train_labels, clf_str=sel["winner_model"], clf_params=sel["winner_theta"],
+                                        metric=metric, deconf=deconfound, con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders,
+                                        z_score=0, haufe=False, visualize=True, output_dir=parcellated_filters_dir,)
         else:
             _, filters_all = FKT(partial_train_covs, train_labels, a_label, b_label,
                                     metric=metric, deconf=deconfound, 
@@ -425,18 +437,19 @@ def run_fold(outputfolder, fold):
         np.save(os.path.join(parcellated_filters_dir, "filtersB.npy"), filtersB)
         np.save(os.path.join(parcellated_filters_dir, "filters_parcellated.npy"), filters_parcellated)
 
-
+        # TODO should i z score teh derived features before classification (will also need to change in TSSF_select)
         logvar_stats, logcov_stats = evaluate_filters(partial_train_data, train_labels, partial_test_data, test_labels, 
                                                         filters_parcellated, metric=metric, deconf=deconfound, 
                                                         con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
                                                         con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,output_dir=parcellated_filters_dir)
 
         with open(os.path.join(filters_dir, "logvar_stats.pkl"), "wb") as f:
-                pickle.dump(logvar_stats, f)     
+            pickle.dump(_strip_preds(logvar_stats), f)
         with open(os.path.join(filters_dir, "logcov_stats.pkl"), "wb") as f:
-                pickle.dump(logcov_stats, f)      
-        save_text_results("Log Var Filter Feature Classification " + str(logvar_stats), summary_file_path)
-        save_text_results("Log Cov Filter Feature Classification " + str(logcov_stats), summary_file_path)
+            pickle.dump(_strip_preds(logcov_stats), f)
+
+        save_text_results("Log Var Filter Feature Classification " + str(_strip_preds(logvar_stats)), summary_file_path)
+        save_text_results("Log Cov Filter Feature Classification " + str(_strip_preds(logcov_stats)), summary_file_path)
         
         # Get indices where label == a_label
         idx_a_label = np.where(train_labels == a_label)[0]

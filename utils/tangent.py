@@ -31,7 +31,7 @@ def tangent_transform(train, test=None, metric="riemann"):
 def tangent_classification(covs_train, y_train, covs_test, y_test, clf_str="logreg_en", z_score=2, metric="riemann", 
                            deconf=False, con_confounder_train=None, cat_confounder_train=None,
                            con_confounder_test=None, cat_confounder_test=None,
-                           random_state=0, n_inner_splits=10, n_calls=25, n_initial=6):
+                           random_state=0, n_inner_splits=10,n_cpus=15, n_calls=25, n_initial=6):
 
     # Outer transform
     X_train, X_test, _ = tangent_transform(covs_train, covs_test, metric=metric)
@@ -58,11 +58,11 @@ def tangent_classification(covs_train, y_train, covs_test, y_test, clf_str="logr
                 if deconf:
                     X_in_tr, X_in_val = deconfound(
                         X_in_tr,
-                        None if con_confounder_train is None else con_confounder_train[tr_idx],
-                        None if cat_confounder_train is None else cat_confounder_train[tr_idx],
+                        None if con_confounder_train is None else con_confounder_train.iloc[tr_idx],
+                        None if cat_confounder_train is None else cat_confounder_train.iloc[tr_idx],
                         X_test=X_in_val,
-                        con_confounder_test=None if con_confounder_train is None else con_confounder_train[val_idx],
-                        cat_confounder_test=None if cat_confounder_train is None else cat_confounder_train[val_idx],
+                        con_confounder_test=None if con_confounder_train is None else con_confounder_train.iloc[val_idx],
+                        cat_confounder_test=None if cat_confounder_train is None else cat_confounder_train.iloc[val_idx],
                     )
 
                 tuned = make_clf(**params)
@@ -71,9 +71,9 @@ def tangent_classification(covs_train, y_train, covs_test, y_test, clf_str="logr
                 summ = next(iter(fold_metrics.values()))
                 y_pred = summ['predictions']
 
-                # return balanced_accuracy_score(y_in_val, y_pred)
+                return balanced_accuracy_score(y_in_val, y_pred)
                 # return accuracy_score(y_in_val,  y_pred)
-                return f1_score(y_in_val,  y_pred, average="macro")
+                # return f1_score(y_in_val,  y_pred, average="macro")
                 # return f1_score(y_in_val,  y_pred, average="micro")
 
             scores = Parallel(n_jobs=n_inner_splits)(
@@ -86,8 +86,12 @@ def tangent_classification(covs_train, y_train, covs_test, y_test, clf_str="logr
         return make_clf(**best_params)
 
     # Build tuned model list
+    # TODO come back to this here (parallel  cpus/n_inner pslots if < 0 then 1 amnd alays a hwole number )
     if clf_str == "all":
-        models = [tune_model(k) for k in clf_dict.keys()]
+        nj = n_cpus // max(1, n_inner_splits)
+        nj = max(1, int(nj))
+        keys = list(clf_dict.keys())
+        models = Parallel(n_jobs=nj)(delayed(tune_model)(k) for k in keys)
     else:
         models = [tune_model(clf_str)]
 
