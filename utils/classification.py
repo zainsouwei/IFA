@@ -4,85 +4,91 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.preprocessing import StandardScaler, RobustScaler
 from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.base import clone
+from sklearn.utils.multiclass import unique_labels
+from functools   import partial
+from skopt.space import Real
 
-# clf_dict = {
-#         "SVM (C=1)": SVC(kernel='linear', C=1, class_weight='balanced'),
-#         "SVM (C=0.1)": SVC(kernel='linear', C=0.1, class_weight='balanced'),
-#         "SVM (C=0.01)": SVC(kernel='linear', C=0.01, class_weight='balanced'),
-#         "SVM (C=0.001)": SVC(kernel='linear', C=0.001, class_weight='balanced'),
-#         "L2 SVM (C=1)": LinearSVC(penalty='l2',loss='squared_hinge',C=1,class_weight='balanced'),
-#         "L2 SVM (C=0.1)": LinearSVC(penalty='l2',loss='squared_hinge',C=.1,class_weight='balanced'),
-#         "L2 SVM (C=0.01)":  LinearSVC(penalty='l2',loss='squared_hinge',C=.01,class_weight='balanced'),
-#         "L2 SVM (C=0.001)":  LinearSVC(penalty='l2',loss='squared_hinge',C=.001,class_weight='balanced'),
-#         "L2 SVM Hinge (C=1)": LinearSVC(penalty='l2',loss='hinge',C=1,class_weight='balanced'),
-#         "L2 SVM Hinge (C=0.1)": LinearSVC(penalty='l2',loss='hinge',C=.1,class_weight='balanced'),
-#         "L2 SVM Hinge (C=0.01)":  LinearSVC(penalty='l2',loss='hinge',C=.01,class_weight='balanced'),
-#         "L1 SVM (C=1)": LinearSVC(penalty='l1',loss='squared_hinge',dual=False,C=1,class_weight='balanced'),
-#         "L1 SVM (C=0.1)": LinearSVC(penalty='l1',loss='squared_hinge',dual=False,C=.1,class_weight='balanced'),
-#         "L1 SVM (C=0.01)":  LinearSVC(penalty='l1',loss='squared_hinge',dual=False,C=.01,class_weight='balanced'),
-#         "LDA": LDA(),
-#         "Logistic Regression": LogisticRegression(),
-#         "Logistic Regression (l2 C=1)": LogisticRegression(penalty='l2', C=1, class_weight='balanced'),
-#         "Logistic Regression (l2 C=10)": LogisticRegression(penalty='l2', C=10, class_weight='balanced'),
-#         "Logistic Regression (l1)": LogisticRegression(penalty='l1', solver='liblinear', class_weight='balanced'),
-#         "Logistic Regression (elasticnet C=1)": LogisticRegression(penalty='elasticnet', C=1, solver='saga', l1_ratio=0.1, class_weight='balanced'),
-#         "Logistic Regression (elasticnet C=10)": LogisticRegression(penalty='elasticnet', C=10, solver='saga', l1_ratio=0.1, class_weight='balanced')
-#     }
+clf_dict = {
+    #  LINEAR SVC variants
+    "svc": {
+        "make": partial(SVC,kernel='linear', class_weight='balanced'),
+        "space": [Real(1e-6, 1e3, name="C", prior="log-uniform")]
 
-cs = [10, 1, 0.1, 0.01, 0.001]
-l1_ratios = [0.01, 0.1, 0.5, 0.9]
+    },
+    "svc_l2_sq": {                         #  L2-penalty, squared-hinge (default)
+        "make": partial(LinearSVC,
+                        penalty="l2",
+                        loss="squared_hinge",
+                        dual="auto",
+                        class_weight="balanced"),
+        "space": [Real(1e-6, 1e3, name="C", prior="log-uniform")]
+    },
+    "svc_l2_hinge": {                      #  L2-penalty, classic hinge
+        "make": partial(LinearSVC,
+                        penalty="l2",
+                        loss="hinge",
+                        dual=True,              # hinge ⇒ dual must be True
+                        class_weight="balanced"),
+        "space": [Real(1e-6, 1e3, name="C", prior="log-uniform")]
+    },
+    "svc_l1": {                            #  L1-penalty (sparse weights)
+        "make": partial(LinearSVC,
+                        penalty="l1",
+                        loss="squared_hinge",
+                        dual=False,             # L1 ⇒ dual must be False
+                        class_weight="balanced"),
+        "space": [Real(1e-6, 1e3, name="C", prior="log-uniform")]
+    },
 
-clf_dict = {}
+    #  LOGISTIC-REGRESSION variants
+    "logreg_l2": {                         #  pure L2
+        "make": partial(LogisticRegression,
+                        penalty="l2",
+                        solver="saga",
+                        class_weight="balanced",
+                        ),
+        "space": [Real(1e-6, 1e3, name="C", prior="log-uniform")]
+    },
+    "logreg_l1": {                         #  pure L1
+        "make": partial(LogisticRegression,
+                        penalty="l1",
+                        solver="saga",
+                        class_weight="balanced",
+                        ),
+        "space": [Real(1e-6, 1e3, name="C", prior="log-uniform")]
+    },
+    # TODO Decide on whether or not to use class balance weights 
+    "logreg_en": {                         #  elastic-net (tune C & l1_ratio)
+        "make": partial(LogisticRegression,
+                        penalty="elasticnet",
+                        solver="saga",
+                        class_weight="balanced",
+                        ),
+        "space": [
+            Real(1e-6, 1e3, name="C",        prior="log-uniform"),
+            Real(1e-3,   1.0, name="l1_ratio", prior="uniform")
+        ]
+    },
+}
 
-# --- SVM with linear kernel ---
-for c in cs:
-    clf_dict[f"SVM (C={c})"] = SVC(kernel='linear', C=c, class_weight='balanced')
+def name_estimator(est, keys=('C','penalty','loss','alpha','l1_ratio','kernel')):
+    # if Pipeline, look at final step
+    if hasattr(est, "steps"):
+        est = est.steps[-1][1]
+    base = est.__class__.__name__
+    params = est.get_params(deep=False)
+    picks = []
+    for k in keys:
+        if k in params:
+            v = params[k]
+            if isinstance(v, float):
+                v = f"{v:.3g}"
+            picks.append(f"{k}={v}")
+    return f"{base}[{', '.join(picks)}]" if picks else base
 
-# # --- LinearSVC (L2 penalty, squared_hinge loss) ---
-for c in cs:
-    clf_dict[f"L2 SVM (squared_hinge, C={c})"] = LinearSVC(
-        penalty='l2', loss='squared_hinge', C=c,
-        class_weight='balanced', max_iter=10000
-    )
-
-# # --- LinearSVC (L1 penalty) ---
-# for c in cs:
-#     clf_dict[f"L1 SVM (squared_hinge, C={c})"] = LinearSVC(
-#         penalty='l1', loss='squared_hinge', dual=False, C=c,
-#         class_weight='balanced', max_iter=10000
-#     )
-
-clf_dict[f"LogReg"] = LogisticRegression(class_weight='balanced')
-
-# --- Logistic Regression (L2) ---
-for c in cs:
-    clf_dict[f"LogReg (l2, C={c})"] = LogisticRegression(
-        penalty='l2', C=c, class_weight='balanced',
-        solver='liblinear', max_iter=10000
-    )
-
-# # --- Logistic Regression (L1) ---
-# for c in cs:
-#     clf_dict[f"LogReg (l1, C={c})"] = LogisticRegression(
-#         penalty='l1', C=c, class_weight='balanced',
-#         solver='liblinear', max_iter=10000
-#     )
-
-# # --- Logistic Regression (elasticnet) ---
-# for c in [10, 1, 0.1, 0.01]:           # pick a few Cs to keep total reasonable
-#     for ratio in l1_ratios:
-#         clf_dict[f"LogReg (elasticnet, C={c}, l1_ratio={ratio})"] = LogisticRegression(
-#             penalty='elasticnet', C=c, l1_ratio=ratio,
-#             solver='saga', class_weight='balanced', max_iter=10000
-#         )
-
-def linear_classifier(X_train, y_train, X_test, y_test, clf_str='SVM (C=1)', z_score=2):
-    if clf_str == 'all':
-        clf_strs = [key for key, _ in clf_dict.items()]
-    else:
-        clf_strs = [clf_str]
-    
-
+def linear_classifier(X_train, y_train, X_test, y_test, clfs_list, z_score=2):
+    # Clone to avoid modifying the original object    
     if z_score == 1:
         scaler = StandardScaler(with_mean=True, with_std=False)
         X_train = scaler.fit_transform(X_train)
@@ -98,8 +104,8 @@ def linear_classifier(X_train, y_train, X_test, y_test, clf_str='SVM (C=1)', z_s
         X_test = scaler.transform(X_test)
 
     metrics_dict = {}
-    for clf_name in clf_strs:
-        clf = clf_dict[clf_name]
+    for model in clfs_list:
+        clf = clone(model)
 
         clf.fit(X_train, y_train)
         predictions = clf.predict(X_test)
@@ -107,8 +113,8 @@ def linear_classifier(X_train, y_train, X_test, y_test, clf_str='SVM (C=1)', z_s
         correct_predictions = np.sum(predictions == y_test)
         total_predictions = len(y_test)
         # Confusion matrix to get per-class accuracy
-        unique_labels = np.unique(y_test)
-        cm = confusion_matrix(y_test, predictions, labels=[unique_labels[1], unique_labels[0]])
+        labels = unique_labels(y_test, predictions)
+        cm = confusion_matrix(y_test, predictions, labels=labels)
         per_class_correct = np.diag(cm)
         per_class_total = np.sum(cm, axis=1)
         per_class_accuracy = per_class_correct / per_class_total
@@ -119,7 +125,11 @@ def linear_classifier(X_train, y_train, X_test, y_test, clf_str='SVM (C=1)', z_s
             'total_predictions': total_predictions,
             'per_class_correct': per_class_correct,
             'per_class_total': per_class_total,
-            'per_class_accuracy': per_class_accuracy
+            'per_class_accuracy': per_class_accuracy,
+            'labels': labels,
+            'predictions': predictions,
         }
+        
+        clf_name = name_estimator(clf)
         metrics_dict[clf_name] = summary
     return metrics_dict

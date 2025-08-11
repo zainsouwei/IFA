@@ -501,7 +501,7 @@ def run_fold(outputfolder, fold):
             tmp_a = np.load(os.path.join(outputfolders[i], "A.npy"))
             tmp_spatial_map = np.load(os.path.join(outputfolders[i], "spatial_map.npy"))
             tmp_recon = np.load(os.path.join(outputfolders[i], "reconstruction_error.npy"))
-            
+            # TODO change 2d lda to account for class imbalance, t-test cluster/tfce logic changes
             result_i = evaluate((tmp_a, tmp_spatial_map, tmp_recon), 
                                         labels, train_idx, test_idx, a_label, b_label,
                                         metric=metric, alpha=0.05, paired=paired, 
@@ -512,7 +512,7 @@ def run_fold(outputfolder, fold):
 
             results.append(result_i)
             # Remove the temporary variables and force garbage collection.
-            del tmp_an, tmp_spatial_map, tmp_recon_norm
+            del tmp_a, tmp_spatial_map, tmp_recon
             gc.collect()
 
         # Define the pairwise comparisons (same for both normalized and unnormalized)
