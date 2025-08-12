@@ -131,29 +131,6 @@ def extract_phenotype(file_path_restricted='/project/3022057.01/HCP/RESTRICTED_z
     return data
     
 def load_subject(subject_info):
-    """
-    Load and normalize subject data with different behavior based on input structure.
-    
-    Cases:
-    1. If subject_info is a list of file paths:
-         Process: load, normalize each task, concatenate, and final normalization.
-    
-    2. If subject_info is [paths, truncate_to]:
-         Process: as in Case 1, but then truncate the concatenated data to truncate_to rows.
-    
-    3. If subject_info is [paths, condition_indices, truncate_to]:
-         Process: load, normalize, concatenate; then extract slices using condition_indices 
-         (assumed to be a dict with keys like 'LR' and 'RL' whose values are lists of (start, end) pairs),
-         combine the extracted slices, truncate the result to truncate_to rows, and then normalize.
-    
-    Parameters:
-      subject_info: either a list of paths (case 1), 
-                    or [paths, truncate_to] (case 2),
-                    or [paths, condition_indices, truncate_to] (case 3).
-    
-    Returns:
-      A normalized NumPy array of subject data or None if an error occurs.
-    """
     try:
         # LEAP Data and POM
         if (isinstance(subject_info, np.ndarray) and subject_info.shape == (2,) and all(isinstance(x, str) for x in subject_info) and ("mask" in subject_info[1].lower())):
@@ -172,21 +149,18 @@ def load_subject(subject_info):
         if isinstance(subject_info, list) and all(isinstance(task, str) for task in subject_info):
             paths = subject_info
             condition_indices = None
-            truncate_to = None
 
-        # Case 2: subject_info is [paths, truncate_to]
-        elif (isinstance(subject_info, np.ndarray) and len(subject_info) == 2 and
-              isinstance(subject_info[0], list) and isinstance(subject_info[1], int)):
+        # Case 2: subject_info is [paths]
+        elif (isinstance(subject_info, (np.ndarray, list)) and len(subject_info) == 1
+            and isinstance(subject_info[0], list)):
             paths = subject_info[0]
-            truncate_to = subject_info[1]
             condition_indices = None
 
-        # Case 3: subject_info is [paths, condition_indices, truncate_to]
-        elif (isinstance(subject_info, np.ndarray) and len(subject_info) == 3 and
-              isinstance(subject_info[0], list) and isinstance(subject_info[1], dict) and isinstance(subject_info[2], int)):
+        # Case 3: subject_info is [paths, condition_indices]
+        elif (isinstance(subject_info, (np.ndarray, list)) and len(subject_info) == 2
+            and isinstance(subject_info[0], list) and isinstance(subject_info[1], dict)):
             paths = subject_info[0]
             condition_indices = subject_info[1]
-            truncate_to = subject_info[2]
 
         else:
             raise ValueError("Unsupported subject_info format.")
@@ -212,9 +186,6 @@ def load_subject(subject_info):
             subject_data = np.vstack(extracted_data)
             del extracted_data
 
-        # --- Apply truncation if requested (Cases 2 and 3) ---
-        if truncate_to is not None and subject_data.shape[0] > truncate_to:
-            subject_data = subject_data[:truncate_to, :]
 
         # --- Final normalization ---
         subject_normalized = hcp.normalize(subject_data - subject_data.mean(axis=1, keepdims=True))
@@ -226,7 +197,6 @@ def load_subject(subject_info):
         print(f"Error processing subject: {e}")
         traceback.print_exc()
         return None
-
 
 
 def process_subject(sub):

@@ -1188,8 +1188,8 @@ def evaluate(data_set, labels, train_indx, test_indx, a_label, b_label, metric='
                         random_seed=42, basis="Method", n_workers=15):
 
     A, SpatialMaps, recon_error = data_set
-    A_train = A[train_indx]
-    A_test = A[test_indx]
+    A_train = [A[i] for i in train_indx]   # list of (T_i, C)
+    A_test  = [A[i] for i in test_indx]    # list of (T_i, C)
     SpatialMaps_train = SpatialMaps[train_indx]
     SpatialMaps_test = SpatialMaps[test_indx]
     train_recon_error = recon_error[train_indx]
@@ -1219,11 +1219,16 @@ def evaluate(data_set, labels, train_indx, test_indx, a_label, b_label, metric='
 
     recon = (train_recon_error, test_recon_error)
 
-    # Example: Calculate netmat from covariance estimator:
     cov_est = Covariances(estimator='oas')
-    Netmats_train = cov_est.transform(np.transpose(A_train, (0, 2, 1)))
-    Netmats_test = cov_est.transform(np.transpose(A_test, (0, 2, 1)))
-    
+    P = A_train[0].shape[1]
+    Netmats_train = np.empty((len(A_train), P, P), dtype=np.float32)
+    for k, Ak in enumerate(A_train):
+        # Ak: (T_k, C) -> (1, C, T_k) for pyriemann
+        Netmats_train[k] = cov_est.transform(Ak.T[np.newaxis, :, :])[0].astype(np.float32)
+
+    Netmats_test = np.empty((len(A_test), P, P), dtype=np.float32)
+    for k, Ak in enumerate(A_test):
+        Netmats_test[k] = cov_est.transform(Ak.T[np.newaxis, :, :])[0].astype(np.float32)
     
     var_results = var_diff(A_train, Netmats_train, train_labels, A_test, test_labels, a_label, b_label,
                            metric=metric, method='log-var', basis=basis, deconf=deconf, 

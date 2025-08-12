@@ -9,6 +9,7 @@ from functools import partial
 from sklearn.linear_model import ElasticNet
 from sklearn.model_selection import train_test_split, StratifiedShuffleSplit
 from sklearn.metrics import r2_score
+import pickle
 
 from skopt import gp_minimize
 from skopt.space import Real
@@ -347,12 +348,22 @@ class DualRegress:
                 sampled_subjects = train_paths[sample_idx]
         for i, s_map in enumerate(self.spatial_maps):
             map_hyperparams = []
-            optimizer_instance = DualRegressionOptimizer(sampled_subjects, s_map,parallel_points=self.parallel_points, parallel_subs=self.parallel_subs)
+            best_params_path = os.path.join(self.outputfolders[i], "best_params.npy")
+            best_cv_path     = os.path.join(self.outputfolders[i], "best_cv.npy")
+            
+            if os.path.exists(best_params_path) and os.path.exists(best_cv_path):
+                print(f"[cache] Hyperparameters for map {i}")
+                best_params = np.load(best_params_path)
+                best_cv_score = np.load(best_cv_path)
+            else:
+                print(f"[running] Hyperparameters for map {i}")
+                optimizer_instance = DualRegressionOptimizer(sampled_subjects, s_map,parallel_points=self.parallel_points, parallel_subs=self.parallel_subs)
 
-            best_params, best_cv_score = optimizer_instance.optimize(optimizer=self.method, n_calls=self.n_calls, random_state=self.random_state)
-            map_hyperparams.append(best_params)
-            np.save(os.path.join(self.outputfolders[i],f"best_params"),np.array(best_params))
-            np.save(os.path.join(self.outputfolders[i],f"best_cv"),np.array(best_cv_score))
+                best_params, best_cv_score = optimizer_instance.optimize(optimizer=self.method, n_calls=self.n_calls, random_state=self.random_state)
+                np.save(best_params_path,np.array(best_params))
+                np.save(best_cv_path,np.array(best_cv_score))
+            
+            map_hyperparams.append(best_params)   
             self.hyperparams.append(map_hyperparams)
         
             # Choose an optimization method: "bayesian" or "pso"
@@ -384,21 +395,21 @@ class DualRegress:
             if subject_result is None:
                 continue
             for i, map_result in enumerate(subject_result):
-                self.dual_regression_results[i]['A'].append(map_result[0])
-                self.dual_regression_results[i]['spatial_map'].append(map_result[1])
-                self.dual_regression_results[i]['reconstruction_error'].append(map_result[2])
+                self.dual_regression_results[i]['A'].append(np.asarray(map_result[0], dtype=np.float32))
+                self.dual_regression_results[i]['spatial_map'].append(np.asarray(map_result[1], dtype=np.float32))
+                self.dual_regression_results[i]['reconstruction_error'].append(np.asarray(map_result[2], dtype=np.float32))
 
-        
-        for i in range(num_maps):
-            self.dual_regression_results[i]['A'] = np.array(self.dual_regression_results[i]['A'])
-            self.dual_regression_results[i]['spatial_map'] = np.array(self.dual_regression_results[i]['spatial_map'])
-            self.dual_regression_results[i]['reconstruction_error'] = np.array(self.dual_regression_results[i]['reconstruction_error'])
-        
         for i in range(num_maps):
             out_folder = self.outputfolders[i]
             if not os.path.exists(out_folder):
                 os.makedirs(out_folder)
-            
-            np.save(os.path.join(out_folder, "A.npy"), self.dual_regression_results[i]['A'])
-            np.save(os.path.join(out_folder, "spatial_map.npy"), self.dual_regression_results[i]['spatial_map'])
-            np.save(os.path.join(out_folder, "reconstruction_error.npy"), self.dual_regression_results[i]['reconstruction_error'])
+
+            # Keep A as a list of (T_i, C) arrays
+            with open(os.path.join(out_folder, "A.pkl"), "wb") as f:
+                pickle.dump(self.dual_regression_results[i]['A'], f, protocol=pickle.HIGHEST_PROTOCOL)
+
+            spatial_map_arr = np.asarray(self.dual_regression_results[i]['spatial_map'], dtype=np.float32)
+            recon_err_arr   = np.asarray(self.dual_regression_results[i]['reconstruction_error'], dtype=np.float32)
+
+            np.save(os.path.join(out_folder, "spatial_map.npy"), spatial_map_arr)
+            np.save(os.path.join(out_folder, "reconstruction_error.npy"), recon_err_arr)
