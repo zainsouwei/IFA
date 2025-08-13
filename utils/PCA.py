@@ -126,7 +126,7 @@ def migp_worker(subs,batch_size=1, m=4800, vt=None):
                 data = load_subject(path)
                 if vt is not None:
                     # Remove the projection onto vt for migp in residual space
-                    data = data - (data @ np.linalg.pinv(vt)) @ vt
+                    data = data - (data @ np.linalg.pinv(vt.astype(np.float64, copy=False))) @ vt
                 concatenated_data.append(data)
             # Concatenate data along the first axis  
             batch = np.concatenate(concatenated_data, axis=0)
@@ -351,7 +351,7 @@ def PPCA(data, filters=None, threshold=1.6, niters=10, n=-1):
         print(n_prev, n_components)
 
         # Estimate noise and residual standard deviation
-        est_noise = data_gpu - (data_gpu @ torch.linalg.pinv(basis_gpu)) @ basis_gpu
+        est_noise = data_gpu - (data_gpu @ torch.linalg.pinv(basis_gpu.astype(np.float64, copy=False))) @ basis_gpu
         est_residual_std = torch.std(est_noise,dim=0,correction=torch.linalg.matrix_rank(basis_gpu))
         del est_noise
         torch.cuda.empty_cache()

@@ -46,13 +46,9 @@ def highdim_fkt(outputfolder, voxel_filters_dir, train_paths, train_labels, a_la
         n_filters_per_group = settings["n_filters_per_group"]
         cov_log = settings["cov_log"]
         shrink = settings["shrinkage"]
-
-        
-        filters_dir = os.path.dirname(voxel_filters_dir)
-        vt = np.load(os.path.join(filters_dir, "vt.npy"))
-
-        A_partial = migp(train_paths[train_labels == a_label], m=mA, n_jobs=20,batch_size=batch_size,vt=vt)
-        B_partial = migp(train_paths[train_labels == b_label], m=mB, n_jobs=20,batch_size=batch_size,vt=vt)
+        # TODO changed here (no more partial)
+        A_partial = migp(train_paths[train_labels == a_label], m=mA, n_jobs=20,batch_size=batch_size,vt=None)
+        B_partial = migp(train_paths[train_labels == b_label], m=mB, n_jobs=20,batch_size=batch_size,vt=None)
         
         voxelwise_FKT(groupA=A_partial, groupB=B_partial, 
                         n_filters_per_group=n_filters_per_group, 
@@ -91,31 +87,29 @@ def check_job_completion(job_id):
         # Sleep for a bit before checking again
         time.sleep(120)  # Poll every 120 seconds
 
-def partiallate_subject(sub, vt32, pinv_vt, cifti=True):
+# TODO changed here (no more partial)
+def parcellate_subject(sub, cifti=True):
     try:
         # Load subject data using our load_subject function.
         data = load_subject(sub)
-        # Remove the projection onto vt.
-        partialled_subject = data - (data @ pinv_vt) @ vt32
-        del data  # free memory
         # Parcellate the residual data.
         if cifti:
-            Xp = hcp.parcellate(partialled_subject, hcp.mmp)
-            del partialled_subject
+            Xp = hcp.parcellate(data, hcp.mmp)
+            del data  # free memory
         else:
             _, gm_mask_file = sub
             masker = NiftiMasker(mask_img=gm_mask_file, dtype=np.float32)
             masker.fit()
-            partial_full = masker.inverse_transform(partialled_subject)
-            del partialled_subject
+            data_full = masker.inverse_transform(data)
+            del data
             basc = fetch_atlas_basc_multiscale_2015(resolution=122, version='asym')
             basc_labels = basc.maps
             # TODO Correlation vs Covariance
             labels_masker = NiftiLabelsMasker(labels_img=basc_labels, mask_img=gm_mask_file, standardize=False,  dtype=np.float32,resampling_target='data')
             # TODO decide if I should normalize 
             # labels_masker = NiftiLabelsMasker(labels_img=basc_labels, mask_img=gm_mask_file, standardize='zscore_sample',  dtype=np.float32,resampling_target='data')
-            Xp = labels_masker.fit_transform(partial_full)
-            del partial_full
+            Xp = labels_masker.fit_transform(data_full)
+            del data_full
 
         # If the subject is simulated (i.e. file path ends with '.npy'), return Xp without extra normalization.
         if isinstance(sub, str) and sub.endswith('.npy'):
@@ -131,16 +125,14 @@ def partiallate_subject(sub, vt32, pinv_vt, cifti=True):
         traceback.print_exc()
         raise
 
-def partiallate_subjects(paths, vt, output_dir, n_workers=20, cifti=True):
+# TODO changed here (no more partial)
+def parcellate_subjects(paths, output_dir, n_workers=20, cifti=True):
     try:
         
         os.makedirs(output_dir, exist_ok=True)
 
-        vt32 = np.asarray(vt, dtype=np.float32, order='C')
-        pinv_vt = np.linalg.pinv(vt.astype(np.float64, copy=False), rcond=1e-12).astype(np.float32, copy=False)
-
         # run subjects in parallel
-        func = functools.partial(partiallate_subject, vt32=vt32, pinv_vt=pinv_vt, cifti=cifti)
+        func = functools.partial(parcellate_subject, cifti=cifti)
         with ProcessPoolExecutor(max_workers=n_workers) as ex:
             partiallated = list(ex.map(func, paths))
 
@@ -157,10 +149,10 @@ def partiallate_subjects(paths, vt, output_dir, n_workers=20, cifti=True):
         P = parcel_counts.pop()
 
         # persist time series (flexible: variable T per subject)
-        ts_path = os.path.join(output_dir, "partiallated_data.pkl")
+        ts_path = os.path.join(output_dir, "parcellated_data.pkl")
         with open(ts_path, "wb") as f:
             pickle.dump(partiallated, f, protocol=pickle.HIGHEST_PROTOCOL)
-        print(f"Partiallated data saved to {ts_path}")
+        print(f"Parcellated data saved to {ts_path}")
         
         # covariances per subject (handles variable T)
         cov_est = Covariances(estimator='oas')
@@ -170,7 +162,7 @@ def partiallate_subjects(paths, vt, output_dir, n_workers=20, cifti=True):
             cov = cov_est.transform(X.T[np.newaxis, :, :])[0]
             covs[i] = cov.astype(np.float32, copy=False)
         
-        cov_path = os.path.join(output_dir, "partiallated_covs.npy")
+        cov_path = os.path.join(output_dir, "parcellated_covs.npy")
         np.save(cov_path, covs)
         print(f"Covariances saved to {cov_path}")
 
@@ -185,7 +177,8 @@ def major_recon_discrim(discrim_basis, major_space,output_folder):
     try:
         # Compute reconstruction
         ms64 = np.asarray(major_space, dtype=np.float64, order='C')
-        reconstructed = discrim_basis.T @ np.linalg.pinv(ms64, rcond=1e-12) @ ms64
+        pinv_ms = np.linalg.pinv(ms64, rcond=1e-12)
+        reconstructed = discrim_basis.T @ pinv_ms @ ms64
         numerator = np.linalg.norm(discrim_basis.T - reconstructed, 'fro') ** 2
         denominator = np.linalg.norm(discrim_basis.T, 'fro') ** 2
         reconstruction_percentage = (1 - numerator / denominator)
@@ -236,6 +229,17 @@ def run_comparisons(results_list, base_output_folder, pairs, alpha=0.05):
             label_one=label_one, label_two=label_two,
              alpha=alpha, output_dir=pair_dir
         )
+
+def MIGP_wrapper(sub_paths, file_path,m=4800, n_jobs=4, batch_size=3, vt=None):
+    if os.path.exists(file_path):
+        print(f"Loading existing reducedsubs from {file_path}")
+        reducedsubs = np.load(file_path)
+    else:
+        print(f"Reducedsubs {file_path} not found — running MIGP")
+        reducedsubs = migp(sub_paths, m=m, n_jobs=n_jobs, batch_size=batch_size,vt=vt)
+        np.save(file_path, reducedsubs)
+    return reducedsubs
+
 
 def run_fold(outputfolder, fold):
     
@@ -321,219 +325,220 @@ def run_fold(outputfolder, fold):
         )
         save_text_results(f"  Paired Across Train: {paired_train}", summary_file_path)
         save_text_results(f"  Paired Across Test: {paired_test}", summary_file_path)
-        
-    # Run MIGP
-    migp_dir = os.path.join(fold_output_dir, "MIGP")
-    os.makedirs(migp_dir, exist_ok=True)
-    reduced_subs_path = os.path.join(migp_dir, "reducedsubs.npy")
+
+    filters_dir = os.path.join(fold_output_dir, "Filters")
+    voxel_filters_dir = os.path.join(filters_dir, "Voxel")
+    parcellated_filters_dir = os.path.join(filters_dir, "Parcellated")
+    for d in (filters_dir, voxel_filters_dir, parcellated_filters_dir):
+            os.makedirs(d, exist_ok=True)
+
     mA = 2 * time_points[train_idx][train_labels == a_label].max()
     mB = 2 * time_points[train_idx][train_labels == b_label].max()
-    if os.path.exists(reduced_subs_path):
-        print(f"Loading existing reducedsubs from {reduced_subs_path}")
-        reducedsubs = np.load(reduced_subs_path)
+
+    # Voxel FKT
+    voxel_filters_path = os.path.join(voxel_filters_dir, "filters.npy")
+    if os.path.exists(voxel_filters_path):
+        print(f"[cache] Loading voxel filters from {voxel_filters_path}")
     else:
-        print("Reducedsubs not found — running MIGP")
-        reducedsubsA = migp(train_paths[train_labels == a_label], m=mA, n_jobs=20,batch_size=1)
-        np.save(os.path.join(migp_dir, "reducedsubsA.npy"), reducedsubsA)
+        print("[run] voxelwise FKT")
+        # TODO check batch size
+        # Function save voxel level filters instead of returning
+        highdim_fkt(outputfolder, voxel_filters_dir, train_paths, train_labels, a_label, b_label, mA,mB, batch_size=1,cifti=cifti)
+    voxel_filters = np.load(voxel_filters_path)
 
-        reducedsubsB = migp(train_paths[train_labels == b_label], m=mB, n_jobs=20,batch_size=1)
-        np.save(os.path.join(migp_dir, "reducedsubsB.npy"), reducedsubsB)
 
-        reducedsubs = np.concatenate((reducedsubsA, reducedsubsB), axis=0)
-        np.save(reduced_subs_path, reducedsubs)
-        del reducedsubsA, reducedsubsB
-        gc.collect()
+    # Parcel FKT
+    # Need to partial the data before parcellating; partial then parcellate each subject
+    ts_path  = os.path.join(filters_dir, "parcellated_data.pkl")
+    cov_path = os.path.join(filters_dir, "parcellated_covs.npy")
+    if os.path.exists(ts_path) and os.path.exists(cov_path):
+        print("[cache] parcellated data/covs")
+        with open(ts_path, "rb") as f: 
+            parcel_data = pickle.load(f)
+        parcel_covs = np.load(cov_path)
+    else:
+        print("[run] parcellate_subjects")
+        parcel_data, parcel_covs = parcellate_subjects(paths, filters_dir, n_workers=20, cifti=cifti)
+
+    parcel_train_data = [parcel_data[i] for i in train_idx] # Can not slice due to ragged array (subjects have different length scans)
+    parcel_test_data  = [parcel_data[i] for i in test_idx]
+    parcel_train_covs = parcel_covs[train_idx]
+    parcel_test_covs  = parcel_covs[test_idx]
+
+    # Remove predictions before saving since that will be too long of a print
+    def _strip_preds(d): 
+        return {k: {kk: vv for kk, vv in v.items() if kk != "predictions"} for k, v in d.items()}
+
+    tangent_metrics_path = os.path.join(filters_dir, "tangent_class_metrics.pkl")
+    if not os.path.exists(tangent_metrics_path):
+        # Run tangent classification for measuring separability in parcellated space
+        # TODO decide on z scoring here, gp opt for hyperparameter selection, and decide which classifiers
+        tangent_class_metrics = tangent_classification(parcel_train_covs, train_labels, parcel_test_covs, test_labels, 
+                            clf_str='all', z_score=0, metric=metric, deconf=deconfound, 
+                            con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
+                            con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
+                        random_state=0, n_inner_splits=5,n_cpus=20, n_calls=25, n_initial=6)
+        # Save those tangent classification results to overall fold results directory
+        with open(os.path.join(filters_dir, "tangent_class_metrics.pkl"), "wb") as f:
+            pickle.dump(_strip_preds(tangent_class_metrics), f)
+
+        save_text_results("Parcellated Tangent Classification " + str(_strip_preds(tangent_class_metrics)), summary_file_path)
+
+    filtersA_path = os.path.join(parcellated_filters_dir, "filtersA.npy")
+    filtersB_path = os.path.join(parcellated_filters_dir, "filtersB.npy")
+    filters_parcel_path = os.path.join(parcellated_filters_dir, "filters_parcellated.npy")
+
+    if not all(os.path.exists(p) for p in [filtersA_path, filtersB_path, filters_parcel_path]):
+        # TODO GPOT for hyperparameter selection, decide on z_scoring here
+        if tangent_class:
+            # Tune tangent-space model (on TRAIN only) and pick winner
+            sel_path = os.path.join(parcellated_filters_dir, "tssf_selection.json")
+            if os.path.exists(sel_path):
+                print("[cache] loading TSSF selection")
+                with open(sel_path, "r") as f:
+                    sel = json.load(f)
+            else:
+                print("[run] TSSF hyperparameter selection")
+                sel = TSSF_select(parcel_train_covs, train_labels, parcel_train_data,
+                                a_label=a_label, b_label=b_label, n=n_filters_per_group, metric=metric, feature_kind="log-cov",          # or "log-var"
+                                deconf=deconfound, con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders,
+                                tan_model_keys=("logreg_en","svc_l2_sq","svc_l1"), final_svm_key="svc",
+                                z_score_tan=0, haufe=False, n_inner_splits=5, n_calls=25, n_initial=6, random_state=random_state,)
+                with open(sel_path, "w") as f:
+                    json.dump(sel, f, indent=2)
+            # Fit filters with the selected model + BO-tuned params (still TRAIN only)
+            _, filters_all, _, _ = TSSF(parcel_train_covs, train_labels, clf_str=sel["winner_model"], clf_params=sel["winner_theta"],
+                                        metric=metric, deconf=deconfound, con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders,
+                                        z_score=0, haufe=False, visualize=True, output_dir=parcellated_filters_dir,)
+        else:
+            _, filters_all = FKT(parcel_train_covs, train_labels, a_label, b_label,
+                                    metric=metric, deconf=deconfound, 
+                                    con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
+                                    visualize=True, output_dir=parcellated_filters_dir)
+        
+        # if TSSF was used then the lower label is the negative class and corresponds to eigenvalues < 1
+        if a_label < b_label and tangent_class:
+            filtersB = filters_all[:, -n_filters_per_group:]
+            filtersA = filters_all[:, :n_filters_per_group]
+        else: 
+            filtersA = filters_all[:, -n_filters_per_group:]
+            filtersB = filters_all[:, :n_filters_per_group]
+
+        filters_parcellated = np.concatenate((filtersB, filtersA), axis=1)
+
+        np.save(filtersA_path, filtersA)
+        np.save(filtersB_path, filtersB)
+        np.save(filters_parcel_path, filters_parcellated)
+
+
+        # TODO should i z score teh derived features before classification (will also need to change in TSSF_select)
+        logvar_stats, logcov_stats = evaluate_filters(parcel_train_data, train_labels, parcel_test_data, test_labels, 
+                                                        filters_parcellated, metric=metric, deconf=deconfound, 
+                                                        con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
+                                                        con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,output_dir=parcellated_filters_dir)
+
+        with open(os.path.join(filters_dir, "logvar_stats.pkl"), "wb") as f:
+            pickle.dump(_strip_preds(logvar_stats), f)
+        with open(os.path.join(filters_dir, "logcov_stats.pkl"), "wb") as f:
+            pickle.dump(_strip_preds(logcov_stats), f)
+
+        save_text_results("Log Var Filter Feature Classification " + str(_strip_preds(logvar_stats)), summary_file_path)
+        save_text_results("Log Cov Filter Feature Classification " + str(_strip_preds(logcov_stats)), summary_file_path)
+    else:
+        filtersA = np.load(filtersA_path)
+        filtersB = np.load(filtersB_path)
+        filters_parcellated = np.load(filters_parcel_path)
+
+    A_haufe_path = os.path.join(parcellated_filters_dir, "A_filters_haufe.npy")
+    B_haufe_path = os.path.join(parcellated_filters_dir, "B_filters_haufe.npy")
+    parcelvoxel_filters_path = os.path.join(parcellated_filters_dir, "filters.npy")
+    if not all(os.path.exists(p) for p in [A_haufe_path, B_haufe_path, parcelvoxel_filters_path]):
+        print("[run] Haufe + parcel→voxel")
+        # Get indices where label == a_label
+        idx_a_label = np.where(train_labels == a_label)[0]
+        idx_b_label = np.where(train_labels == b_label)[0]
+
+        # Use list comprehension to select subjects
+        parcel_train_data_a = [parcel_train_data[i] for i in idx_a_label]
+        parcel_train_data_b = [parcel_train_data[i] for i in idx_b_label]
+
+        # Haufe transform and project parcellated filters to full dimension
+        filtersA_transform = partial_filter_dual_regression(filtersA, parcel_train_data_a, train_paths[idx_a_label], None, workers=20)
+        filtersB_transform = partial_filter_dual_regression(filtersB, parcel_train_data_b, train_paths[idx_b_label], None, workers=20)
+
+        np.save(A_haufe_path, filtersA_transform)
+        np.save(B_haufe_path, filtersB_transform)
+        parcelvoxel_filters = orthonormalize_filters(filtersA_transform, filtersB_transform)
+        np.save(parcelvoxel_filters_path, parcelvoxel_filters)
+        if cifti:
+            for i in range(parcelvoxel_filters.shape[1]):
+                save_brain(parcelvoxel_filters[:,i], f"parcelvoxel_filters{i}", parcellated_filters_dir)
+    else:
+        print("[cache] Haufe + parcel→voxel")
+        filtersA_transform = np.load(A_haufe_path)
+        filtersB_transform = np.load(B_haufe_path)
+        parcelvoxel_filters = np.load(parcelvoxel_filters_path)
+
+
+    # Run MIGP
+    # Need 3 MIGPs: one for GICA (full data), one for parcel IFA (residualized on parcel discrim), one for voxel IFA (residualized on voxel discrim)
+    m = np.max((mA,mB))
+    migp_dir = os.path.join(fold_output_dir, "MIGP")
+    os.makedirs(migp_dir, exist_ok=True)
+
+    reduced_subs_path_GICA = os.path.join(migp_dir, "reducedsubs_GICA.npy")
+    reducedsubs_GICA = MIGP_wrapper(train_paths, reduced_subs_path_GICA,m=m, n_jobs=20, batch_size=1, vt=None)
+    
+    # TODO Should this be transposed
+    reduced_subs_path_PIFA = os.path.join(migp_dir, "reducedsubs_PIFA.npy")
+    reducedsubs_PIFA = MIGP_wrapper(train_paths, reduced_subs_path_PIFA, m=m, n_jobs=20, batch_size=1, vt=np.asarray(parcelvoxel_filters.T, dtype=np.float64, order='C'))
+    
+    # TODO Should this be transposed
+    reduced_subs_path_VIFA = os.path.join(migp_dir, "reducedsubs_VIFA.npy")
+    reducedsubs_VIFA = MIGP_wrapper(train_paths, reduced_subs_path_VIFA, m=m, n_jobs=20, batch_size=1, vt=np.asarray(voxel_filters.T, dtype=np.float64, order='C'))
 
     for nPCA in nPCA_levels:
         nPCA = int(nPCA)
         nPCA_dir = os.path.join(fold_output_dir, f"nPCA_{nPCA}")
         nPCA_results = os.path.join(nPCA_dir, "Results")
-        filters_dir = os.path.join(nPCA_dir, "Filters")
+        
         ICA_dir = os.path.join(nPCA_dir, "ICA")
         GICA_dir = os.path.join(ICA_dir, "GICA")
-
-        voxel_filters_dir = os.path.join(filters_dir, "Voxel")
-        parcellated_filters_dir = os.path.join(filters_dir, "Parcellated")
-
-        voxel_IFA_dir = os.path.join(ICA_dir, "voxel_IFA")
         parcel_IFA_dir = os.path.join(ICA_dir, "parcel_IFA")
+        voxel_IFA_dir = os.path.join(ICA_dir, "voxel_IFA")
 
-        for d in (nPCA_dir, nPCA_results, filters_dir, ICA_dir, GICA_dir, voxel_filters_dir, 
-                    parcellated_filters_dir, voxel_IFA_dir, parcel_IFA_dir):
+        for d in (nPCA_dir, nPCA_results, ICA_dir, GICA_dir, voxel_IFA_dir, parcel_IFA_dir):
             os.makedirs(d, exist_ok=True)
-
-        vt_path = os.path.join(filters_dir, "vt.npy")
-        if os.path.exists(vt_path):
-            vt = np.load(vt_path)
-        else:
-            _, vt = PPCA(reducedsubs.copy(), threshold=0.0, niters=1, n=nPCA)
-            np.save(vt_path, vt) 
 
         if os.path.exists(os.path.join(GICA_dir, "spatial_maps.npy")):
             ICA_zmaps = np.load(os.path.join(GICA_dir, "spatial_maps.npy"))
         else:
-            ICA_zmaps = PPCA_ICA(reducedsubs,basis=None, n_components=int(nPCA+2*n_filters_per_group), random_state=random_state, output_folder=GICA_dir)
-
-        # Voxel FKT
-        voxel_filters_path = os.path.join(voxel_filters_dir, "filters.npy")
-        if os.path.exists(voxel_filters_path):
-            print(f"[cache] Loading voxel filters from {voxel_filters_path}")
-        else:
-            print("[run] voxelwise FKT")
-            # TODO check batch size
-            # Function save voxel level filters instead of returning
-            highdim_fkt(outputfolder, voxel_filters_dir, train_paths, train_labels, a_label, b_label, mA,mB, batch_size=1,cifti=cifti)
-        voxel_filters = np.load(voxel_filters_path)
+            ICA_zmaps = PPCA_ICA(reducedsubs_GICA,basis=None, n_components=int(nPCA+2*n_filters_per_group), random_state=random_state, output_folder=GICA_dir)
 
 
-        # Parcel FKT
-        # Need to partial the data before parcellating; partial then parcellate each subject
-        ts_path  = os.path.join(filters_dir, "partiallated_data.pkl")
-        cov_path = os.path.join(filters_dir, "partiallated_covs.npy")
-        if os.path.exists(ts_path) and os.path.exists(cov_path):
-            print("[cache] partiallated data/covs")
-            with open(ts_path, "rb") as f: 
-                partial_data = pickle.load(f)
-            partial_covs = np.load(cov_path)
-        else:
-            print("[run] partiallate_subjects")
-            partial_data, partial_covs = partiallate_subjects(paths, vt, filters_dir, n_workers=20, cifti=cifti)
-
-        partial_train_data = [partial_data[i] for i in train_idx] # Can not slice due to ragged array (subjects have different length scans)
-        partial_test_data  = [partial_data[i] for i in test_idx]
-        partial_train_covs = partial_covs[train_idx]
-        partial_test_covs  = partial_covs[test_idx]
-
-        # Remove predictions before saving since that will be too long of a print
-        def _strip_preds(d): 
-            return {k: {kk: vv for kk, vv in v.items() if kk != "predictions"} for k, v in d.items()}
-
-        tangent_metrics_path = os.path.join(filters_dir, "tangent_class_metrics.pkl")
-        if not os.path.exists(tangent_metrics_path):
-            # Run tangent classification for measuring separability in parcellated space
-            # TODO decide on z scoring here, gp opt for hyperparameter selection, and decide which classifiers
-            tangent_class_metrics = tangent_classification(partial_train_covs, train_labels, partial_test_covs, test_labels, 
-                                clf_str='all', z_score=0, metric=metric, deconf=deconfound, 
-                                con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
-                                con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
-                            random_state=0, n_inner_splits=5,n_cpus=20, n_calls=25, n_initial=6)
-            # Save those tangent classification results to overall fold results directory
-            with open(os.path.join(filters_dir, "tangent_class_metrics.pkl"), "wb") as f:
-                pickle.dump(_strip_preds(tangent_class_metrics), f)
-
-            save_text_results("Parcellated Tangent Classification " + str(_strip_preds(tangent_class_metrics)), summary_file_path)
-        
-
-        filtersA_path = os.path.join(parcellated_filters_dir, "filtersA.npy")
-        filtersB_path = os.path.join(parcellated_filters_dir, "filtersB.npy")
-        filters_parcel_path = os.path.join(parcellated_filters_dir, "filters_parcellated.npy")
-
-        if not all(os.path.exists(p) for p in [filtersA_path, filtersB_path, filters_parcel_path]):
-            # TODO GPOT for hyperparameter selection, decide on z_scoring here
-            if tangent_class:
-                # Tune tangent-space model (on TRAIN only) and pick winner
-                sel_path = os.path.join(parcellated_filters_dir, "tssf_selection.json")
-                if os.path.exists(sel_path):
-                    print("[cache] loading TSSF selection")
-                    with open(sel_path, "r") as f:
-                        sel = json.load(f)
-                else:
-                    print("[run] TSSF hyperparameter selection")
-                    sel = TSSF_select(partial_train_covs, train_labels, partial_train_data,
-                                    a_label=a_label, b_label=b_label, n=n_filters_per_group, metric=metric, feature_kind="log-cov",          # or "log-var"
-                                    deconf=deconfound, con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders,
-                                    tan_model_keys=("logreg_en","svc_l2_sq","svc_l1"), final_svm_key="svc",
-                                    z_score_tan=0, haufe=False, n_inner_splits=5, n_calls=25, n_initial=6, random_state=random_state,)
-                    with open(sel_path, "w") as f:
-                        json.dump(sel, f, indent=2)
-                # Fit filters with the selected model + BO-tuned params (still TRAIN only)
-                _, filters_all, _, _ = TSSF(partial_train_covs, train_labels, clf_str=sel["winner_model"], clf_params=sel["winner_theta"],
-                                            metric=metric, deconf=deconfound, con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders,
-                                            z_score=0, haufe=False, visualize=True, output_dir=parcellated_filters_dir,)
-            else:
-                _, filters_all = FKT(partial_train_covs, train_labels, a_label, b_label,
-                                        metric=metric, deconf=deconfound, 
-                                        con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
-                                        visualize=True, output_dir=parcellated_filters_dir)
-            
-            # if TSSF was used then the lower label is the negative class and corresponds to eigenvalues < 1
-            if a_label < b_label and tangent_class:
-                filtersB = filters_all[:, -n_filters_per_group:]
-                filtersA = filters_all[:, :n_filters_per_group]
-            else: 
-                filtersA = filters_all[:, -n_filters_per_group:]
-                filtersB = filters_all[:, :n_filters_per_group]
-
-            filters_parcellated = np.concatenate((filtersB, filtersA), axis=1)
-
-            np.save(filtersA_path, filtersA)
-            np.save(filtersB_path, filtersB)
-            np.save(filters_parcel_path, filters_parcellated)
-
-
-            # TODO should i z score teh derived features before classification (will also need to change in TSSF_select)
-            logvar_stats, logcov_stats = evaluate_filters(partial_train_data, train_labels, partial_test_data, test_labels, 
-                                                            filters_parcellated, metric=metric, deconf=deconfound, 
-                                                            con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
-                                                            con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,output_dir=parcellated_filters_dir)
-
-            with open(os.path.join(filters_dir, "logvar_stats.pkl"), "wb") as f:
-                pickle.dump(_strip_preds(logvar_stats), f)
-            with open(os.path.join(filters_dir, "logcov_stats.pkl"), "wb") as f:
-                pickle.dump(_strip_preds(logcov_stats), f)
-
-            save_text_results("Log Var Filter Feature Classification " + str(_strip_preds(logvar_stats)), summary_file_path)
-            save_text_results("Log Cov Filter Feature Classification " + str(_strip_preds(logcov_stats)), summary_file_path)
-        else:
-            filtersA = np.load(filtersA_path)
-            filtersB = np.load(filtersB_path)
-            filters_parcellated = np.load(filters_parcel_path)
-
-
-        A_haufe_path = os.path.join(parcellated_filters_dir, "A_filters_haufe.npy")
-        B_haufe_path = os.path.join(parcellated_filters_dir, "B_filters_haufe.npy")
-        parcelvoxel_filters_path = os.path.join(parcellated_filters_dir, "filters.npy")
-        if not all(os.path.exists(p) for p in [A_haufe_path, B_haufe_path, parcelvoxel_filters_path]):
-            print("[run] Haufe + parcel→voxel")
-            # Get indices where label == a_label
-            idx_a_label = np.where(train_labels == a_label)[0]
-            idx_b_label = np.where(train_labels == b_label)[0]
-
-            # Use list comprehension to select subjects
-            partial_train_data_a = [partial_train_data[i] for i in idx_a_label]
-            partial_train_data_b = [partial_train_data[i] for i in idx_b_label]
-
-            # Haufe transform and project parcellated filters to full dimension
-            filtersA_transform = partial_filter_dual_regression(filtersA, partial_train_data_a, train_paths[idx_a_label], vt, workers=20)
-            filtersB_transform = partial_filter_dual_regression(filtersB, partial_train_data_b, train_paths[idx_b_label], vt, workers=20)
-
-            np.save(A_haufe_path, filtersA_transform)
-            np.save(B_haufe_path, filtersB_transform)
-            parcelvoxel_filters = orthonormalize_filters(filtersA_transform, filtersB_transform)
-            np.save(parcelvoxel_filters_path, parcelvoxel_filters)
-            if cifti:
-                for i in range(parcelvoxel_filters.shape[1]):
-                    save_brain(parcelvoxel_filters[:,i], f"parcelvoxel_filters{i}", parcellated_filters_dir)
-
-            # Calculate the overlap between retained major eigenspace and discriminant subspace
-            major_recon_discrim(parcelvoxel_filters, vt, parcellated_filters_dir)
-            major_recon_discrim(voxel_filters, vt, voxel_filters_dir)
-        else:
-            print("[cache] Haufe + parcel→voxel")
-            filtersA_transform = np.load(A_haufe_path)
-            filtersB_transform = np.load(B_haufe_path)
-            parcelvoxel_filters = np.load(parcelvoxel_filters_path)
-
+        vt_path_PIFA = os.path.join(parcel_IFA_dir, "vt.npy")
         parcel_IFA_maps_path = os.path.join(parcel_IFA_dir, "spatial_maps.npy")
-        voxel_IFA_maps_path  = os.path.join(voxel_IFA_dir, "spatial_maps.npy")
-        if not all(os.path.exists(p) for p in [parcel_IFA_maps_path, voxel_IFA_maps_path]):
-            print("[run] PPCA_ICA (parcel & voxel IFA)")
-            parcelvoxel_IFA_zmaps = PPCA_ICA(reducedsubs,basis=np.vstack((vt, parcelvoxel_filters.T)), n_components=None,random_state=random_state, output_folder=parcel_IFA_dir)
-            voxel_IFA_zmaps = PPCA_ICA(reducedsubs,basis=np.vstack((vt, voxel_filters.T)), n_components=None,random_state=random_state, output_folder=voxel_IFA_dir)
-        else:
-            print("[cache] PPCA_ICA (parcel & voxel IFA)")
+        if os.path.exists(vt_path_PIFA) and os.path.exists(parcel_IFA_maps_path):
             parcelvoxel_IFA_zmaps = np.load(parcel_IFA_maps_path)
-            voxel_IFA_zmaps = np.load(voxel_IFA_maps_path)
+        else:
+            _, vt_PIFA = PPCA(reducedsubs_PIFA.copy(), threshold=0.0, niters=1, n=nPCA)
+            np.save(vt_path_PIFA, vt_PIFA)
+            # Calculate the overlap between retained major eigenspace and discriminant subspace
+            major_recon_discrim(parcelvoxel_filters, vt_PIFA, parcel_IFA_dir)
+            parcelvoxel_IFA_zmaps = PPCA_ICA(reducedsubs_PIFA,basis=np.vstack((vt_PIFA, parcelvoxel_filters.T)), n_components=None,random_state=random_state, output_folder=parcel_IFA_dir)
+        
+        
+        vt_path_VIFA = os.path.join(voxel_IFA_dir, "vt.npy")
+        voxel_IFA_zmaps_path = os.path.join(voxel_IFA_dir, "spatial_maps.npy")
+        if os.path.exists(vt_path_VIFA) and os.path.exists(voxel_IFA_zmaps_path):
+            voxel_IFA_zmaps = np.load(voxel_IFA_zmaps_path)
+        else:
+            _, vt_VIFA = PPCA(reducedsubs_VIFA.copy(), threshold=0.0, niters=1, n=nPCA)
+            np.save(vt_path_VIFA, vt_VIFA)
+            # Calculate the overlap between retained major eigenspace and discriminant subspace
+            major_recon_discrim(voxel_filters, vt_VIFA, voxel_IFA_dir)
+            voxel_IFA_zmaps = PPCA_ICA(reducedsubs_VIFA,basis=np.vstack((vt_VIFA, voxel_filters.T)), n_components=None,random_state=random_state, output_folder=voxel_IFA_dir)
+        
         
         spatial_maps = [ICA_zmaps, parcelvoxel_IFA_zmaps, voxel_IFA_zmaps]
         outputfolders = [GICA_dir, parcel_IFA_dir, voxel_IFA_dir]

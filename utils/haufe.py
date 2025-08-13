@@ -77,15 +77,14 @@ def process_subject_haufe(sub,pinv_TF):
         print(f"Error processing subject: {e}")
         raise                      # (k, V)
 
-def process_subject_haufe_partial(sub, pinv_TF, vt):
+def process_subject_haufe_partial(sub, pinv_TF, vt32, pinv_vt32):
     try:
+    # X = T×V (float32), vt32 = K×V (float32), pinv_vt32 = V×K (float32)
         # Load raw subject data.
         Xn = load_subject(sub)
         # Partial out vt from the raw data.
-        Xn_partial = Xn - (Xn @ np.linalg.pinv(vt)) @ vt
-        # Apply the dual regression mapping.
-        Xpf = pinv_TF @ Xn_partial
-        return Xpf
+        Xn_partial = Xn - (Xn @ pinv_vt32) @ vt32        # stays float32
+        return pinv_TF @ Xn_partial                      # pinv_TF can be float32
     except Exception as e:
         print(f"Error processing subject {sub}: {e}")
         raise
@@ -113,7 +112,11 @@ def partial_filter_dual_regression(F, parcellated, paths, vt=None, workers=20):
     stacked_parcellated = np.vstack(parcellated)  # (sum_T, Parcels)
 
     # Compute pseudo-inverse transformation
-    pinv_TF = np.linalg.pinv(stacked_parcellated @ np.linalg.pinv(F.T))  # (k, sum_T)
+    # pinv_TF = np.linalg.pinv((stacked_parcellated @ np.linalg.pinv(F.T.astype(np.float64, copy=False),rcond=1e-12)).astype(np.float64, copy=False),rcond=1e-12)  # (k, sum_T)
+    # pinv(F^T) in float64 → stable
+    Ft_pinv64 = np.linalg.pinv(F.T.astype(np.float64, copy=False), rcond=1e-12)
+    Z64 = (stacked_parcellated @ Ft_pinv64).astype(np.float64, copy=False)  # (ΣT, k)
+    pinv_TF = np.linalg.pinv(Z64, rcond=1e-12).astype(np.float32, copy=False)  # (k, ΣT)
 
     # Compute number of timepoints per subject
     subject_lengths = [subj.shape[0] for subj in parcellated]
@@ -125,8 +128,10 @@ def partial_filter_dual_regression(F, parcellated, paths, vt=None, workers=20):
     if vt is None:
         func = process_subject_haufe                                     
     else:
-        func = functools.partial(process_subject_haufe_partial, vt=vt)   
-
+        # precompute once in 64, then cast down
+        vt32 = np.asarray(vt, dtype=np.float32, order='C')
+        pinv_vt32 = np.linalg.pinv(np.asarray(vt, dtype=np.float64, order='C'), rcond=1e-12).astype(np.float32, copy=False)
+        func = functools.partial(process_subject_haufe_partial, vt32=vt32, pinv_vt32=pinv_vt32)
     with ProcessPoolExecutor(max_workers=workers) as ex:
         results = list(ex.map(func, paths, pinv_TF_list))     
     

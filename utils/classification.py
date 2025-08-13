@@ -67,7 +67,7 @@ clf_dict = {
                         ),
         "space": [
             Real(1e-6, 1e3, name="C",        prior="log-uniform"),
-            Real(1e-3,   1.0, name="l1_ratio", prior="uniform")
+            Real(1e-3,   1.0-1e-3, name="l1_ratio", prior="uniform")
         ]
     },
 }

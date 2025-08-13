@@ -47,7 +47,7 @@ class DualRegressionOptimizer:
         self.subject_paths = subject_paths
         self.spatial_map = spatial_map
         self.spatial_map_dm = self.spatial_map - self.spatial_map.mean(axis=0, keepdims=True)
-        self.spatial_map_dm_plus = np.linalg.pinv(self.spatial_map_dm.T)
+        self.spatial_map_dm_plus = np.linalg.pinv(self.spatial_map_dm.T.astype(np.float64, copy=False),rcond=1e-12)
         self.parallel_points = parallel_points
         self.parallel_subs = parallel_subs
 
@@ -222,7 +222,7 @@ class DualRegress:
         self.method = method
         
         self.spatial_maps_dm = [s_map - s_map.mean(axis=0, keepdims=True) for s_map in self.spatial_maps] # Demean the columns of z_maps (V x C)
-        self.spatial_map_dm_plus = [np.linalg.pinv(s_map.T) for s_map in self.spatial_maps_dm]
+        self.spatial_map_dm_plus = [np.linalg.pinv(s_map.T.astype(np.float64, copy=False),rcond=1e-12) for s_map in self.spatial_maps_dm]
         
         self.parallel_points = parallel_points
         self.parallel_subs = parallel_subs

@@ -916,10 +916,10 @@ def haufe_transform_torch(W, Sigma_avg):
     Sigma_avg = Sigma_avg.to(device)
     
     # Calculate the covariance matrix of the discriminant scores
-    Sigma_s_hat = W.T @ Sigma_avg @ W
+    Sigma_s_hat = (W.T @ Sigma_avg @ W).to(torch.float64)
     
     # Invert the covariance matrix of the discriminant scores
-    Sigma_s_hat_inv = torch.inverse(Sigma_s_hat)
+    Sigma_s_hat_inv = torch.inverse(Sigma_s_hat).to(torch.float32)
     del Sigma_s_hat
     torch.cuda.empty_cache()
     
