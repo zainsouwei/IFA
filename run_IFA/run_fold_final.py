@@ -1,5 +1,11 @@
 import sys
 import os
+
+import warnings, logging, sklearn
+warnings.filterwarnings("ignore", category=sklearn.exceptions.ConvergenceWarning)
+warnings.filterwarnings("ignore", message=r"pixdim\[1,2,3\].*", category=UserWarning)
+logging.getLogger("nibabel").setLevel(logging.ERROR)
+
 # os.environ["LD_PRELOAD"] = os.path.join(os.environ["CONDA_PREFIX"], "lib", "libstdc++.so.6")
 import json
 import pandas as pd
@@ -596,16 +602,16 @@ def run_fold(outputfolder, fold):
             del tmp_a, tmp_spatial_map, tmp_recon
             gc.collect()
 
-        # Define the pairwise comparisons (same for both normalized and unnormalized)
-        pairs = [
-            (0, 1, "GICA", "parcel_IFA"),
-            (0, 2, "GICA", "voxel_IFA"),
-            (1, 2, "parcel_IFA", "voxel_IFA")
-        ]
+        # # Define the pairwise comparisons (same for both normalized and unnormalized)
+        # pairs = [
+        #     (0, 1, "GICA", "parcel_IFA"),
+        #     (0, 2, "GICA", "voxel_IFA"),
+        #     (1, 2, "parcel_IFA", "voxel_IFA")
+        # ]
  
-        # Run for normalized results
-        compare_dir_norm = os.path.join(nPCA_results, "Compare", "Normalized")
-        run_comparisons(results, compare_dir_norm, pairs, alpha=0.05)
+        # # Run for normalized results
+        # compare_dir_norm = os.path.join(nPCA_results, "Compare", "Normalized")
+        # run_comparisons(results, compare_dir_norm, pairs, alpha=0.05)
 
 # Parse command-line arguments
 if __name__ == "__main__":
