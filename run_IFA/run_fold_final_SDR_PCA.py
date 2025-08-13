@@ -1,5 +1,7 @@
 import sys
 import os
+import time
+
 # os.environ["LD_PRELOAD"] = os.path.join(os.environ["CONDA_PREFIX"], "lib", "libstdc++.so.6")
 import warnings, logging, sklearn
 warnings.filterwarnings("ignore", category=sklearn.exceptions.ConvergenceWarning)
@@ -379,10 +381,10 @@ def run_fold(outputfolder, fold):
         # Run tangent classification for measuring separability in parcellated space
         # TODO decide on z scoring here, gp opt for hyperparameter selection, and decide which classifiers
         tangent_class_metrics = tangent_classification(parcel_train_covs, train_labels, parcel_test_covs, test_labels, 
-                            clf_str='all', z_score=0, metric=metric, deconf=deconfound, 
+                            clf_str='svc_l2_sq', z_score=0, metric=metric, deconf=deconfound, 
                             con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
                             con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
-                        random_state=0, n_inner_splits=5,n_cpus=20, n_calls=25, n_initial=6)
+                        random_state=0, n_inner_splits=5,n_cpus=20, n_batches=10)
         # Save those tangent classification results to overall fold results directory
         with open(os.path.join(filters_dir, "tangent_class_metrics.pkl"), "wb") as f:
             pickle.dump(_strip_preds(tangent_class_metrics), f)
@@ -407,8 +409,9 @@ def run_fold(outputfolder, fold):
                 sel = TSSF_select(parcel_train_covs, train_labels, parcel_train_data,
                                 a_label=a_label, b_label=b_label, n=n_filters_per_group, metric=metric, feature_kind="log-cov",          # or "log-var"
                                 deconf=deconfound, con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders,
-                                tan_model_keys=("logreg_en","svc_l2_sq","svc_l1"), final_svm_key="svc",
-                                z_score_tan=0, haufe=False, n_inner_splits=5, n_calls=25, n_initial=6, random_state=random_state,)
+                                tan_model_keys=["svc_l2_sq"], final_svm_key="svc",
+                                z_score_tan=0, haufe=False, 
+                                n_inner_splits=5, n_cpus=20, n_batches=10, random_state=random_state,)
                 with open(sel_path, "w") as f:
                     json.dump(sel, f, indent=2)
             # Fit filters with the selected model + BO-tuned params (still TRAIN only)

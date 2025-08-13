@@ -22,6 +22,4 @@ export LD_PRELOAD="$CONDA_PREFIX/lib/libstdc++.so.6"
 # $1 represents the first argument (outputfolder) passed to the script
 # $2 represents the second argument (fold) passed to the script
 
-export PYTHONWARNINGS="ignore::sklearn.exceptions.ConvergenceWarning,ignore:pixdim\[1,2,3\].*:UserWarning"
-
 python /project/3022057.01/IFA/run_IFA/run_fold_final.py "$1" "$2"

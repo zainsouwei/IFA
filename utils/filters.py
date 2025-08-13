@@ -11,6 +11,9 @@ from skopt.utils import use_named_args
 from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from sklearn.metrics import f1_score, balanced_accuracy_score
 from joblib import Parallel, delayed
+from skopt import Optimizer
+from itertools import product
+from threadpoolctl import threadpool_limits
 
 import matplotlib.gridspec as gridspec
 from scipy.linalg import svd
@@ -153,11 +156,11 @@ def test_visualize_variance(train, test, test_labels, filters, deconf=False, con
         plt.savefig(os.path.join(output_dir, f"Filter_{i}_{filters.shape[1]-(i+1)}_var.svg"))
         plt.close('all')
 
-
+# TODO should i z score here?
 def evaluate_filters(train, train_labels, test, test_labels, filters, metric="riemann", deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None,output_dir="plots"):
     test_visualize_variance(train, test, test_labels, filters,  deconf=deconf,con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,  output_dir=output_dir, metric=metric, cov="oas")
-    metrics_dict_logvar, _ = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-var', deconf=deconf,con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
-    metrics_dict_logcov, _ = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-cov', deconf=deconf,con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
+    metrics_dict_logvar, _ = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-var', deconf=deconf,con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,z_score=0)
+    metrics_dict_logcov, _ = test_filters(train, train_labels, test, test_labels, filters, metric=metric, method='log-cov', deconf=deconf,con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,z_score=0)
 
     return metrics_dict_logvar, metrics_dict_logcov
 
@@ -200,109 +203,255 @@ def FKT(cov_matrices, labels, a_label, b_label, metric="riemann", deconf=True, c
     return fkt_riem_eigs, filters
 
 
-def TSSF_select(covs, labels, train_data, a_label, b_label, n=1,
-                metric="riemann", feature_kind="log-var",                
-                deconf=False, con_confounder_train=None, cat_confounder_train=None,
-                tan_model_keys=("logreg_en","svc_l2_sq"), final_svm_key="svc",                              
-                z_score_tan=0, haufe=False,                             
-                n_inner_splits=5, n_calls=25, n_initial=6, random_state=0):
+# def TSSF_select(covs, labels, train_data, a_label, b_label, n=1,
+#                 metric="riemann", feature_kind="log-var",                
+#                 deconf=False, con_confounder_train=None, cat_confounder_train=None,
+#                 tan_model_keys=("logreg_en","svc_l2_sq"), final_svm_key="svc",                              
+#                 z_score_tan=0, haufe=False,                             
+#                 n_inner_splits=5, n_calls=25, n_initial=6, random_state=0):
     
+#     C_grid = np.logspace(-6, 3, 8)
+
+#     skf = StratifiedKFold(n_splits=n_inner_splits, shuffle=True, random_state=random_state)
+
+#     def _fit_filters(covs_tr, y_tr, model_key, params, con_tr=None, cat_tr=None):
+#         X_tr, _ = tangent_transform(covs_tr, metric=metric)
+#         if deconf: 
+#             X_tr = deconfound(X_tr, con_tr, cat_tr)
+#         if z_score_tan == 1:
+#             X_tr = StandardScaler(with_mean=True, with_std=False).fit_transform(X_tr)
+#         elif z_score_tan == 2:
+#             X_tr = StandardScaler(with_mean=True, with_std=True ).fit_transform(X_tr)
+
+#         make_clf = clf_dict[model_key]["make"]
+#         clf = make_clf(**params).fit(X_tr, y_tr)
+#         coef = np.atleast_2d(clf.coef_)
+        
+#         if coef.shape[1] != X_tr.shape[1]:
+#             coef = coef.T
+
+#         if haufe:
+#             coef = haufe_transform(X_tr, coef.T, method="basic")
+
+#         boundary = unupper(np.atleast_2d(coef))[0, :, :]
+#         _, V = eigh(boundary)                      # ascending eigs
+
+#         if a_label < b_label:
+#             B, A = V[:, -n:], V[:, :n]
+#         else:
+#             A, B = V[:, -n:], V[:, :n]
+        
+#         return np.concatenate((B, A), axis=1)
+
+#     def _fold_confs(idx):
+#         con = None if con_confounder_train is None else con_confounder_train.iloc[idx]
+#         cat = None if cat_confounder_train is None else cat_confounder_train.iloc[idx]
+#         return con, cat
+
+#     def _score_with_C(tr_idx, val_idx, V_filt):
+#         Xtr, Xval = feature_generation([train_data[i] for i in tr_idx], [train_data[i] for i in val_idx], V_filt, method=feature_kind, metric=metric)
+#         if deconf:
+#             ctr, cta = _fold_confs(tr_idx)
+#             cvr, cva = _fold_confs(val_idx)
+#             Xtr, Xval = deconfound(Xtr, ctr, cta, X_test=Xval, con_confounder_test=cvr, cat_confounder_test=cva)
+#         ytr, yval = labels[tr_idx], labels[val_idx]
+
+#         make_final = clf_dict[final_svm_key]["make"]
+#         best, bestC = -np.inf, None
+#         for C in C_grid:
+#             mdl = make_final(C=C)
+#             # TODO should i z score here? 
+#             out = linear_classifier(Xtr, ytr, Xval, yval, clfs_list=[mdl], z_score=0)
+#             yhat = next(iter(out.values()))['predictions']
+#             # TODO 
+#             s =  balanced_accuracy_score(yval, yhat)
+#             # s = f1_score(yval, yhat, average="macro")
+#             if s > best: 
+#                 best = s
+#         return best
+
+#     def _tune_model(model_key):
+#         space = clf_dict[model_key]["space"]
+
+#         def _fold_eval(tr_idx, val_idx, params):
+#             con_tr, cat_tr = _fold_confs(tr_idx)
+#             V = _fit_filters(covs[tr_idx], labels[tr_idx], model_key, params, con_tr, cat_tr)
+#             return _score_with_C(tr_idx, val_idx, V)
+
+#         @use_named_args(space)
+#         def obj(**params):
+#             scores = Parallel(n_jobs=n_inner_splits)(
+#                 delayed(_fold_eval)(tr_idx, val_idx, params) for tr_idx, val_idx in skf.split(covs, labels)
+#             )
+#             return -float(np.mean(scores))
+
+#         res = gp_minimize(obj, space, n_calls=n_calls, n_initial_points=n_initial, random_state=random_state)
+#         theta = {dim.name: val for dim, val in zip(space, res.x)}
+#         scores = []
+#         for tr_idx, val_idx in skf.split(covs, labels):
+#             con_tr, cat_tr = _fold_confs(tr_idx)
+#             V = _fit_filters(covs[tr_idx], labels[tr_idx], model_key, theta, con_tr, cat_tr)
+#             score = _score_with_C(tr_idx, val_idx, V)
+#             scores.append(score)
+#         return {"key": model_key, "theta": theta, "cv": np.mean(np.array(scores))}
+
+
+#     results = Parallel(n_jobs=len(tan_model_keys))(
+#         delayed(_tune_model)(k) for k in tan_model_keys
+#     )
+#     cv_scores = np.array([r["cv"] for r in results])
+#     winner = results[np.argmax(cv_scores)]
+
+#     return {
+#         "winner_model": winner["key"],
+#         "winner_theta": winner["theta"],
+#     }
+
+def TSSF_select(covs, labels, train_data, a_label, b_label, n=1,
+                metric="riemann", feature_kind="log-var",
+                deconf=False, con_confounder_train=None, cat_confounder_train=None,
+                tan_model_keys=["svc_l2_sq"], final_svm_key="svc",
+                z_score_tan=0, haufe=False,
+                n_inner_splits=5, n_cpus=20, n_batches=10, random_state=0):
+
     C_grid = np.logspace(-6, 3, 8)
 
     skf = StratifiedKFold(n_splits=n_inner_splits, shuffle=True, random_state=random_state)
+    folds = list(skf.split(covs, labels))
 
-    def _fit_filters(covs_tr, y_tr, model_key, params, con_tr=None, cat_tr=None):
-        X_tr, _ = tangent_transform(covs_tr, metric=metric)
-        if deconf: 
-            X_tr = deconfound(X_tr, con_tr, cat_tr)
+    # ---------- cache per-fold X_tr (tangent) + optional deconf + z-score ----------
+    def _prepare_fold(tr_idx, val_idx):
+        # tangent on TRAIN only for fitting the boundary/filter
+        X_tr, _ = tangent_transform(covs[tr_idx], metric=metric)
+
+        if deconf:
+            ctr = None if con_confounder_train is None else con_confounder_train.iloc[tr_idx]
+            cta = None if cat_confounder_train is None else cat_confounder_train.iloc[tr_idx]
+            X_tr = deconfound(X_tr, ctr, cta)
+
         if z_score_tan == 1:
+            from sklearn.preprocessing import StandardScaler
             X_tr = StandardScaler(with_mean=True, with_std=False).fit_transform(X_tr)
         elif z_score_tan == 2:
-            X_tr = StandardScaler(with_mean=True, with_std=True ).fit_transform(X_tr)
+            from sklearn.preprocessing import StandardScaler
+            X_tr = StandardScaler(with_mean=True, with_std=True).fit_transform(X_tr)
 
-        make_clf = clf_dict[model_key]["make"]
-        clf = make_clf(**params).fit(X_tr, y_tr)
-        coef = np.atleast_2d(clf.coef_)
-        
-        if coef.shape[1] != X_tr.shape[1]:
-            coef = coef.T
+        return (X_tr, labels[tr_idx], tr_idx, val_idx)
 
-        if haufe:
-            coef = haufe_transform(X_tr, coef.T, method="basic")
-
-        boundary = unupper(np.atleast_2d(coef))[0, :, :]
-        _, V = eigh(boundary)                      # ascending eigs
-
-        if a_label < b_label:
-            B, A = V[:, -n:], V[:, :n]
-        else:
-            A, B = V[:, -n:], V[:, :n]
-        
-        return np.concatenate((B, A), axis=1)
-
+    # use threads to share memory, but cap BLAS threads
+    print("About to start")
+    prep_jobs = [delayed(_prepare_fold)(tr, val) for tr, val in folds]
+    fold_fit_cache = Parallel(n_jobs=min(n_inner_splits, n_cpus))(prep_jobs)
+    print("finished preparing fold")
+    # helpers for confounders on feature scoring
     def _fold_confs(idx):
         con = None if con_confounder_train is None else con_confounder_train.iloc[idx]
         cat = None if cat_confounder_train is None else cat_confounder_train.iloc[idx]
         return con, cat
 
-    def _score_with_C(tr_idx, val_idx, V_filt):
-        Xtr, Xval = feature_generation([train_data[i] for i in tr_idx], [train_data[i] for i in val_idx], V_filt, method=feature_kind, metric=metric)
+    # ---- fit filters given cached X_tr (fast; no tangent inside) ----
+    def _fit_filters_from_Xtr(X_tr, y_tr, model_key, params):
+        make_clf = clf_dict[model_key]["make"]
+        clf = make_clf(**params).fit(X_tr, y_tr)
+        coef = np.atleast_2d(clf.coef_)
+        if coef.shape[1] != X_tr.shape[1]:
+            coef = coef.T
+        if haufe:
+            coef = haufe_transform(X_tr, coef.T, method="basic")
+        boundary = unupper(np.atleast_2d(coef))[0, :, :]
+        _, V = eigh(boundary)  # ascending eigs
+        if a_label < b_label:
+            B, A = V[:, -n:], V[:, :n]
+        else:
+            A, B = V[:, -n:], V[:, :n]
+        return np.concatenate((B, A), axis=1)
+
+    # ---- score one (params, fold) by computing features then best C on final SVM ----
+    def _score_params_on_fold(params_dict, model_key, fold_item):
+        X_tr, y_tr, tr_idx, val_idx = fold_item
+        V_filt = _fit_filters_from_Xtr(X_tr, y_tr, model_key, params_dict)
+
+        # generate features from time-series using learned filters
+        Xtr_feat, Xval_feat = feature_generation(
+            [train_data[i] for i in tr_idx],
+            [train_data[i] for i in val_idx],
+            V_filt, method=feature_kind, metric=metric
+        )
+
+        # optional deconf for features (separate from deconf used for filter fitting)
         if deconf:
             ctr, cta = _fold_confs(tr_idx)
             cvr, cva = _fold_confs(val_idx)
-            Xtr, Xval = deconfound(Xtr, ctr, cta, X_test=Xval, con_confounder_test=cvr, cat_confounder_test=cva)
+            Xtr_feat, Xval_feat = deconfound(Xtr_feat, ctr, cta, X_test=Xval_feat, con_confounder_test=cvr, cat_confounder_test=cva)
+
         ytr, yval = labels[tr_idx], labels[val_idx]
 
+        # simple inner grid over C for the final SVM
         make_final = clf_dict[final_svm_key]["make"]
-        best, bestC = -np.inf, None
+        best = -np.inf
         for C in C_grid:
             mdl = make_final(C=C)
-            # TODO should i z score here? 
-            out = linear_classifier(Xtr, ytr, Xval, yval, clfs_list=[mdl], z_score=2)
+            # TODO should i z score here?
+            out = linear_classifier(Xtr_feat, ytr, Xval_feat, yval, clfs_list=[mdl], z_score=0)
             yhat = next(iter(out.values()))['predictions']
-            # TODO 
-            s =  balanced_accuracy_score(yval, yhat)
+            s = balanced_accuracy_score(yval, yhat)
             # s = f1_score(yval, yhat, average="macro")
-            if s > best: 
+            if s > best:
                 best = s
         return best
 
-    def _tune_model(model_key):
+    # ---- batched BO for a single tangent model key ----
+    def _tune_one_tangent_model(model_key):
         space = clf_dict[model_key]["space"]
+        batch_size = max(1, n_cpus // n_inner_splits)
+        opt = Optimizer(
+            dimensions=space, base_estimator="GP",
+            acq_func="EI", acq_optimizer="lbfgs",
+            random_state=random_state
+        )
+        best_params, best_score = None, -np.inf
 
-        def _fold_eval(tr_idx, val_idx, params):
-            con_tr, cat_tr = _fold_confs(tr_idx)
-            V = _fit_filters(covs[tr_idx], labels[tr_idx], model_key, params, con_tr, cat_tr)
-            return _score_with_C(tr_idx, val_idx, V)
+        for _ in range(n_batches):
+            X_batch = opt.ask(n_points=batch_size)
 
-        @use_named_args(space)
-        def obj(**params):
-            scores = Parallel(n_jobs=n_inner_splits)(
-                delayed(_fold_eval)(tr_idx, val_idx, params) for tr_idx, val_idx in skf.split(covs, labels)
+            # flatten (params × folds)
+            jobs = []
+            for x in X_batch:
+                params_dict = {space[i].name: x[i] for i in range(len(space))}
+                for fold_item in fold_fit_cache:
+                    jobs.append((params_dict, model_key, fold_item))
+
+            with threadpool_limits(limits=1):
+                fold_scores = Parallel(n_jobs=n_cpus, backend="loky")(
+                    delayed(_score_params_on_fold)(p, model_key, fi) for (p, _, fi) in jobs
+                )
+
+            # aggregate per-config scores
+            y_batch = []
+            for i in range(0, len(fold_scores), n_inner_splits):
+                mean_acc = float(np.mean(fold_scores[i:i+n_inner_splits]))
+                y_batch.append(-mean_acc)  # skopt minimizes
+
+            opt.tell(X_batch, y_batch)
+
+            # track best
+            for x, y in zip(X_batch, y_batch):
+                score = -y
+                if score > best_score:
+                    best_score = score
+                    best_params = {space[i].name: x[i] for i in range(len(space))}
+
+        # optional: recompute CV with best_params for reporting
+        with threadpool_limits(limits=1):
+            final_scores = Parallel(n_jobs=n_inner_splits)(
+                delayed(_score_params_on_fold)(best_params, model_key, fi) for fi in fold_fit_cache
             )
-            return -float(np.mean(scores))
+        return {"key": model_key, "theta": best_params, "cv": float(np.mean(final_scores))}
 
-        res = gp_minimize(obj, space, n_calls=n_calls, n_initial_points=n_initial, random_state=random_state)
-        theta = {dim.name: val for dim, val in zip(space, res.x)}
-        scores = []
-        for tr_idx, val_idx in skf.split(covs, labels):
-            con_tr, cat_tr = _fold_confs(tr_idx)
-            V = _fit_filters(covs[tr_idx], labels[tr_idx], model_key, theta, con_tr, cat_tr)
-            score = _score_with_C(tr_idx, val_idx, V)
-            scores.append(score)
-        return {"key": model_key, "theta": theta, "cv": np.mean(np.array(scores))}
-
-
-    results = Parallel(n_jobs=len(tan_model_keys))(
-        delayed(_tune_model)(k) for k in tan_model_keys
-    )
-    cv_scores = np.array([r["cv"] for r in results])
-    winner = results[np.argmax(cv_scores)]
-
-    return {
-        "winner_model": winner["key"],
-        "winner_theta": winner["theta"],
-    }
+    # evaluate candidate tangent models SEQUENTIALLY to avoid nested oversubscription
+    results = [_tune_one_tangent_model(k) for k in tan_model_keys]
+    winner = max(results, key=lambda r: r["cv"])
+    return {"winner_model": winner["key"], "winner_theta": winner["theta"]}
 
 def TSSF(covs, labels, clf_str="logreg_en",clf_params=None, metric="riemann", deconf=True, con_confounder_train=None, cat_confounder_train=None, z_score=2, haufe=True, visualize=False,output_dir="plots"):
 

@@ -1243,9 +1243,10 @@ def evaluate(data_set, labels, train_indx, test_indx, a_label, b_label, metric='
                            output_dir=output_dir)
     
     Class_Result = tangent_classification(Netmats_train, train_labels, Netmats_test, test_labels, 
-                                          clf_str='all', z_score=0, metric=metric, deconf=deconf, 
+                                          clf_str='svc_l2_sq', z_score=0, metric=metric, deconf=deconf, 
                                           con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, 
-                                          con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test)
+                                          con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,
+                                          n_inner_splits=5, n_cpus=n_workers, n_batches=10)
 
     t_test = tangent_t_test(Netmats_train, Netmats_test, test_labels, 
                                 alpha=alpha, paired=paired, permutations=permutations, metric=metric, deconf=deconf, 

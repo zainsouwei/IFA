@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 
 import warnings, logging, sklearn
 warnings.filterwarnings("ignore", category=sklearn.exceptions.ConvergenceWarning)
@@ -30,18 +31,13 @@ sys.path.append('/project/3022057.01/IFA/utils')
 # Import necessary modules
 from analysis import evaluate, compare
 from PCA import PPCA, migp
-from filters import orthonormalize_filters, save_brain
+from filters import orthonormalize_filters, save_brain, voxelwise_FKT
 from ICA import ICA
 from DualRegression import DualRegress
 from filters import TSSF_select, TSSF, FKT, evaluate_filters
 from tangent import tangent_classification
 from haufe import partial_filter_dual_regression
 from preprocessing import load_subject
-
-
-# End of save block
-from filters import voxelwise_FKT
-
 
 def highdim_fkt(outputfolder, voxel_filters_dir, train_paths, train_labels, a_label, b_label, mA, mB, batch_size=5,cifti=False):
     try:
@@ -419,10 +415,10 @@ def run_fold(outputfolder, fold):
             # Run tangent classification for measuring separability in parcellated space
             # TODO decide on z scoring here, gp opt for hyperparameter selection, and decide which classifiers
             tangent_class_metrics = tangent_classification(partial_train_covs, train_labels, partial_test_covs, test_labels, 
-                                clf_str='all', z_score=0, metric=metric, deconf=deconfound, 
+                                clf_str='svc_l2_sq', z_score=0, metric=metric, deconf=deconfound, 
                                 con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
                                 con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
-                            random_state=0, n_inner_splits=5,n_cpus=20, n_calls=25, n_initial=6)
+                            random_state=0, n_inner_splits=5,n_cpus=20, n_batches=10)
             # Save those tangent classification results to overall fold results directory
             with open(os.path.join(filters_dir, "tangent_class_metrics.pkl"), "wb") as f:
                 pickle.dump(_strip_preds(tangent_class_metrics), f)
@@ -448,8 +444,9 @@ def run_fold(outputfolder, fold):
                     sel = TSSF_select(partial_train_covs, train_labels, partial_train_data,
                                     a_label=a_label, b_label=b_label, n=n_filters_per_group, metric=metric, feature_kind="log-cov",          # or "log-var"
                                     deconf=deconfound, con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders,
-                                    tan_model_keys=("logreg_en","svc_l2_sq","svc_l1"), final_svm_key="svc",
-                                    z_score_tan=0, haufe=False, n_inner_splits=5, n_calls=25, n_initial=6, random_state=random_state,)
+                                    tan_model_keys=["svc_l2_sq"], final_svm_key="svc",
+                                    z_score_tan=0, haufe=False, 
+                                    n_inner_splits=5, n_cpus=20, n_batches=10, random_state=random_state,)
                     with open(sel_path, "w") as f:
                         json.dump(sel, f, indent=2)
                 # Fit filters with the selected model + BO-tuned params (still TRAIN only)

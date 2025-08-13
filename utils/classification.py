@@ -16,7 +16,7 @@ clf_dict = {
         "space": [Real(1e-6, 1e3, name="C", prior="log-uniform")]
 
     },
-    "svc_l2_sq": {                         #  L2-penalty, squared-hinge (default)
+    "svc_l2_sq": {                         #  L2-penalty, squared-hinge (default) fastest and most robust
         "make": partial(LinearSVC,
                         penalty="l2",
                         loss="squared_hinge",
@@ -45,7 +45,7 @@ clf_dict = {
     "logreg_l2": {                         #  pure L2
         "make": partial(LogisticRegression,
                         penalty="l2",
-                        solver="saga",
+                        solver='lbfgs',
                         class_weight="balanced",
                         ),
         "space": [Real(1e-6, 1e3, name="C", prior="log-uniform")]
@@ -67,7 +67,7 @@ clf_dict = {
                         ),
         "space": [
             Real(1e-6, 1e3, name="C",        prior="log-uniform"),
-            Real(1e-3,   1.0-1e-3, name="l1_ratio", prior="uniform")
+            Real(1e-3,   1.0-(1e-3), name="l1_ratio", prior="uniform")
         ]
     },
 }
