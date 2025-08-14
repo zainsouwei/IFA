@@ -197,7 +197,7 @@ def var_diff(train_data, train_covs, train_labels, test_data, test_labels, a_lab
     # _, filters_all = FKT(train_covs, train_labels, a_label=a_label, b_label=b_label, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, visualize=False, output_dir=None)
     # Initialize list to store results (accuracy and distance)
     results = []
-    for n in range(1, filters_all.shape[1] // 2 + 1): 
+    for n in range(1, train_covs.shape[-1] // 2 + 1): 
         
         # 1. Select hyperparameters for TSSF
         sel = TSSF_select(train_covs, train_labels, train_data,
