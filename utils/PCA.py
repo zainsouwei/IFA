@@ -351,7 +351,8 @@ def PPCA(data, filters=None, threshold=1.6, niters=10, n=-1):
         print(n_prev, n_components)
 
         # Estimate noise and residual standard deviation
-        est_noise = data_gpu - (data_gpu @ torch.linalg.pinv(basis_gpu.astype(np.float64, copy=False))) @ basis_gpu
+        basis_gpu = basis_gpu.to(dtype=data_gpu.dtype, device=data_gpu.device)
+        est_noise = data_gpu - (data_gpu @ torch.linalg.pinv(basis_gpu)) @ basis_gpu
         est_residual_std = torch.std(est_noise,dim=0,correction=torch.linalg.matrix_rank(basis_gpu))
         del est_noise
         torch.cuda.empty_cache()

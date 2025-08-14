@@ -26,7 +26,7 @@ import pickle
 sys.path.append('/utils')
 
 from tangent import tangent_transform, tangent_classification
-from filters import feature_generation, FKT, test_filters
+from filters import feature_generation, FKT, test_filters, TSSF_select
 from regression import deconfound
 from classification import clf_dict
 
@@ -192,13 +192,38 @@ def tangent_t_test(train_covs, test_covs, test_labels, alpha=.05, permutations=F
 
 # TODO decide on z scoring projection 
 # https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=5662067
-def var_diff(train_data, train_covs, train_labels, test_data, test_labels, a_label, b_label, metric='riemann', method='log-var', basis="ICA", deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None,output_dir="path"):
+def var_diff(train_data, train_covs, train_labels, test_data, test_labels, a_label, b_label, metric='riemann', method='log-var', basis="ICA", deconf=False, con_confounder_train=None, cat_confounder_train=None, con_confounder_test=None, cat_confounder_test=None,output_dir="path",random_state=0,n_cpus=20):
 
-    _, filters_all = FKT(train_covs, train_labels, a_label=a_label, b_label=b_label, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, visualize=False, output_dir=None)
-
+    # _, filters_all = FKT(train_covs, train_labels, a_label=a_label, b_label=b_label, metric=metric, deconf=deconf, con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, visualize=False, output_dir=None)
     # Initialize list to store results (accuracy and distance)
     results = []
     for n in range(1, filters_all.shape[1] // 2 + 1): 
+        
+        # 1. Select hyperparameters for TSSF
+        sel = TSSF_select(train_covs, train_labels, train_data,
+            a_label=a_label, b_label=b_label, n=n,
+            metric=metric, feature_kind=method,
+            deconf=deconf,
+            con_confounder_train=con_confounder_train,
+            cat_confounder_train=cat_confounder_train,
+            tan_model_keys=["svc_l2_sq"],  # adjust if needed
+            final_svm_key="svc",
+            z_score_tan=0, haufe=False,
+            n_inner_splits=5, n_cpus=n_cpus, n_batches=5,
+            random_state=random_state
+        )
+
+        # 2. Fit filters with the selected model + tuned params
+        _, filters_all, _, _ = TSSF(
+            train_covs, train_labels,
+            clf_str=sel["winner_model"], clf_params=sel["winner_theta"],
+            metric=metric, deconf=deconf,
+            con_confounder_train=con_confounder_train,
+            cat_confounder_train=cat_confounder_train,
+            z_score=0, haufe=False, visualize=False,
+            output_dir=output_dir
+        )
+
         filters = np.hstack([filters_all[:, :n], filters_all[:, -n:]])  # Select top and bottom n eigenvectors
         train_features, test_features = feature_generation(train_data,test_data, filters,method=method,metric=metric,cov="oas")
         if deconf:
@@ -1234,13 +1259,13 @@ def evaluate(data_set, labels, train_indx, test_indx, a_label, b_label, metric='
                            metric=metric, method='log-var', basis=basis, deconf=deconf, 
                            con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, 
                            con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,
-                           output_dir=output_dir)
+                           output_dir=output_dir, random_state=random_seed, n_cpus=n_workers)
     
     cov_results = var_diff(A_train, Netmats_train, train_labels, A_test, test_labels, a_label, b_label,
                            metric=metric, method='log-cov', basis=basis, deconf=deconf, 
                            con_confounder_train=con_confounder_train, cat_confounder_train=cat_confounder_train, 
                            con_confounder_test=con_confounder_test, cat_confounder_test=cat_confounder_test,
-                           output_dir=output_dir)
+                           output_dir=output_dir, random_state=random_seed, n_cpus=n_workers)
     
     Class_Result = tangent_classification(Netmats_train, train_labels, Netmats_test, test_labels, 
                                           clf_str='svc_l2_sq', z_score=0, metric=metric, deconf=deconf, 

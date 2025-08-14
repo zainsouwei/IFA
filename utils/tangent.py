@@ -124,30 +124,3 @@ def tangent_classification(covs_train, y_train, covs_test, y_test, clf_str="svc_
     # Final outer eval
     summary = linear_classifier(X_train, y_train, X_test, y_test, clfs_list=models, z_score=z_score)
     return summary
-
-
-# def tune_model(model_key):
-#     spec     = clf_dict[model_key]
-#     space    = spec["space"]
-#     make_clf = spec["make"]
-
-#     @use_named_args(space)
-#     def _objective(**params):
-#         # score one cached fold
-#         def _score(cache_item):
-#             Xtr, ytr, Xval, yval = cache_item
-#             mdl = make_clf(**params)
-#             out = linear_classifier(Xtr, ytr, Xval, yval, clfs_list=[mdl], z_score=z_score)
-#             yhat = next(iter(out.values()))['predictions']
-#             return balanced_accuracy_score(yval, yhat)
-
-#         # Use threads to avoid pickling big arrays; cap BLAS threads to 1
-#         scores = Parallel(n_jobs=n_inner_splits)(
-#             delayed(_score)(cache) for cache in fold_cache
-#         )
-#         return -float(np.mean(scores))
-
-#     res = gp_minimize(_objective, space, n_calls=n_calls, n_initial_points=n_initial,
-#                         random_state=random_state, acq_optimizer="lbfgs")
-#     best_params = {dim.name: val for dim, val in zip(space, res.x)}
-#     return make_clf(**best_params)
