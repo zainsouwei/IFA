@@ -17,7 +17,7 @@ import seaborn as sns
 from PIL import Image
 import cairosvg
 import io
-
+import json
 
 def plot_reconstruction_kde(
     condition_paths: List[str],
@@ -1378,3 +1378,202 @@ def compose_filter_2d_panels(
     plt.show()
 
     return fig, axes, missing
+
+def run_full_ifa_report(
+    *,
+    condition_paths,
+    condition_labels,
+    pipelines=("GICA", "parcel_IFA", "voxel_IFA"),
+    pipeline_labels=("GICA", "IFA (Parcellated)", "IFA (Grayordinate)"),
+    folds=(0,1,2,3,4),
+    nPCA=8,
+    # optional extras
+    nPCA_all=None,                  # e.g. [3, 8, 13, 23, 33, 48]; if None, skip model-order plot
+    feature_kind="log-var",         # for compose_filter_2d_panels
+    single_fold=0,              # which fold to show in the T grid figure
+    bland_altman_mode="log_odds",   # "raw", "log_odds", "sym_diff", "sym_error"
+    abr_min_total_pct=5.0,
+    alpha=0.05,
+    out_dir="ifa_full_report"
+):
+    """
+    Run the complete visualization + summary pipeline and keep every artifact
+    under one root output directory.
+
+    Returns
+    -------
+    outputs: dict  # paths and returns for all called functions
+    """
+    root = Path(out_dir)
+    figs_dir = root / "figs"
+    csv_dir = root / "csv"
+    figs_dir.mkdir(parents=True, exist_ok=True)
+    csv_dir.mkdir(parents=True, exist_ok=True)
+
+    outputs = {"root": str(root), "figs": {}, "csv": {}, "returns": {}}
+
+    # 1) Filter 2D panels (FKT 2D)
+    comp2d_path = figs_dir / f"composite_{feature_kind}_2d.svg"
+    fig, axes, missing = compose_filter_2d_panels(
+        condition_paths=condition_paths,
+        condition_labels=condition_labels,
+        pipelines=pipelines,
+        pipeline_labels=pipeline_labels,
+        fold=single_fold,              # you can change to a loop if you want per-fold grids
+        nPCA=nPCA,
+        feature_kind=feature_kind,
+        panel_width_px=400,
+        panel_height_px=350,
+        dpi=150,
+        save_path=str(comp2d_path)
+    )
+    outputs["figs"]["composite_2d"] = str(comp2d_path)
+    outputs["returns"]["compose_filter_2d_panels"] = {"missing": missing}
+
+    # 2) Tangent T-values grid (one fold)
+    tvals_grid_path = figs_dir / "tangent_tvals.svg"
+    fig, axes, tval_mats = plot_tangent_tvalues_grid(
+        condition_paths=condition_paths,
+        condition_labels=condition_labels,
+        pipelines=pipelines,
+        pipeline_labels=pipeline_labels,
+        fold=single_fold,
+        nPCA=nPCA,
+        save_path=str(tvals_grid_path)
+    )
+    outputs["figs"]["tangent_tvals_grid"] = str(tvals_grid_path)
+    outputs["returns"]["plot_tangent_tvalues_grid"] = {"keys": list(tval_mats.keys())}
+
+    # 3) Connectivity + accuracy summary (and CSV)
+    summary = summarize_connectivity_and_accuracy(
+        condition_paths=condition_paths,
+        pipelines=pipelines,
+        folds=folds,
+        nPCA=nPCA,
+        verbose=False,
+        as_percent=True
+    )
+    conn_csv = csv_dir / "connectivity_accuracy_summary.json"
+    conn_flat_csv = csv_dir / "connectivity_accuracy_summary.csv"
+    # write JSON
+    conn_csv.write_text(json.dumps(summary, indent=2))
+    # and a flat CSV for convenience
+    flat_rows = []
+    for cond, pdict in summary.items():
+        for pipe, stats in pdict.items():
+            row = {"condition_path": cond, "pipeline": pipe, **stats}
+            flat_rows.append(row)
+    pd.DataFrame(flat_rows).to_csv(conn_flat_csv, index=False)
+    outputs["csv"]["connectivity_accuracy_json"] = str(conn_csv)
+    outputs["csv"]["connectivity_accuracy_csv"] = str(conn_flat_csv)
+
+    # 4) Bland–Altman grid
+    ba_svg = figs_dir / f"ifa_bland_altman_{bland_altman_mode}.svg"
+    fig, axs = plot_ifa_bland_altman_grid(
+        condition_paths=condition_paths,
+        condition_labels=condition_labels,
+        pipelines=pipelines,
+        pipeline_labels=pipeline_labels,
+        folds=folds,
+        nPCA=nPCA,
+        mode=bland_altman_mode,
+        share_axes=False,
+        save_svg_path=str(ba_svg),
+        verbose=False,
+    )
+    outputs["figs"]["bland_altman"] = str(ba_svg)
+
+    # 5) Spatial comparisons (3 modes) — each gets its own subdir within root
+    out_agg_first = root / "compare_aggregate_first"
+    out_comp_first = root / "compare_compare_first"
+    out_foldwise  = root / "compare_foldwise"
+
+    compare_pipelines_spatial(
+        condition_paths=condition_paths,
+        condition_labels=condition_labels,
+        pipelines=pipelines,
+        pipeline_labels=pipeline_labels,
+        nPCA=nPCA,
+        folds=folds,
+        compare_mode="global",
+        aggregation="aggregate_before_compare",
+        min_join=False,
+        abr_min_total_pct=abr_min_total_pct,
+        out_dir=str(out_agg_first)
+    )
+    outputs["figs"]["compare_aggregate_first"] = str(out_agg_first)
+
+    compare_pipelines_spatial(
+        condition_paths=condition_paths,
+        condition_labels=condition_labels,
+        pipelines=pipelines,
+        pipeline_labels=pipeline_labels,
+        nPCA=nPCA,
+        folds=folds,
+        compare_mode="global",
+        aggregation="aggregate_after_compare",
+        min_join=False,
+        abr_min_total_pct=abr_min_total_pct,
+        out_dir=str(out_comp_first)
+    )
+    outputs["figs"]["compare_compare_first"] = str(out_comp_first)
+
+    compare_pipelines_spatial(
+        condition_paths=condition_paths,
+        condition_labels=condition_labels,
+        pipelines=pipelines,
+        pipeline_labels=pipeline_labels,
+        nPCA=nPCA,
+        folds=folds,
+        compare_mode="foldwise",
+        abr_min_total_pct=abr_min_total_pct,
+        out_dir=str(out_foldwise)
+    )
+    outputs["figs"]["compare_foldwise"] = str(out_foldwise)
+
+    # 6) Spatial tests summary (prints + returns); also write a CSV
+    spat_summary, _ = summarize_spatial_tests(
+        condition_paths=condition_paths,
+        condition_labels=condition_labels,
+        pipelines=pipelines,
+        nPCA=nPCA,
+        folds=list(folds),
+        alpha=alpha,
+    )
+    spat_json = csv_dir / "spatial_tests_summary.json"
+    spat_json.write_text(json.dumps(spat_summary, indent=2))
+    outputs["csv"]["spatial_tests_summary_json"] = str(spat_json)
+
+    # 7) Accuracy vs model order (optional; only if nPCA_all provided)
+    if nPCA_all is not None:
+        acc_model_svg = figs_dir / "accuracy_vs_model_order.svg"
+        fig, axes, stats = plot_accuracy_vs_model_order_robust(
+            condition_paths=condition_paths,
+            condition_labels=condition_labels,
+            nPCA_all=nPCA_all,
+            pipelines=pipelines,
+            pipeline_labels=pipeline_labels,
+            folds=list(folds),
+            save_path=str(acc_model_svg),
+        )
+        outputs["figs"]["accuracy_vs_model_order"] = str(acc_model_svg)
+        outputs["returns"]["accuracy_vs_model_order_stats"] = stats
+
+    # 8) Reconstruction KDE (per condition, pooled across folds/pipelines)
+    recon_svg = figs_dir / "reconstruction_kde.svg"
+    fig, axes, pooled = plot_reconstruction_kde(
+        condition_paths=condition_paths,
+        condition_labels=condition_labels,
+        pipelines=pipelines,
+        pipeline_labels=pipeline_labels,
+        nPCA=nPCA,
+        folds=list(folds),
+        save_path=str(recon_svg),
+    )
+    outputs["figs"]["reconstruction_kde"] = str(recon_svg)
+    outputs["returns"]["reconstruction_pooled"] = pooled
+
+    # final index of artifacts
+    index_json = root / "artifact_index.json"
+    index_json.write_text(json.dumps(outputs, indent=2))
+    return outputs
