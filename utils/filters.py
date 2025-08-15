@@ -234,10 +234,9 @@ def TSSF_select(covs, labels, train_data, a_label, b_label, n=1,
         return (X_tr, labels[tr_idx], tr_idx, val_idx)
 
     # use threads to share memory, but cap BLAS threads
-    print("About to start")
     prep_jobs = [delayed(_prepare_fold)(tr, val) for tr, val in folds]
     fold_fit_cache = Parallel(n_jobs=min(n_inner_splits, n_cpus))(prep_jobs)
-    print("finished preparing fold")
+
     # helpers for confounders on feature scoring
     def _fold_confs(idx):
         con = None if con_confounder_train is None else con_confounder_train.iloc[idx]

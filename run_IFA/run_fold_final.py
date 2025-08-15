@@ -592,7 +592,7 @@ def run_fold(outputfolder, fold):
                                         permutations=10000, deconf=deconfound, 
                                         con_confounder_train=train_con_confounders, cat_confounder_train=train_cat_confounders, 
                                         con_confounder_test=test_con_confounders, cat_confounder_test=test_cat_confounders,
-                                        output_dir=nPCA_results_maps, random_seed=random_state, basis=f"{map_i}", n_workers=20)           
+                                        output_dir=nPCA_results_maps, random_seed=random_state, basis=f"{map_i}", n_workers=17)           
 
             results.append(result_i)
             # Remove the temporary variables and force garbage collection.
