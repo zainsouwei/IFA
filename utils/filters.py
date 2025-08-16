@@ -855,6 +855,7 @@ def oas_estimator(sample_covariance,n_samples, shrink=None):
 
 def Large_FKT(X1, X2, n, LOBPCG=True,num_simulations=1000, log=False,largest=True,reg=False):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"[{__name__}] Using device: {device}")
     if LOBPCG:
         try:
             if reg:

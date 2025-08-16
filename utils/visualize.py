@@ -19,6 +19,34 @@ import cairosvg
 import io
 import json
 
+import math
+
+def _json_safe(obj):
+    """Recursively convert scientific-Python objects to JSON-safe types."""
+    # numpy scalars
+    if isinstance(obj, np.generic):
+        return obj.item()
+    # numpy arrays
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    # pathlib Path
+    if isinstance(obj, Path):
+        return str(obj)
+    # pandas
+    if isinstance(obj, pd.DataFrame):
+        return {c: _json_safe(obj[c].values) for c in obj.columns}
+    if isinstance(obj, pd.Series):
+        return _json_safe(obj.values)
+    # containers
+    if isinstance(obj, dict):
+        return {str(k): _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        return [_json_safe(v) for v in obj]
+    # floats that might be nan/inf
+    if isinstance(obj, float) and not math.isfinite(obj):
+        return None
+    return obj
+
 def plot_reconstruction_kde(
     condition_paths: List[str],
     condition_labels: List[str],
@@ -514,8 +542,7 @@ def compare_pipelines_spatial(
     views=("lateral","ventral","posterior","lateral"),
     out_dir="ifa_gica_outputs",
     abr_min_total_pct=1.0,            # threshold for showing bars (sum A/B/shared >= this %)
-    dpi=300
-):
+    dpi=300):
     """
     One-stop function:
       - Pairwise brain overlays of significant vertices (A only / B only / shared)
@@ -1379,6 +1406,26 @@ def compose_filter_2d_panels(
 
     return fig, axes, missing
 
+def flatten_spatial_summary_for_io(spat_summary):
+    """
+    Convert { (cond, pipe): {...} } -> list-of-rows with plain fields,
+    so it’s safe for JSON/CSV.
+    """
+    rows = []
+    for (cond_label, pipeline), block in spat_summary.items():
+        rows.append({
+            "condition": cond_label,
+            "pipeline": pipeline,
+            "folds_used": block.get("folds_used", None),
+            # keep the raw lists so you still have fold-level values
+            "std_n_sig": block.get("std", {}).get("n_sig", []),
+            "std_logp_sum": block.get("std", {}).get("logp_sum", []),
+            "discrim_n_sig": block.get("discrim", {}).get("n_sig", []),
+            "discrim_logp_sum": block.get("discrim", {}).get("logp_sum", []),
+        })
+    return rows
+
+
 def run_full_ifa_report(
     *,
     condition_paths,
@@ -1394,8 +1441,7 @@ def run_full_ifa_report(
     bland_altman_mode="log_odds",   # "raw", "log_odds", "sym_diff", "sym_error"
     abr_min_total_pct=5.0,
     alpha=0.05,
-    out_dir="ifa_full_report"
-):
+    out_dir="ifa_full_report"):
     """
     Run the complete visualization + summary pipeline and keep every artifact
     under one root output directory.
@@ -1488,7 +1534,7 @@ def run_full_ifa_report(
     out_comp_first = root / "compare_compare_first"
     out_foldwise  = root / "compare_foldwise"
 
-    compare_pipelines_spatial(
+    _ = compare_pipelines_spatial(
         condition_paths=condition_paths,
         condition_labels=condition_labels,
         pipelines=pipelines,
@@ -1499,11 +1545,10 @@ def run_full_ifa_report(
         aggregation="aggregate_before_compare",
         min_join=False,
         abr_min_total_pct=abr_min_total_pct,
-        out_dir=str(out_agg_first)
-    )
+        out_dir=str(out_agg_first))
     outputs["figs"]["compare_aggregate_first"] = str(out_agg_first)
 
-    compare_pipelines_spatial(
+    _ = compare_pipelines_spatial(
         condition_paths=condition_paths,
         condition_labels=condition_labels,
         pipelines=pipelines,
@@ -1514,11 +1559,10 @@ def run_full_ifa_report(
         aggregation="aggregate_after_compare",
         min_join=False,
         abr_min_total_pct=abr_min_total_pct,
-        out_dir=str(out_comp_first)
-    )
+        out_dir=str(out_comp_first))
     outputs["figs"]["compare_compare_first"] = str(out_comp_first)
 
-    compare_pipelines_spatial(
+    _ = compare_pipelines_spatial(
         condition_paths=condition_paths,
         condition_labels=condition_labels,
         pipelines=pipelines,
@@ -1531,7 +1575,7 @@ def run_full_ifa_report(
     )
     outputs["figs"]["compare_foldwise"] = str(out_foldwise)
 
-    # 6) Spatial tests summary (prints + returns); also write a CSV
+    # 6) Spatial tests summary (prints + returns); also write JSON+CSV safely
     spat_summary, _ = summarize_spatial_tests(
         condition_paths=condition_paths,
         condition_labels=condition_labels,
@@ -1540,9 +1584,16 @@ def run_full_ifa_report(
         folds=list(folds),
         alpha=alpha,
     )
+
+    spat_rows = flatten_spatial_summary_for_io(spat_summary)
+
     spat_json = csv_dir / "spatial_tests_summary.json"
-    spat_json.write_text(json.dumps(spat_summary, indent=2))
+    spat_csv  = csv_dir / "spatial_tests_summary.csv"
+    spat_json.write_text(json.dumps(spat_rows, indent=2))
+    pd.DataFrame(spat_rows).to_csv(spat_csv, index=False)
+
     outputs["csv"]["spatial_tests_summary_json"] = str(spat_json)
+    outputs["csv"]["spatial_tests_summary_csv"]  = str(spat_csv)
 
     # 7) Accuracy vs model order (optional; only if nPCA_all provided)
     if nPCA_all is not None:
@@ -1573,7 +1624,9 @@ def run_full_ifa_report(
     outputs["figs"]["reconstruction_kde"] = str(recon_svg)
     outputs["returns"]["reconstruction_pooled"] = pooled
 
-    # final index of artifacts
+    # spatial tests summary
     index_json = root / "artifact_index.json"
-    index_json.write_text(json.dumps(outputs, indent=2))
+    spat_json.write_text(json.dumps(_json_safe(spat_rows), indent=2))
+    index_json.write_text(json.dumps(_json_safe(outputs), indent=2))
+
     return outputs

@@ -13,7 +13,6 @@ import pandas as pd
 import numpy as np
 import argparse
 import subprocess
-import time
 import pickle
 import hcp_utils as hcp
 from pyriemann.estimation import Covariances
@@ -64,7 +63,7 @@ def highdim_fkt(outputfolder, voxel_filters_dir, train_paths, train_labels, a_la
                         cov_method='svd',outputfolder=voxel_filters_dir, save=False, save_img=cifti)
 
     except Exception as e:
-        print(f"Error in run_pca: {e}", flush=True)
+        print(f"Error in run_voxel_fkt: {e}", flush=True)
         import traceback
         traceback.print_exc()
         # Exit with non-zero code so SLURM knows the job failed
@@ -264,6 +263,7 @@ def run_fold(outputfolder, fold):
     deconfound = settings["deconfound"]
     paired = settings["paired"]
     cifti = settings["cifti"]
+    use_gpu = settings["gpu"]
 
     # Load pickle files
     with open(os.path.join(outputfolder, "paths.pkl"), "rb") as f:
@@ -344,14 +344,36 @@ def run_fold(outputfolder, fold):
 
     # Voxel FKT
     voxel_filters_path = os.path.join(voxel_filters_dir, "filters.npy")
+    job_id = None
+    voxel_loaded = False
     if os.path.exists(voxel_filters_path):
         print(f"[cache] Loading voxel filters from {voxel_filters_path}")
+        voxel_filters = np.load(voxel_filters_path)
+        voxel_loaded = True
     else:
         print("[run] voxelwise FKT")
         # TODO check batch size
         # Function save voxel level filters instead of returning
-        highdim_fkt(outputfolder, voxel_filters_dir, train_paths, train_labels, a_label, b_label, mA,mB, batch_size=1,cifti=cifti)
-    voxel_filters = np.load(voxel_filters_path)
+        if use_gpu:
+            print("Submitting Voxel FKT to GPU")
+            vfkt_script = "/project/3022057.01/IFA/run_IFA/run_voxel_fkt.sh"
+            vfkt_command = [
+                "sbatch",
+                "--output", os.path.join(voxel_filters_dir, "vfkt-%j.out"),
+                "--error", os.path.join(voxel_filters_dir, "vfkt-%j.err"),
+                vfkt_script,
+                outputfolder, fold_output_dir, voxel_filters_dir
+            ]
+            vfkt_process = subprocess.run(vfkt_command, capture_output=True, text=True)
+            if vfkt_process.returncode != 0:
+                print(f"Error submitting VFKT job: {vfkt_process.stderr}")
+                return
+            job_id = vfkt_process.stdout.strip().split()[-1]
+            print(f"VFKT job submitted successfully with job ID: {job_id}")
+        else:
+            highdim_fkt(outputfolder, voxel_filters_dir, train_paths, train_labels, a_label, b_label, mA,mB, batch_size=1,cifti=cifti)
+            voxel_filters = np.load(voxel_filters_path)
+            voxel_loaded = True
 
 
     # Parcel FKT
@@ -487,6 +509,13 @@ def run_fold(outputfolder, fold):
         filtersB_transform = np.load(B_haufe_path)
         parcelvoxel_filters = np.load(parcelvoxel_filters_path)
 
+    if use_gpu and not voxel_loaded:
+        # Wait for voxel FKT job completion so can read in voxel level filters
+        if not check_job_completion(job_id):
+            print(f"voxel FKT  job {job_id} did not complete successfully.")
+            return
+        print(f"voxel FKT  job {job_id} completed successfully.")
+        voxel_filters = np.load(voxel_filters_path)
 
     # Run MIGP
     # Need 3 MIGPs: one for GICA (full data), one for parcel IFA (residualized on parcel discrim), one for voxel IFA (residualized on voxel discrim)
